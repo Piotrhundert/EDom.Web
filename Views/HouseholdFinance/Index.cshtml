@@ -1,0 +1,283 @@
+@using EDom.Domain.HouseholdFinance
+@using EDom.SharedKernel.Values
+@model HouseholdFinancePageViewModel
+@{
+    ViewData["Title"] = "Finanse domowe";
+    string Fmt(long minor, string currency = "PLN") => $"{new Money(minor, currency).ToMajor():N2} {currency}";
+    decimal Major(long minor, string currency = "PLN") => new Money(minor, currency).ToMajor();
+    var openObligations = Model.Overview.Obligations.Where(x => x.RemainingMinor > 0).ToArray();
+    var pendingSubmissions = Model.Overview.PaymentSubmissions.Where(x => x.Status == SubmissionStatuses.Pending).ToArray();
+    var openInvoices = Model.Overview.Invoices.Where(x => x.RemainingMinor > 0).ToArray();
+    var actionableClaims = Model.Overview.Claims.Where(x => x.Status is ClaimStatuses.Approved or ClaimStatuses.PartiallyApproved).ToArray();
+}
+
+<section class="hero">
+    <div>
+        <div class="eyebrow">Wspólny rachunek gospodarstwa</div>
+        <h1>Finanse domowe</h1>
+        <p>Centralny ledger bank/gotówka, obowiązkowe wpłaty, faktury, roszczenia za koszty opłacone prywatnie i jawne korekty. Prywatne rachunki domowników pozostają poza tym modułem.</p>
+    </div>
+    <div class="status-pill">PKG-008</div>
+</section>
+
+@if (TempData["Error"] is string error) { <div class="error-box">@error</div> }
+@if (TempData["Success"] is string success)
+{
+    <div class="info-box">@success</div>
+}
+
+<section class="panel">
+    <h2>Rachunek domowy</h2>
+    @if (Model.CanManage)
+    {
+        <div class="stats-grid">
+            <div class="stat-card"><span>Bank</span><strong>@Fmt(Model.Overview.Ledger.BankBalanceMinor, Model.Overview.Ledger.CurrencyCode)</strong></div>
+            <div class="stat-card"><span>Gotówka</span><strong>@Fmt(Model.Overview.Ledger.CashBalanceMinor, Model.Overview.Ledger.CurrencyCode)</strong></div>
+            <div class="stat-card"><span>Łącznie</span><strong>@Fmt(Model.Overview.Ledger.TotalBalanceMinor, Model.Overview.Ledger.CurrencyCode)</strong></div>
+        </div>
+        <p class="muted">Saldo jest wyliczane wyłącznie z zatwierdzonych LedgerEntry. Zgłoszenie wpłaty nie zmienia salda przed akceptacją.</p>
+    }
+    else
+    {
+        <p class="muted">W tym widoku widzisz własne należności, wpłaty i zgłoszenia. Szczegółowe saldo bank/gotówka rachunku domowego pozostaje w zakresie administracyjnym.</p>
+    }
+</section>
+
+<section class="panel">
+    <h2>Należności i obowiązkowe wpłaty</h2>
+    @if (Model.Overview.Obligations.Count == 0)
+    {
+        <p class="muted">Brak należności.</p>
+    }
+    else
+    {
+        <table>
+            <thead><tr><th>Osoba</th><th>Okres</th><th>Pierwotnie</th><th>Korekty</th><th>Wpłacono</th><th>Pozostało</th><th>Termin</th><th>Status</th></tr></thead>
+            <tbody>
+            @foreach (var x in Model.Overview.Obligations)
+            {
+                <tr>
+                    <td>@x.PersonName</td><td>@x.PeriodKey</td><td>@Fmt(x.OriginalAmountMinor, x.CurrencyCode)</td>
+                    <td>@Fmt(x.AdjustmentsMinor, x.CurrencyCode)</td><td>@Fmt(x.PaidMinor, x.CurrencyCode)</td>
+                    <td>@Fmt(x.RemainingMinor, x.CurrencyCode)</td><td>@x.DueDate</td><td>@x.Status</td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    }
+
+    @if (Model.CanManage)
+    {
+        <details>
+            <summary>Dodaj regułę wpłaty</summary>
+            <form asp-action="Rule" method="post" class="form-grid">
+                @Html.AntiForgeryToken()
+                <label>Osoba<select name="PersonId">@foreach (var p in Model.People){<option value="@p.Id">@p.Name</option>}</select></label>
+                <label>Metoda<select name="Method"><option value="Fixed">Stała kwota</option><option value="Percent">Procent wynagrodzenia</option><option value="FixedPlusPercent">Kwota + procent</option></select></label>
+                <label>Kwota stała<input name="FixedAmount" type="number" step="0.01" min="0" /></label>
+                <label>Procent<input name="Percent" type="number" step="0.01" min="0" max="100" /></label>
+                <label>Termin<select name="DuePolicyType"><option value="FixedDay">Stały dzień miesiąca</option><option value="IncomeOffset">Dni od faktycznej wypłaty</option></select></label>
+                <label>Dzień / liczba dni<input name="DueDayOrOffset" type="number" value="10" min="0" max="365" /></label>
+                <label>Od<input name="ValidFrom" type="date" value="@DateOnly.FromDateTime(DateTime.Today).ToString("yyyy-MM-dd")" /></label>
+                <label>Do<input name="ValidTo" type="date" /></label>
+                <button class="btn" type="submit">Dodaj regułę</button>
+            </form>
+        </details>
+
+        @if (Model.Overview.Rules.Count > 0)
+        {
+            <details>
+                <summary>Utwórz należność ręcznie / planowaną</summary>
+                <form asp-action="Obligation" method="post" class="form-grid">
+                    @Html.AntiForgeryToken()
+                    <label>Reguła<select name="ContributionRuleId">@foreach (var r in Model.Overview.Rules){<option value="@r.Id">@r.PersonName — @r.Method</option>}</select></label>
+                    <label>Osoba<select name="PersonId">@foreach (var p in Model.People){<option value="@p.Id">@p.Name</option>}</select></label>
+                    <label>Okres<input name="PeriodKey" value="@DateTime.Today.ToString("yyyy-MM")" pattern="[0-9]{4}-[0-9]{2}" /></label>
+                    <label>Podstawa dochodu<input name="IncomeAmount" type="number" step="0.01" min="0" /></label>
+                    <label>Data dochodu<input name="IncomeDate" type="date" /></label>
+                    <label><input name="IsDraft" type="checkbox" value="true" checked /> Robocza</label>
+                    <button class="btn" type="submit">Utwórz należność</button>
+                </form>
+            </details>
+        }
+    }
+</section>
+
+<section class="panel">
+    <h2>Wpłaty domowników</h2>
+    <details open>
+        <summary>Zgłoś własną wpłatę</summary>
+        <form asp-action="SubmitPayment" method="post" class="form-grid">
+            @Html.AntiForgeryToken()
+            <label>Okres<input name="PeriodKey" value="@DateTime.Today.ToString("yyyy-MM")" /></label>
+            <label>Kwota<input name="Amount" type="number" step="0.01" min="0.01" required /></label>
+            <label>Waluta<input name="CurrencyCode" value="PLN" maxlength="3" /></label>
+            <label>Forma<select name="PaymentMethod"><option value="Bank">Przelew</option><option value="Cash">Gotówka</option></select></label>
+            <label>Data<input name="PaidAtUtc" type="datetime-local" value="@DateTime.Now.ToString("yyyy-MM-ddTHH:mm")" /></label>
+            <label>Identyfikator potwierdzenia<input name="ProofFingerprint" maxlength="128" /></label>
+            <button class="btn" type="submit">Zgłoś wpłatę</button>
+        </form>
+    </details>
+
+    @if (Model.Overview.PaymentSubmissions.Count > 0)
+    {
+        <table>
+            <thead><tr><th>Osoba</th><th>Okres</th><th>Kwota</th><th>Forma</th><th>Status</th><th>Decyzja</th></tr></thead>
+            <tbody>
+            @foreach (var s in Model.Overview.PaymentSubmissions)
+            {
+                <tr><td>@s.PersonName</td><td>@s.PeriodKey</td><td>@Fmt(s.AmountMinor, s.CurrencyCode)</td><td>@s.PaymentMethod</td><td>@s.Status</td><td>@s.DecisionReason</td></tr>
+            }
+            </tbody>
+        </table>
+    }
+
+    @if (Model.CanManage && pendingSubmissions.Length > 0)
+    {
+        <details>
+            <summary>Zweryfikuj zgłoszenie wpłaty</summary>
+            <form asp-action="ApprovePayment" method="post" class="form-grid">
+                @Html.AntiForgeryToken()
+                <label>Zgłoszenie<select name="SubmissionId">@foreach (var s in pendingSubmissions){<option value="@s.Id">@s.PersonName — @Fmt(s.AmountMinor, s.CurrencyCode)</option>}</select></label>
+                <label>Kwota zatwierdzona<input name="ApprovedAmount" type="number" step="0.01" min="0.01" required /></label>
+                <label>Należność<select name="ObligationId"><option value="">Bez alokacji</option>@foreach (var o in openObligations){<option value="@o.Id">@o.PersonName — @o.PeriodKey — @Fmt(o.RemainingMinor, o.CurrencyCode)</option>}</select></label>
+                <label>Kwota alokacji<input name="AllocateAmount" type="number" step="0.01" min="0" /></label>
+                <label>Uwagi<input name="DecisionReason" /></label>
+                <button class="btn" type="submit">Zatwierdź</button>
+            </form>
+            <form asp-action="RejectPayment" method="post" class="form-grid">
+                @Html.AntiForgeryToken()
+                <label>Zgłoszenie<select name="SubmissionId">@foreach (var s in pendingSubmissions){<option value="@s.Id">@s.PersonName — @Fmt(s.AmountMinor, s.CurrencyCode)</option>}</select></label>
+                <label>Powód<input name="Reason" required /></label>
+                <button class="btn btn-secondary" type="submit">Odrzuć</button>
+            </form>
+        </details>
+    }
+</section>
+
+<section class="panel">
+    <h2>Faktury gospodarstwa</h2>
+    @if (Model.Overview.Invoices.Count > 0)
+    {
+        <table>
+            <thead><tr><th>Numer</th><th>Dostawca</th><th>Kategoria</th><th>Brutto</th><th>Zapłacono</th><th>Pozostało</th><th>Termin</th><th>Status</th></tr></thead>
+            <tbody>@foreach (var i in Model.Overview.Invoices){<tr><td>@i.InvoiceNo</td><td>@i.Supplier</td><td>@i.CategoryCode</td><td>@Fmt(i.GrossMinor,i.CurrencyCode)</td><td>@Fmt(i.PaidMinor,i.CurrencyCode)</td><td>@Fmt(i.RemainingMinor,i.CurrencyCode)</td><td>@i.DueDate</td><td>@i.Status</td></tr>}</tbody>
+        </table>
+    }
+    @if (Model.CanManage)
+    {
+        <details>
+            <summary>Dodaj fakturę</summary>
+            <form asp-action="Invoice" method="post" class="form-grid">
+                @Html.AntiForgeryToken()
+                <label>Numer<input name="InvoiceNo" required /></label><label>Dostawca<input name="Supplier" required /></label>
+                <label>Kategoria<input name="CategoryCode" value="Other" /></label><label>Od<input name="PeriodFrom" type="date" /></label><label>Do<input name="PeriodTo" type="date" /></label>
+                <label>Wystawiono<input name="IssuedOn" type="date" value="@DateOnly.FromDateTime(DateTime.Today).ToString("yyyy-MM-dd")" /></label>
+                <label>Termin<input name="DueDate" type="date" value="@DateOnly.FromDateTime(DateTime.Today.AddDays(14)).ToString("yyyy-MM-dd")" /></label>
+                <label>Netto<input name="Net" type="number" step="0.01" min="0" /></label><label>VAT<input name="Vat" type="number" step="0.01" min="0" /></label>
+                <label>Brutto<input name="Gross" type="number" step="0.01" min="0.01" required /></label><label>Waluta<input name="CurrencyCode" value="PLN" maxlength="3" /></label>
+                <button class="btn" type="submit">Dodaj fakturę</button>
+            </form>
+        </details>
+        @if (openInvoices.Length > 0)
+        {
+            <details>
+                <summary>Zarejestruj płatność faktury</summary>
+                <form asp-action="PayInvoice" method="post" class="form-grid">
+                    @Html.AntiForgeryToken()
+                    <label>Faktura<select name="InvoiceId">@foreach (var i in openInvoices){<option value="@i.Id">@i.InvoiceNo — @Fmt(i.RemainingMinor,i.CurrencyCode)</option>}</select></label>
+                    <label>Kwota<input name="Amount" type="number" step="0.01" min="0.01" required /></label>
+                    <label>Źródło<select name="SourceType"><option value="HouseholdBank">Rachunek domowy — bank</option><option value="HouseholdCash">Rachunek domowy — gotówka</option></select></label>
+                    <label>Data<input name="PaidAtUtc" type="datetime-local" value="@DateTime.Now.ToString("yyyy-MM-ddTHH:mm")" /></label>
+                    <button class="btn" type="submit">Zaksięguj płatność</button>
+                </form>
+            </details>
+        }
+    }
+</section>
+
+<section class="panel">
+    <h2>Rachunek opłacony prywatnie</h2>
+    <details>
+        <summary>Zgłoś koszt gospodarstwa opłacony ze swoich środków</summary>
+        <form asp-action="Claim" method="post" class="form-grid">
+            @Html.AntiForgeryToken()
+            <label>Faktura<select name="HouseholdInvoiceId"><option value="">Bez istniejącej faktury</option>@foreach (var i in Model.Overview.Invoices){<option value="@i.Id">@i.InvoiceNo — @i.Supplier</option>}</select></label>
+            <label>Kwota<input name="ClaimedAmount" type="number" step="0.01" min="0.01" required /></label>
+            <label>Waluta<input name="CurrencyCode" value="PLN" /></label><label>Data<input name="PaidAtUtc" type="datetime-local" value="@DateTime.Now.ToString("yyyy-MM-ddTHH:mm")" /></label>
+            <label>Propozycja<select name="ProposedSettlementType"><option value="Refund">Zwrot</option><option value="Compensation">Kompensata wpłaty</option></select></label>
+            <label>Opis<input name="Description" /></label><button class="btn" type="submit">Zgłoś</button>
+        </form>
+    </details>
+
+    @if (Model.Overview.Claims.Count > 0)
+    {
+        <table><thead><tr><th>Osoba</th><th>Zgłoszono</th><th>Zatwierdzono</th><th>Rozliczono</th><th>Status</th><th>Powód</th></tr></thead>
+        <tbody>@foreach (var c in Model.Overview.Claims){<tr><td>@c.PersonName</td><td>@Fmt(c.ClaimedAmountMinor,c.CurrencyCode)</td><td>@(c.ApprovedAmountMinor.HasValue ? Fmt(c.ApprovedAmountMinor.Value,c.CurrencyCode) : "—")</td><td>@Fmt(c.SettledMinor,c.CurrencyCode)</td><td>@c.Status</td><td>@c.Reason</td></tr>}</tbody></table>
+    }
+
+    @if (Model.CanManage)
+    {
+        var pendingClaims = Model.Overview.Claims.Where(x => x.Status == ClaimStatuses.Pending).ToArray();
+        if (pendingClaims.Length > 0)
+        {
+            <details><summary>Zatwierdź / odrzuć roszczenie</summary>
+                <form asp-action="DecideClaim" method="post" class="form-grid">@Html.AntiForgeryToken()
+                    <label>Roszczenie<select name="ClaimId">@foreach(var c in pendingClaims){<option value="@c.Id">@c.PersonName — @Fmt(c.ClaimedAmountMinor,c.CurrencyCode)</option>}</select></label>
+                    <label>Kwota zatwierdzona<input name="ApprovedAmount" type="number" step="0.01" min="0" /></label><label>Powód<input name="Reason" required /></label>
+                    <label><input name="Approve" type="checkbox" value="true" checked /> Zatwierdź</label><button class="btn" type="submit">Zapisz decyzję</button>
+                </form>
+            </details>
+        }
+        if (actionableClaims.Length > 0)
+        {
+            <details><summary>Rozlicz zatwierdzone roszczenie</summary>
+                <form asp-action="SettleClaim" method="post" class="form-grid">@Html.AntiForgeryToken()
+                    <label>Roszczenie<select name="ClaimId">@foreach(var c in actionableClaims){<option value="@c.Id">@c.PersonName — pozostało @Fmt((c.ApprovedAmountMinor ?? 0)-c.SettledMinor,c.CurrencyCode)</option>}</select></label>
+                    <label>Sposób<select name="SettlementType"><option value="Refund">Zwrot pieniędzy</option><option value="Compensation">Kompensata należności</option></select></label>
+                    <label>Kwota<input name="Amount" type="number" step="0.01" min="0.01" required /></label>
+                    <label>Należność do kompensaty<select name="TargetObligationId"><option value="">—</option>@foreach(var o in openObligations){<option value="@o.Id">@o.PersonName — @o.PeriodKey — @Fmt(o.RemainingMinor,o.CurrencyCode)</option>}</select></label>
+                    <label>Kieszeń zwrotu<select name="Pocket"><option value="Bank">Bank</option><option value="Cash">Gotówka</option></select></label>
+                    <button class="btn" type="submit">Rozlicz</button>
+                </form>
+            </details>
+        }
+    }
+</section>
+
+@if (Model.CanManage && openObligations.Length > 0)
+{
+    <section class="panel">
+        <h2>Korekty i jednorazowe zwolnienia</h2>
+        <p class="muted">Korekta nie nadpisuje pierwotnej należności. Kwota ujemna może zmniejszyć lub wyzerować obowiązek, ale zawsze wymaga powodu.</p>
+        <form asp-action="AdjustObligation" method="post" class="form-grid">
+            @Html.AntiForgeryToken()
+            <label>Należność<select name="ObligationId">@foreach(var o in openObligations){<option value="@o.Id">@o.PersonName — @o.PeriodKey — pozostało @Fmt(o.RemainingMinor,o.CurrencyCode)</option>}</select></label>
+            <label>Korekta<input name="AdjustmentAmount" type="number" step="0.01" required /></label>
+            <label>Powód<input name="Reason" required /></label><button class="btn" type="submit">Dodaj korektę</button>
+        </form>
+    </section>
+}
+
+<section class="panel">
+    <h2>Zamknięcie okresu</h2>
+    <p>Operacje <strong>period.close</strong> (R4) oraz <strong>period.correct</strong> (R4+) są już chronione w RBAC. Interfejs wykonywania tych operacji zostanie udostępniony dopiero po podłączeniu silnego uwierzytelnienia/reauth; PKG-008 nie omija tego zabezpieczenia.</p>
+    @if (Model.Overview.PeriodCloses.Count > 0)
+    {
+        <table><thead><tr><th>Okres</th><th>Zamknięto</th><th>Status</th><th>Korekta</th></tr></thead><tbody>
+        @foreach(var p in Model.Overview.PeriodCloses){<tr><td>@p.PeriodKey</td><td>@p.ClosedAtUtc.ToLocalTime()</td><td>@p.Status</td><td>@p.CorrectionReason</td></tr>}
+        </tbody></table>
+    }
+</section>
+
+@if (Model.CanManage)
+{
+<section class="panel top-gap">
+    <h2>Edycja / anulowanie konfiguracji finansowej</h2>
+    <p class="muted-block">Zatwierdzonych operacji księgowych nie usuwamy. Możesz zarchiwizować regułę wpłaty albo anulować fakturę tylko wtedy, gdy nie ma jeszcze zaksięgowanych płatności.</p>
+    <div class="split-grid">
+        <form asp-action="ArchiveRecord" method="post" class="form-grid">@Html.AntiForgeryToken()<input type="hidden" name="recordType" value="ContributionRule"/><div class="field"><label>Reguła wpłaty</label><select name="recordId">@foreach(var r in Model.Overview.Rules.Where(x => x.Status == "Active")){<option value="@r.Id">@r.PersonName · @r.Method</option>}</select></div><div class="field"><label>Powód</label><input name="reason" value="Archiwizacja reguły" required/></div><div class="full"><button class="btn btn-danger" type="submit">Archiwizuj regułę</button></div></form>
+        <form asp-action="ArchiveRecord" method="post" class="form-grid">@Html.AntiForgeryToken()<input type="hidden" name="recordType" value="Invoice"/><div class="field"><label>Faktura</label><select name="recordId">@foreach(var i in Model.Overview.Invoices.Where(x => x.Status != "Paid" && x.Status != "Cancelled")){<option value="@i.Id">@i.InvoiceNo · @i.Supplier</option>}</select></div><div class="field"><label>Powód</label><input name="reason" value="Anulowanie błędnej faktury" required/></div><div class="full"><button class="btn btn-danger" type="submit">Anuluj fakturę</button></div></form>
+    </div>
+</section>
+}

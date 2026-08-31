@@ -1,0 +1,165 @@
+@model EDom.Application.Households.HouseholdFamilyOverview
+@{
+    ViewData["Title"] = "Gospodarstwo";
+    var canGuardian = ViewData["CanGuardian"] as bool? ?? false;
+    var canResidence = ViewData["CanResidence"] as bool? ?? false;
+}
+@if (TempData["Success"] is string success)
+{
+    <div class="success-box">@success</div>
+}
+<section class="hero compact-hero">
+    <div>
+        <div class="eyebrow">Household & Family · PKG-006</div>
+        <h1>@Model.HouseholdName</h1>
+        <p>Osoby, profile dzieci, grupy rodzinne, relacje i historia zamieszkania. Relacje rodzinne nie nadają automatycznie uprawnień.</p>
+    </div>
+    <div class="status-pill">Schema 4</div>
+</section>
+
+<section class="split-grid top-gap">
+    <div class="panel">
+        <h2>Osoby w gospodarstwie</h2>
+        <div class="data-list">
+            @foreach (var person in Model.Persons)
+            {
+                <a class="data-row" asp-action="Person" asp-route-id="@person.PersonId">
+                    <span><strong>@person.DisplayName</strong><small>@person.PersonType @(person.IsChild ? "· profil dziecka" : "")</small></span>
+                    <span>@(person.HasAccount ? "konto aktywne" : "bez konta") →</span>
+                </a>
+            }
+        </div>
+    </div>
+    <div class="panel">
+        <h2>Dodaj osobę</h2>
+        <form asp-action="AddPerson" method="post" class="form-grid">
+            @Html.AntiForgeryToken()
+            <div class="field"><label>Imię</label><input name="FirstName" required /></div>
+            <div class="field"><label>Nazwisko</label><input name="LastName" required /></div>
+            <div class="field"><label>Data urodzenia</label><input name="BirthDate" type="date" /></div>
+            <div class="field checkbox-field"><label><input name="IsChild" type="checkbox" value="true" /> Profil dziecka bez konta</label></div>
+            <div class="field"><label>Rola organizacyjna</label><input name="OrganizationalRole" value="Member" /></div>
+            <div class="field"><label>E-mail</label><input name="Email" type="email" /></div>
+            <div class="field"><label>Telefon</label><input name="Phone" /></div>
+            <div class="field"><label>Miejscowość</label><input name="City" /></div>
+            <div class="field"><label>Kod pocztowy</label><input name="PostalCode" /></div>
+            <div class="field"><label>Ulica</label><input name="Street" /></div>
+            <div class="field"><label>Nr budynku</label><input name="BuildingNo" /></div>
+            <div class="field"><label>Nr lokalu</label><input name="UnitNo" /></div>
+            <div class="full"><button class="btn btn-primary" type="submit">Dodaj osobę</button></div>
+        </form>
+    </div>
+</section>
+
+<section class="split-grid top-gap">
+    <div class="panel">
+        <h2>Grupy rodzinne</h2>
+        @if (Model.FamilyGroups.Count == 0) { <p class="muted-block">Brak grup rodzinnych.</p> }
+        else
+        {
+            <div class="data-list">
+            @foreach (var group in Model.FamilyGroups)
+            {
+                <div class="data-row"><span><strong>@group.Name</strong></span><span>@group.ActiveMembers os.</span></div>
+            }
+            </div>
+        }
+        <form asp-action="FamilyGroup" method="post" class="inline-form top-gap-small">
+            @Html.AntiForgeryToken()
+            <input name="Name" placeholder="np. Piotr + Anna + dziecko" required />
+            <button class="btn btn-secondary" type="submit">Utwórz grupę</button>
+        </form>
+        @if (Model.FamilyGroups.Count > 0 && Model.Persons.Count > 0)
+        {
+            <form asp-action="FamilyGroupMember" method="post" class="form-grid top-gap-small">
+                @Html.AntiForgeryToken()
+                <div class="field"><label>Grupa</label><select name="GroupId" required>@foreach(var g in Model.FamilyGroups){<option value="@g.Id">@g.Name</option>}</select></div>
+                <div class="field"><label>Osoba</label><select name="PersonId" required>@foreach(var p in Model.Persons){<option value="@p.PersonId">@p.DisplayName</option>}</select></div>
+                <div class="field"><label>Rola w grupie</label><input name="GroupRole" value="Member" /></div>
+                <div class="field checkbox-field"><label><input type="checkbox" name="IsPrimary" value="true" /> Grupa podstawowa</label></div>
+                <div class="full"><button class="btn btn-secondary" type="submit">Dodaj do grupy</button></div>
+            </form>
+        }
+    </div>
+    <div class="panel">
+        <h2>Relacja rodzinna</h2>
+        <form asp-action="FamilyRelationship" method="post" class="form-grid">
+            @Html.AntiForgeryToken()
+            <div class="field"><label>Osoba A</label><select name="PersonAId" required>@foreach(var p in Model.Persons){<option value="@p.PersonId">@p.DisplayName</option>}</select></div>
+            <div class="field"><label>Osoba B</label><select name="PersonBId" required>@foreach(var p in Model.Persons){<option value="@p.PersonId">@p.DisplayName</option>}</select></div>
+            <div class="field"><label>Typ relacji</label><select name="RelationshipType"><option>Spouse</option><option>Partner</option><option>ParentChild</option><option>Sibling</option><option>Grandparent</option><option>InLaw</option><option>Other</option></select></div>
+            <div class="field"><label>Kierunek</label><select name="Direction"><option>Bidirectional</option><option>AtoB</option><option>BtoA</option></select></div>
+            <div class="field"><label>Od</label><input type="date" name="ValidFrom" value="@DateOnly.FromDateTime(DateTime.Today).ToString("yyyy-MM-dd")" /></div>
+            <div class="full info-box">Ta relacja służy genealogii i organizacji. Nie tworzy roli, profilu ani PermissionGrant.</div>
+            <div class="full"><button class="btn btn-secondary" type="submit">Zapisz relację</button></div>
+        </form>
+    </div>
+</section>
+
+@if (canGuardian)
+{
+<section class="panel top-gap">
+    <h2>Relacja opiekun–dziecko</h2>
+    <form asp-action="Guardian" method="post" class="form-grid">
+        @Html.AntiForgeryToken()
+        <div class="field"><label>Dziecko</label><select name="ChildPersonId" required>@foreach(var p in Model.Persons.Where(x => x.IsChild)){<option value="@p.PersonId">@p.DisplayName</option>}</select></div>
+        <div class="field"><label>Opiekun</label><select name="GuardianPersonId" required>@foreach(var p in Model.Persons.Where(x => !x.IsChild)){<option value="@p.PersonId">@p.DisplayName</option>}</select></div>
+        <div class="field"><label>Rodzaj</label><select name="RelationshipType"><option>Parent</option><option>Guardian</option><option>FosterParent</option><option>Other</option></select></div>
+        <div class="field"><label>Od</label><input type="date" name="ValidFrom" value="@DateOnly.FromDateTime(DateTime.Today).ToString("yyyy-MM-dd")" /></div>
+        <div class="field checkbox-field"><label><input type="checkbox" name="IsPrimary" value="true" /> Opiekun główny</label></div>
+        <div class="field checkbox-field"><label><input type="checkbox" name="AllowChildFinance" value="true" checked /> Dane finansowe dziecka</label></div>
+        <div class="field checkbox-field"><label><input type="checkbox" name="AllowChildCalendar" value="true" checked /> Kalendarz dziecka</label></div>
+        <div class="full"><button class="btn btn-primary" type="submit">Dodaj relację opiekuńczą</button></div>
+    </form>
+</section>
+}
+
+@if (canResidence)
+{
+<section class="split-grid top-gap">
+    <div class="panel">
+        <h2>Historia zamieszkania</h2>
+        @if (Model.Residences.Count == 0) { <p class="muted-block">Brak przypisań.</p> }
+        else
+        {
+            <div class="data-list">
+            @foreach (var r in Model.Residences)
+            {
+                <div class="data-row"><span><strong>@r.PersonName</strong><small>@r.ResidenceType</small></span><span>@r.ValidFrom.ToString("dd.MM.yyyy") – @(r.ValidTo?.ToString("dd.MM.yyyy") ?? "obecnie")</span></div>
+            }
+            </div>
+        }
+    </div>
+    <div class="panel">
+        <h2>Dodaj okres zamieszkania</h2>
+        <form asp-action="Residence" method="post" class="form-grid">
+            @Html.AntiForgeryToken()
+            <div class="field"><label>Osoba</label><select name="PersonId">@foreach(var p in Model.Persons){<option value="@p.PersonId">@p.DisplayName</option>}</select></div>
+            <div class="field"><label>Typ</label><select name="ResidenceType"><option>Household</option><option>FamilyHome</option><option>Rental</option><option>Temporary</option></select></div>
+            <div class="field"><label>Od</label><input name="ValidFrom" type="date" value="@DateOnly.FromDateTime(DateTime.Today).ToString("yyyy-MM-dd")" /></div>
+            <div class="field"><label>Do (opcjonalnie)</label><input name="ValidTo" type="date" /></div>
+            <div class="field"><label>Płatnik/opiekun kosztów</label><select name="PayerPersonId"><option value="">— brak —</option>@foreach(var p in Model.Persons){<option value="@p.PersonId">@p.DisplayName</option>}</select></div>
+            <div class="full"><button class="btn btn-secondary" type="submit">Dodaj okres</button></div>
+        </form>
+    </div>
+</section>
+}
+
+@if (Model.PendingProfileChanges.Count > 0)
+{
+<section class="panel top-gap">
+    <h2>Wnioski o zmianę profilu</h2>
+    <div class="data-list">
+    @foreach (var item in Model.PendingProfileChanges)
+    {
+        <div class="data-row stacked-row">
+            <span><strong>@item.PersonName</strong><small>@item.RequestedAtUtc.ToLocalTime().ToString("dd.MM.yyyy HH:mm") · @item.Reason</small></span>
+            <span class="row-actions">
+                <form asp-action="DecideProfile" asp-route-requestId="@item.Id" method="post">@Html.AntiForgeryToken()<input type="hidden" name="approve" value="true" /><button class="btn btn-primary" type="submit">Zatwierdź</button></form>
+                <form asp-action="DecideProfile" asp-route-requestId="@item.Id" method="post">@Html.AntiForgeryToken()<input type="hidden" name="approve" value="false" /><button class="btn btn-secondary" type="submit">Odrzuć</button></form>
+            </span>
+        </div>
+    }
+    </div>
+</section>
+}

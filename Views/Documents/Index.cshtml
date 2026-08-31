@@ -1,0 +1,62 @@
+@model EDom.Web.Models.DocumentsPageModel
+@{
+    ViewData["Title"] = "Dokumenty";
+    var currentPersonId = ViewData["CurrentPersonId"] as Guid?;
+}
+
+<section class="hero compact-hero">
+    <div>
+        <div class="eyebrow">PKG-009</div>
+        <h1>Dokumenty</h1>
+        <p>Bezpieczne załączniki MVP. Pobranie pliku zawsze ponownie sprawdza aktualne uprawnienia.</p>
+    </div>
+    <span class="status-pill">Repozytorium aktywne</span>
+</section>
+@if (TempData["Success"] is string success) { <div class="success-box">@success</div> }
+@if (TempData["Error"] is string error) { <div class="error-box">@error</div> }
+
+<div class="split-grid top-gap">
+    <section class="panel">
+        <h2>Dodaj dokument</h2>
+        <form asp-action="Upload" method="post" enctype="multipart/form-data">
+            @Html.AntiForgeryToken()
+            <div class="field"><label>Tytuł</label><input name="title" required maxlength="300" /></div>
+            <div class="field"><label>Kategoria</label><input name="category" value="Other" maxlength="80" /></div>
+            <div class="field">
+                <label>Widoczność</label>
+                <select name="scope">
+                    @if (Model.CanCreateOwn)
+                    {
+                        <option value="Own">Tylko moje</option>
+                    }
+                    @if (Model.CanCreateShared)
+                    {
+                        <option value="Household">Gospodarstwo</option>
+                    }
+                </select>
+            </div>
+            <div class="field"><label>Plik</label><input type="file" name="file" required /></div>
+            <button class="btn btn-primary" type="submit">Zapisz dokument</button>
+        </form>
+    </section>
+
+    <section class="panel">
+        <h2>Dostępne dokumenty</h2>
+        <div class="data-list">
+            @if (Model.Documents.Count == 0)
+            {
+                <div class="muted-block">Brak dokumentów.</div>
+            }
+            @foreach (var item in Model.Documents)
+            {
+                <div class="data-row">
+                    <span>
+                        <strong>@item.Title</strong>
+                        <small>@item.Category · @item.ScopeType · @item.CreatedAtUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</small>
+                    </span>
+                    <span class="row-actions"><a class="btn btn-secondary" asp-action="Download" asp-route-id="@item.Id">Pobierz</a>@if(currentPersonId == item.OwnerPersonId){<details class="crud-details"><summary>Edytuj</summary><form asp-action="Edit" asp-route-id="@item.Id" method="post" class="mini-form">@Html.AntiForgeryToken()<input name="title" value="@item.Title" required maxlength="300"/><input name="category" value="@item.Category" required maxlength="80"/><button class="btn btn-secondary" type="submit">Zapisz</button></form><form asp-action="Archive" asp-route-id="@item.Id" method="post">@Html.AntiForgeryToken()<button class="btn btn-danger" type="submit">Archiwizuj</button></form></details>}</span>
+                </div>
+            }
+        </div>
+    </section>
+</div>

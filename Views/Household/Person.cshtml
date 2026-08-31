@@ -1,0 +1,76 @@
+@model EDom.Application.Households.PersonProfileDetails
+@{
+    ViewData["Title"] = "Profil osoby";
+    var isOwn = ViewData["IsOwn"] as bool? ?? false;
+    var canManage = ViewData["CanManage"] as bool? ?? false;
+    var birthLabel = Model.BirthDate.HasValue ? " · ur. " + Model.BirthDate.Value.ToString("dd.MM.yyyy") : string.Empty;
+}
+@if (TempData["Success"] is string success) { <div class="success-box">@success</div> }
+@if (TempData["Error"] is string error) { <div class="error-box">@error</div> }
+<section class="hero compact-hero">
+    <div>
+        <div class="eyebrow">Profil osoby</div>
+        <h1>@Model.FirstName @Model.LastName</h1>
+        <p>@Model.PersonType · @Model.Status@birthLabel</p>
+    </div>
+    @if (Model.IsChild) { <div class="status-pill">Dziecko · liczone jak dorosły: @(Model.AdultEquivalentDefault ? "Tak" : "Nie")</div> }
+</section>
+<section class="split-grid top-gap">
+    <div class="panel">
+        <h2>Dane kontaktowe</h2>
+        <dl class="profile-dl"><dt>E-mail</dt><dd>@(Model.PreferredEmail ?? "—")</dd><dt>Telefon</dt><dd>@(Model.PreferredPhone ?? "—")</dd><dt>Adres</dt><dd>@(Model.AddressLine ?? "—")</dd></dl>
+        @if (Model.Guardians.Count > 0) { <h3>Opiekunowie</h3><ul>@foreach(var g in Model.Guardians){<li>@g</li>}</ul> }
+        @if (Model.FamilyGroups.Count > 0) { <h3>Grupy rodzinne</h3><ul>@foreach(var g in Model.FamilyGroups){<li>@g</li>}</ul> }
+    </div>
+    <div class="panel">
+        <h2>Historia zmian profilu</h2>
+        @if (Model.ChangeHistory.Count == 0) { <p class="muted-block">Brak wniosków.</p> }
+        else { <div class="data-list">@foreach(var h in Model.ChangeHistory){<div class="data-row"><span><strong>@h.Status</strong><small>@h.Reason</small></span><span>@h.RequestedAtUtc.ToLocalTime().ToString("dd.MM.yyyy")</span></div>}</div> }
+    </div>
+</section>
+@if (isOwn)
+{
+<section class="panel top-gap">
+    <h2>Zgłoś zmianę własnego profilu</h2>
+    <p class="lead">Zmiany nie zastępują danych od razu. Powstaje wniosek z historią, który zatwierdza uprawniony administrator.</p>
+    <form asp-action="ProfileChange" method="post" class="form-grid">
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="PersonId" value="@Model.PersonId" />
+        <div class="field"><label>Nowe imię</label><input name="FirstName" /></div>
+        <div class="field"><label>Nowe nazwisko</label><input name="LastName" /></div>
+        <div class="field"><label>Nowa data urodzenia</label><input name="BirthDate" type="date" /></div>
+        <div class="field"><label>Nowy e-mail</label><input name="Email" type="email" /></div>
+        <div class="field"><label>Nowy telefon</label><input name="Phone" /></div>
+        <div class="field"><label>Miejscowość</label><input name="City" /></div>
+        <div class="field"><label>Kod pocztowy</label><input name="PostalCode" /></div>
+        <div class="field"><label>Ulica</label><input name="Street" /></div>
+        <div class="field"><label>Nr budynku</label><input name="BuildingNo" /></div>
+        <div class="field"><label>Nr lokalu</label><input name="UnitNo" /></div>
+        <div class="field full"><label>Uzasadnienie</label><input name="Reason" /></div>
+        <div class="full"><button class="btn btn-primary" type="submit">Wyślij wniosek</button></div>
+    </form>
+</section>
+}
+
+@if (canManage)
+{
+<section class="panel top-gap">
+    <h2>Edycja administracyjna</h2>
+    <form asp-action="AdminEditPerson" method="post" class="form-grid">
+        @Html.AntiForgeryToken()<input type="hidden" name="PersonId" value="@Model.PersonId" />
+        <div class="field"><label>Imię</label><input name="FirstName" value="@Model.FirstName" required /></div>
+        <div class="field"><label>Nazwisko</label><input name="LastName" value="@Model.LastName" required /></div>
+        <div class="field"><label>Data urodzenia</label><input name="BirthDate" type="date" value="@(Model.BirthDate?.ToString("yyyy-MM-dd"))" /></div>
+        <div class="field"><label>E-mail</label><input name="Email" type="email" value="@Model.PreferredEmail" /></div>
+        <div class="field"><label>Telefon</label><input name="Phone" value="@Model.PreferredPhone" /></div>
+        <div class="field"><label>Rola organizacyjna</label><input name="OrganizationalRole" value="Member" /></div>
+        <div class="field full"><label>Powód</label><input name="Reason" value="Edycja profilu przez administratora" required /></div>
+        <div class="full"><button class="btn btn-primary" type="submit">Zapisz zmiany</button></div>
+    </form>
+    <form asp-action="ArchivePerson" method="post" class="inline-form top-gap-small">
+        @Html.AntiForgeryToken()<input type="hidden" name="personId" value="@Model.PersonId" /><input name="reason" value="Usunięcie/archiwizacja osoby" required />
+        <button class="btn btn-danger" type="submit">Usuń / archiwizuj osobę</button>
+    </form>
+    <p class="muted-block">Archiwizacja nie usuwa historii rozliczeń, relacji ani audytu.</p>
+</section>
+}

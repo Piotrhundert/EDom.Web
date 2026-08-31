@@ -1,0 +1,320 @@
+@using EDom.Domain.Authorization
+@using EDom.Domain.Identity
+@model EDom.Web.Models.UserManagementPageViewModel
+@{
+    ViewData["Title"] = "Użytkownicy i ustawienia";
+    var canSecurity = ViewData["CanSecurity"] as bool? ?? false;
+    var canAssign = ViewData["CanAssign"] as bool? ?? false;
+    var canCreate = ViewData["CanCreate"] as bool? ?? false;
+}
+
+@if (TempData["Success"] is string success) { <div class="success-box">@success</div> }
+@if (TempData["Error"] is string error) { <div class="error-box">@error</div> }
+
+<section class="hero compact-hero">
+    <div>
+        <div class="eyebrow">Administracja · użytkownicy i RBAC</div>
+        <h1>Użytkownicy i konta</h1>
+        <p>Twórz konta, zarządzaj bezpieczeństwem i sprawdzaj, za co odpowiada każda rola w e-dom.</p>
+    </div>
+    <div class="hero-side">
+        <span class="status-pill">CRUD</span>
+        <span class="status-pill @(canAssign ? "" : "status-pill-neutral")">Zmiana ról: @(canAssign ? "dostępna" : "zablokowana")</span>
+    </div>
+</section>
+
+@if (canCreate)
+{
+    <section class="panel top-gap user-create-panel">
+        <div class="section-header">
+            <div>
+                <div class="eyebrow">Nowe konto</div>
+                <h2>Dodaj użytkownika ręcznie</h2>
+                <p class="lead">Możesz utworzyć konto dla istniejącej osoby albo dodać nową osobę i konto w jednym kroku.</p>
+            </div>
+            <span class="status-pill">Dostępne</span>
+        </div>
+
+        <form asp-action="Create" method="post" class="form-grid">
+            @Html.AntiForgeryToken()
+
+            <div class="field full">
+                <label>Istniejąca osoba</label>
+                <select name="ExistingPersonId">
+                    <option value="">— utwórz nową osobę —</option>
+                    @foreach (var p in Model.Overview.PersonsWithoutAccounts)
+                    {
+                        <option value="@p.PersonId">@p.DisplayName</option>
+                    }
+                </select>
+                <small class="field-help">Jeżeli wybierzesz osobę z listy, pola imienia i nazwiska poniżej nie są wymagane.</small>
+            </div>
+
+            <div class="field"><label>Imię nowej osoby</label><input name="FirstName" /></div>
+            <div class="field"><label>Nazwisko</label><input name="LastName" /></div>
+            <div class="field"><label>Data urodzenia</label><input name="BirthDate" type="date" /></div>
+            <div class="field"><label>E-mail</label><input name="Email" type="email" /></div>
+            <div class="field"><label>Telefon</label><input name="Phone" /></div>
+            <div class="field"><label>Rola organizacyjna w gospodarstwie</label><input name="OrganizationalRole" value="Member" /></div>
+            <div class="field"><label>Login</label><input name="Login" required autocomplete="off" /></div>
+            <div class="field"><label>Hasło tymczasowe</label><input name="TemporaryPassword" type="password" required autocomplete="new-password" /></div>
+
+            @if (canAssign)
+            {
+                <div class="field">
+                    <label>Rola systemowa</label>
+                    <select name="RoleCode">
+                        @foreach (var role in Model.Overview.Roles)
+                        {
+                            if (role.Code == RoleCodes.HouseholdMember) { <option value="@role.Code" selected>@role.Name</option> }
+                            else { <option value="@role.Code">@role.Name</option> }
+                        }
+                    </select>
+                </div>
+                <div class="field">
+                    <label>Profil dostępu</label>
+                    <select name="ProfileCode">
+                        @foreach (var profile in Model.Overview.Profiles)
+                        {
+                            if (profile.Code == AccessProfileCodes.Standard) { <option value="@profile.Code" selected>@profile.Name</option> }
+                            else { <option value="@profile.Code">@profile.Name</option> }
+                        }
+                    </select>
+                </div>
+            }
+            else
+            {
+                <input type="hidden" name="RoleCode" value="@RoleCodes.HouseholdMember" />
+                <input type="hidden" name="ProfileCode" value="@AccessProfileCodes.Standard" />
+                <div class="full role-assignment-note">
+                    <div>
+                        <strong>Rola przy ręcznym utworzeniu: Domownik</strong>
+                        <span>Profil dostępu: Standard</span>
+                    </div>
+                    <p>Zmiana roli lub profilu jest operacją R4 i zgodnie z polityką bezpieczeństwa wymaga MFA. Konto lokatora twórz z modułu <strong>Najem</strong>, aby otrzymało prawidłowy zakres AssignedRoom.</p>
+                </div>
+            }
+
+            <div class="field checkbox-field full">
+                <label><input name="MustChangePassword" type="checkbox" value="true" checked /> Wymuś zmianę hasła przy pierwszym logowaniu</label>
+            </div>
+            <div class="full actions">
+                <button class="btn btn-primary" type="submit">Dodaj użytkownika</button>
+            </div>
+        </form>
+    </section>
+}
+else
+{
+    <section class="info-box top-gap">
+        Nie masz aktywnego prawa do tworzenia kont lub zarządzania członkami gospodarstwa. Dla Administratora gospodarstwa / SuperAdministratora te prawa powinny wynikać z RBAC.
+    </section>
+}
+
+<section class="panel top-gap">
+    <div class="section-header">
+        <div>
+            <div class="eyebrow">Konta</div>
+            <h2>Aktualni użytkownicy</h2>
+            <p class="lead">Edycja bezpieczeństwa jest oddzielona od zmiany roli, aby zwykłe operacje konta nie wymagały uprawnienia R4.</p>
+        </div>
+        <span class="status-pill">@Model.Overview.Users.Count kont</span>
+    </div>
+
+    @if (Model.Overview.Users.Count == 0)
+    {
+        <p class="muted-block">Brak kont w gospodarstwie.</p>
+    }
+
+    <div class="data-list">
+        @foreach (var u in Model.Overview.Users)
+        {
+            <div class="data-row data-row-stack account-card">
+                <div class="row-main">
+                    <span>
+                        <strong>@u.DisplayName</strong>
+                        <small>@u.Login · @u.RoleName / @u.ProfileCode · konto: @u.AccountStatus</small>
+                    </span>
+                    <div class="row-actions">
+                        @if (u.IsLastHouseholdAdministrator) { <span class="status-pill">ostatni administrator</span> }
+                        <span class="role-code-badge">@u.RoleName</span>
+                    </div>
+                </div>
+
+                <details class="crud-details">
+                    <summary>Edytuj / bezpieczeństwo</summary>
+
+                    @if (canSecurity)
+                    {
+                        <form asp-action="Update" method="post" class="form-grid top-gap-small">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="AccountId" value="@u.AccountId" />
+                            <div class="field"><label>Login</label><input name="Login" value="@u.Login" required /></div>
+                            <div class="field">
+                                <label>Status</label>
+                                <select name="AccountStatus">
+                                    @if (u.AccountStatus == UserAccountStatuses.Active) { <option value="Active" selected>Active</option> } else { <option value="Active">Active</option> }
+                                    @if (u.AccountStatus == UserAccountStatuses.Inactive) { <option value="Inactive" selected>Inactive</option> } else { <option value="Inactive">Inactive</option> }
+                                    @if (u.AccountStatus == UserAccountStatuses.Locked) { <option value="Locked" selected>Locked</option> } else { <option value="Locked">Locked</option> }
+                                </select>
+                            </div>
+
+                            <input type="hidden" name="RoleCode" value="@u.RoleCode" />
+                            <input type="hidden" name="ProfileCode" value="@u.ProfileCode" />
+                            <div class="field"><label>Rola</label><div class="readonly-value">@u.RoleName</div></div>
+                            <div class="field"><label>Profil</label><div class="readonly-value">@u.ProfileCode</div></div>
+
+                            <div class="field full"><label>Powód zmiany</label><input name="Reason" value="Aktualizacja konta" required /></div>
+                            <div class="full actions"><button class="btn btn-primary" type="submit">Zapisz login / status</button></div>
+                        </form>
+
+                        @if (canAssign && u.RoleCode != RoleCodes.SuperAdministrator)
+                        {
+                            <div class="role-change-box top-gap-small">
+                                <h3>Zmień rolę i profil</h3>
+                                <p class="muted">Aktualna rola: <strong>@u.RoleName</strong>. Zmiana jest zapisywana w audycie i obowiązuje od kolejnego żądania użytkownika.</p>
+                                <form asp-action="ChangeRole" method="post" class="form-grid">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="AccountId" value="@u.AccountId" />
+                                    <div class="field">
+                                        <label>Nowa rola</label>
+                                        <select name="RoleCode" required>
+                                            @if (!Model.Overview.Roles.Any(r => r.Code == u.RoleCode))
+                                            {
+                                                <option value="" selected disabled>Wybierz nową rolę…</option>
+                                            }
+                                            @foreach (var role in Model.Overview.Roles)
+                                            {
+                                                if (role.Code == u.RoleCode) { <option value="@role.Code" selected>@role.Name</option> }
+                                                else { <option value="@role.Code">@role.Name</option> }
+                                            }
+                                        </select>
+                                    </div>
+                                    <div class="field">
+                                        <label>Profil dostępu</label>
+                                        <select name="ProfileCode" required>
+                                            @foreach (var profile in Model.Overview.Profiles)
+                                            {
+                                                if (profile.Code == u.ProfileCode) { <option value="@profile.Code" selected>@profile.Name</option> }
+                                                else { <option value="@profile.Code">@profile.Name</option> }
+                                            }
+                                        </select>
+                                    </div>
+                                    <div class="field full">
+                                        <label>Powód zmiany</label>
+                                        <input name="Reason" value="Zmiana roli użytkownika" required maxlength="500" />
+                                    </div>
+                                    <div class="full actions">
+                                        <button class="btn btn-primary" type="submit">Zmień rolę</button>
+                                    </div>
+                                </form>
+                                @if (u.RoleCode == RoleCodes.Tenant)
+                                {
+                                    <div class="info-box top-gap-small">Rola <strong>Lokator</strong> jest tworzona przez moduł Najem. Z tego panelu możesz zmienić lokatora na inną zwykłą rolę, ale zakończenie umowy najmu wykonuj nadal w module Najem.</div>
+                                }
+                            </div>
+                        }
+                        else if (u.RoleCode == RoleCodes.SuperAdministrator)
+                        {
+                            <div class="info-box top-gap-small">Rola <strong>Administrator nadrzędny</strong> jest chroniona i nie może być zmieniona z podstawowego panelu użytkowników.</div>
+                        }
+
+                        <div class="account-security-actions top-gap-small">
+                            <form asp-action="ResetPassword" method="post" class="inline-form">
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="AccountId" value="@u.AccountId" />
+                                <input name="TemporaryPassword" type="password" placeholder="Nowe hasło tymczasowe" required />
+                                <label><input type="checkbox" name="MustChangePassword" value="true" checked /> zmiana przy logowaniu</label>
+                                <button class="btn btn-secondary" type="submit">Resetuj hasło</button>
+                            </form>
+                            @if (u.AccountStatus == UserAccountStatuses.Locked)
+                            {
+                                <form asp-action="Unlock" method="post" class="inline-form">
+                                    @Html.AntiForgeryToken()<input type="hidden" name="accountId" value="@u.AccountId" />
+                                    <button class="btn btn-secondary" type="submit">Odblokuj konto</button>
+                                </form>
+                            }
+                            <form asp-action="Archive" method="post" class="inline-form">
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="accountId" value="@u.AccountId" />
+                                <input name="reason" value="Usunięcie/archiwizacja konta" required />
+                                <button class="btn btn-danger" type="submit" disabled="@u.IsLastHouseholdAdministrator">Usuń / archiwizuj konto</button>
+                            </form>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="muted-block">Brak uprawnienia `identity.account.security_manage`.</div>
+                    }
+                </details>
+            </div>
+        }
+    </div>
+</section>
+
+<section class="panel top-gap" id="role-catalog">
+    <div class="section-header">
+        <div>
+            <div class="eyebrow">RBAC · katalog</div>
+            <h2>Wszystkie role w e-dom</h2>
+            <p class="lead">Poniżej widzisz każdą aktywną rolę zapisaną w systemie. Rozwiń rolę, aby zobaczyć jej opis oraz rzeczywiste PermissionCode.</p>
+        </div>
+        <span class="status-pill">@Model.RoleCatalog.Count ról</span>
+    </div>
+
+    <div class="role-catalog-grid">
+        @foreach (var role in Model.RoleCatalog)
+        {
+            <details class="role-card">
+                <summary>
+                    <span class="role-card-title">
+                        <strong>@role.Name</strong>
+                        <small>Kod techniczny: @role.Code</small>
+                    </span>
+                    <span class="role-card-badges">
+                        @if (role.IsCritical) { <span class="role-flag role-flag-critical">krytyczna</span> }
+                        @if (role.IsTechnical) { <span class="role-flag">techniczna</span> }
+                        @if (!role.IsTechnical && !role.IsCritical) { <span class="role-flag role-flag-normal">użytkowa</span> }
+                    </span>
+                </summary>
+                <div class="role-card-body">
+                    <p>@role.Description</p>
+
+                    @if (role.Code == RoleCodes.Tenant)
+                    {
+                        <div class="info-box">Tę rolę nadaje kreator w module Najem, ponieważ musi zostać powiązana z konkretnym pokojem przez zakres AssignedRoom.</div>
+                    }
+                    else if (role.Code == RoleCodes.SuperAdministrator)
+                    {
+                        <div class="info-box">Administrator nadrzędny jest rolą chronioną. Nie można jej utworzyć ani nadać z podstawowego formularza użytkowników.</div>
+                    }
+                    else if (role.IsTechnical)
+                    {
+                        <div class="info-box">Rola techniczna nie jest przeznaczona do zwykłego nadawania z tego ekranu.</div>
+                    }
+
+                    <h3>Uprawnienia roli (@role.Permissions.Count)</h3>
+                    @if (role.Permissions.Count == 0)
+                    {
+                        <div class="muted-block">Brak aktywnych PermissionCode przypisanych do tej roli.</div>
+                    }
+                    else
+                    {
+                        <div class="permission-catalog-list">
+                            @foreach (var permission in role.Permissions)
+                            {
+                                <div class="permission-catalog-row">
+                                    <div>
+                                        <code>@permission.Code</code>
+                                        <span>@permission.Description</span>
+                                    </div>
+                                    <span class="risk-badge">@permission.RiskLevel</span>
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            </details>
+        }
+    </div>
+</section>

@@ -1,0 +1,51 @@
+@model ModuleDefinition
+@{
+    ViewData["Title"] = Model.Label;
+}
+<section class="hero compact-hero">
+    <div>
+        <div class="eyebrow">Moduł aplikacji</div>
+        <h1>@Model.Label</h1>
+        <p>@Model.Description</p>
+    </div>
+    <span class="status-pill">RBAC</span>
+</section>
+
+<div class="split-grid top-gap">
+    <section class="panel">
+        <div class="section-header">
+            <div>
+                <div class="eyebrow">Dostęp</div>
+                <h2>O tym ekranie</h2>
+            </div>
+        </div>
+        <p class="lead">Ten moduł jest chroniony przez routing i autoryzację opartą o PermissionCode. Samo wpisanie adresu URL nie rozszerza uprawnień.</p>
+        <div class="info-box">Jeżeli trafiłeś tutaj z pulpitu, oznacza to, że masz podstawowy dostęp do tego modułu. Konkretne akcje wewnątrz nadal mogą być ograniczone przez role, profil, scope zasobu i stan procesu.</div>
+        <p class="permission-code">PermissionCode: <code>@Model.PermissionCode</code></p>
+    </section>
+
+    <section class="panel">
+        <div class="section-header">
+            <div>
+                <div class="eyebrow">Nawigacja</div>
+                <h2>Co dalej</h2>
+            </div>
+        </div>
+        <div class="data-list">
+            <div class="data-row">
+                <span>
+                    <strong>Powrót do pulpitu</strong>
+                    <small>Jeśli chcesz otworzyć inny obszar aplikacji</small>
+                </span>
+                <a class="btn btn-secondary" asp-controller="Home" asp-action="Index">Pulpit</a>
+            </div>
+            <div class="data-row">
+                <span>
+                    <strong>Kolejny krok</strong>
+                    <small>Właściwe funkcje biznesowe są dostępne w widokach modułu zgodnie z wdrożonymi paczkami</small>
+                </span>
+                <span class="status-pill">Gotowe do pracy</span>
+            </div>
+        </div>
+    </section>
+</div>

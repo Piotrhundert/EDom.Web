@@ -1,0 +1,60 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+5 0 obj
+<< /Length 365 >>
+stream
+BT
+/F1 10 Tf
+50 800 Td
+12 TL
+(PROTOKOL PRZEKAZANIA POKOJU) Tj
+T*
+(Umowa: 6139531c-2b2b-4a2d-8e7b-88416de54bf9) Tj
+T*
+(Lokator: lokator lok) Tj
+T*
+(Pokoj: Pokoj 1) Tj
+T*
+(Data: 2026-08-29) Tj
+T*
+( ) Tj
+T*
+(Wyposazenie:) Tj
+T*
+( ) Tj
+T*
+(Uwagi: brak) Tj
+T*
+( ) Tj
+T*
+(Podpis wynajmujacego: ____________________) Tj
+T*
+(Podpis lokatora: ____________________) Tj
+T*
+ET
+endstream
+endobj
+xref
+0 6
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000241 00000 n 
+0000000311 00000 n 
+trailer
+<< /Size 6 /Root 1 0 R >>
+startxref
+726
+%%EOF

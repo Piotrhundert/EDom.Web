@@ -1,0 +1,63 @@
+@model FirstRunSetupViewModel
+@{
+    ViewData["Title"] = "Pierwsze uruchomienie";
+}
+<div class="auth-wrap">
+    <section class="auth-card wide-card">
+        <div class="section-header">
+            <div>
+                <div class="eyebrow">PKG-005 · pierwsze uruchomienie</div>
+                <h1>Skonfiguruj pierwszy e-dom</h1>
+                <p class="lead">Utwórz gospodarstwo oraz pierwsze konto administracyjne. Ten kreator jest dostępny tylko dla nowej instalacji.</p>
+            </div>
+            <span class="status-pill">Start systemu</span>
+        </div>
+
+        <form method="post" class="form-grid">
+            @Html.AntiForgeryToken()
+            <div asp-validation-summary="ModelOnly" class="validation-summary full"></div>
+
+            <div class="field full">
+                <label asp-for="HouseholdName"></label>
+                <input asp-for="HouseholdName" autocomplete="organization" />
+                <span asp-validation-for="HouseholdName"></span>
+            </div>
+            <div class="field">
+                <label asp-for="FirstName"></label>
+                <input asp-for="FirstName" autocomplete="given-name" />
+                <span asp-validation-for="FirstName"></span>
+            </div>
+            <div class="field">
+                <label asp-for="LastName"></label>
+                <input asp-for="LastName" autocomplete="family-name" />
+                <span asp-validation-for="LastName"></span>
+            </div>
+            <div class="field full">
+                <label asp-for="BirthDate"></label>
+                <input asp-for="BirthDate" />
+                <span asp-validation-for="BirthDate"></span>
+            </div>
+            <div class="field full separator-top">
+                <label asp-for="Login"></label>
+                <input asp-for="Login" autocomplete="username" />
+                <span asp-validation-for="Login"></span>
+            </div>
+            <div class="field">
+                <label asp-for="Password"></label>
+                <input asp-for="Password" autocomplete="new-password" />
+                <span asp-validation-for="Password"></span>
+            </div>
+            <div class="field">
+                <label asp-for="ConfirmPassword"></label>
+                <input asp-for="ConfirmPassword" autocomplete="new-password" />
+                <span asp-validation-for="ConfirmPassword"></span>
+            </div>
+            <div class="info-box full">
+                Pierwsze konto otrzyma rolę <strong>Administrator nadrzędny</strong> oraz profil <strong>Master</strong>. Hasło musi spełniać aktualną politykę bezpieczeństwa.
+            </div>
+            <div class="full actions">
+                <button class="btn btn-primary" type="submit">Utwórz gospodarstwo</button>
+            </div>
+        </form>
+    </section>
+</div>

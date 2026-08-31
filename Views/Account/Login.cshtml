@@ -1,0 +1,38 @@
+@model LoginViewModel
+@{
+    ViewData["Title"] = "Logowanie";
+}
+<div class="auth-wrap">
+    <section class="auth-card wide-card auth-split-card">
+        <div class="auth-side auth-side-brand">
+            <div class="brand auth-brand"><span class="brand-mark">e</span><span>e-dom</span></div>
+            <div class="eyebrow">Bezpieczne logowanie</div>
+            <h1>Zaloguj się do systemu</h1>
+            <p class="lead">Dostęp do gospodarstwa jest chroniony kontem, polityką haseł i uprawnieniami RBAC. Po zalogowaniu zobaczysz tylko te moduły i akcje, do których masz aktualne prawa.</p>
+            <div class="info-box">Jeśli nie pamiętasz danych logowania albo konto zostało zablokowane po nieudanych próbach, administrator może odblokować konto lub zresetować hasło.</div>
+        </div>
+        <div class="auth-side">
+            @if (TempData["SetupComplete"] is string setupMessage)
+            {
+                <div class="success-box">@setupMessage</div>
+            }
+
+            <form method="post">
+                @Html.AntiForgeryToken()
+                <input asp-for="ReturnUrl" type="hidden" />
+                <div asp-validation-summary="ModelOnly" class="validation-summary"></div>
+                <div class="field">
+                    <label asp-for="Login"></label>
+                    <input asp-for="Login" autocomplete="username" autofocus />
+                    <span asp-validation-for="Login"></span>
+                </div>
+                <div class="field">
+                    <label asp-for="Password"></label>
+                    <input asp-for="Password" autocomplete="current-password" />
+                    <span asp-validation-for="Password"></span>
+                </div>
+                <button class="btn btn-primary full-button" type="submit">Zaloguj</button>
+            </form>
+        </div>
+    </section>
+</div>

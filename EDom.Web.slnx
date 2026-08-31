@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="../EDom.Application/EDom.Application.csproj" />
+  <Project Path="../EDom.Domain/EDom.Domain.csproj" />
+  <Project Path="../EDom.Infrastructure/EDom.Infrastructure.csproj" />
+  <Project Path="../EDom.SharedKernel/EDom.SharedKernel.csproj" />
+  <Project Path="EDom.Web.csproj" />
+</Solution>

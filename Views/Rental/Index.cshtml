@@ -1,0 +1,52 @@
+@model EDom.Application.Rental.RentalOverview
+@using EDom.Domain.Rental
+@{
+    ViewData["Title"] = "Najem";
+    var today = DateOnly.FromDateTime(DateTime.Today);
+}
+<div class="d-flex justify-content-between align-items-center mb-3"><div><h1 class="h3 mb-1">Najem</h1><div class="text-muted">Lokatorzy, umowy, kaucje, aneksy i protokoły.</div></div></div>
+@if (TempData["Success"] is string success) { <div class="alert alert-success">@success</div> }
+@if (TempData["Error"] is string error) { <div class="alert alert-danger">@error</div> }
+
+@if (Model.CanManage)
+{
+<div class="card mb-4"><div class="card-header"><strong>Nowy lokator i umowa</strong></div><div class="card-body">
+<form asp-action="Create" method="post" class="row g-3">
+@Html.AntiForgeryToken()
+<div class="col-md-4"><label class="form-label">Pokój</label><select name="roomId" class="form-select" required><option value="">-- wybierz --</option>@foreach(var r in Model.RentableRooms){<option value="@r.RoomId">@r.Label (@r.Status)</option>}</select></div>
+<div class="col-md-4"><label class="form-label">Szablon</label><select name="templateId" class="form-select"><option value="">Domyślny</option>@foreach(var t in Model.Templates){<option value="@t.TemplateId">@t.Name v@t.VersionNumber</option>}</select></div>
+<div class="col-md-4"><label class="form-label">Wynajmujący</label><select name="landlordPersonId" class="form-select">@foreach(var l in Model.Landlords){<option value="@l.PersonId">@l.DisplayName</option>}</select></div>
+<div class="col-md-3"><label class="form-label">Imię lokatora</label><input name="firstName" class="form-control" required /></div>
+<div class="col-md-3"><label class="form-label">Nazwisko</label><input name="lastName" class="form-control" required /></div>
+<div class="col-md-3"><label class="form-label">Data urodzenia</label><input name="birthDate" type="date" class="form-control" /></div>
+<div class="col-md-3"><label class="form-label">E-mail</label><input name="email" type="email" class="form-control" /></div>
+<div class="col-md-3"><label class="form-label">Telefon</label><input name="phone" class="form-control" /></div>
+<div class="col-md-3"><label class="form-label">Login</label><input name="login" class="form-control" required /></div>
+<div class="col-md-3"><label class="form-label">Hasło tymczasowe</label><input name="temporaryPassword" type="password" class="form-control" required /></div>
+<div class="col-md-3 d-flex align-items-end"><div class="form-check mb-2"><input name="mustChangePassword" value="true" type="checkbox" class="form-check-input" checked /><label class="form-check-label">Wymuś zmianę hasła</label></div></div>
+<div class="col-md-3"><label class="form-label">Od</label><input name="leaseFrom" type="date" value="@today.ToString("yyyy-MM-dd")" class="form-control" required /></div>
+<div class="col-md-3"><label class="form-label">Do</label><input name="leaseTo" type="date" class="form-control" /></div>
+<div class="col-md-2"><label class="form-label">Czynsz</label><input name="rentAmount" type="number" step="0.01" min="0" class="form-control" required /></div>
+<div class="col-md-1"><label class="form-label">Waluta</label><input name="currencyCode" value="PLN" maxlength="3" class="form-control" /></div>
+<div class="col-md-1"><label class="form-label">Termin</label><input name="dueDay" type="number" min="1" max="31" value="10" class="form-control" /></div>
+<div class="col-md-2"><label class="form-label">Zaliczka</label><input name="advanceAmount" type="number" step="0.01" min="0" value="0" class="form-control" /></div>
+<div class="col-md-2"><label class="form-label">Kaucja</label><input name="depositAmount" type="number" step="0.01" min="0" value="0" class="form-control" /></div>
+<div class="col-12"><label class="form-label">Zasady mediów</label><input name="utilitiesRulesText" class="form-control" value="Media rozliczane zgodnie z zasadami e-dom." /></div>
+<div class="col-12"><button class="btn btn-primary">Przygotuj umowę i konto lokatora</button></div>
+</form></div></div>
+}
+
+<div class="card"><div class="card-header"><strong>Umowy</strong></div><div class="card-body p-0"><div class="table-responsive"><table class="table table-hover mb-0"><thead><tr><th>Lokator</th><th>Pokój</th><th>Okres</th><th>Czynsz</th><th>Status</th><th>Dokumenty / działania</th></tr></thead><tbody>
+@if(Model.Contracts.Count==0){<tr><td colspan="6" class="text-muted p-3">Brak umów.</td></tr>}
+@foreach(var c in Model.Contracts){<tr><td>@c.TenantName<br/><small>@c.TenantLogin</small></td><td>@c.RoomName</td><td>@c.LeaseFrom.ToString("yyyy-MM-dd") – @(c.LeaseTo?.ToString("yyyy-MM-dd") ?? "bezterminowo")</td><td>@((c.RentAmountMinor/100m).ToString("0.00")) @c.CurrencyCode</td><td><strong>@c.Status</strong></td><td>
+@if(c.DocumentItemId.HasValue){<a class="btn btn-sm btn-outline-primary mb-1" asp-action="Document" asp-route-documentId="@c.DocumentItemId">Umowa PDF</a>}
+@if(Model.CanManage){
+@if(c.Status==LeaseStatuses.Prepared){<form asp-action="Activate" method="post" class="d-inline">@Html.AntiForgeryToken()<input type="hidden" name="contractId" value="@c.ContractId"/><input type="hidden" name="signedOn" value="@today.ToString("yyyy-MM-dd")"/><input type="hidden" name="signatureMethod" value="Paper"/><button class="btn btn-sm btn-success mb-1">Potwierdź podpisanie</button></form>}
+@if(c.Status==LeaseStatuses.Signed){<form asp-action="End" method="post" class="d-inline">@Html.AntiForgeryToken()<input type="hidden" name="contractId" value="@c.ContractId"/><input type="hidden" name="endedOn" value="@today.ToString("yyyy-MM-dd")"/><input type="hidden" name="reason" value="Zakończenie ręczne"/><button class="btn btn-sm btn-outline-danger mb-1">Zakończ</button></form>}
+<details class="mt-2"><summary>Więcej</summary><div class="mt-2 d-grid gap-2">
+<form asp-action="Amend" method="post" class="row g-1">@Html.AntiForgeryToken()<input type="hidden" name="contractId" value="@c.ContractId"/><div class="col"><input name="effectiveOn" type="date" value="@today.ToString("yyyy-MM-dd")" class="form-control form-control-sm"/></div><div class="col"><input name="newRentAmount" type="number" step="0.01" placeholder="Nowy czynsz" class="form-control form-control-sm"/></div><div class="col"><button class="btn btn-sm btn-outline-secondary">Aneks</button></div></form>
+@if(c.Deposit is not null && c.Deposit.RequiredAmountMinor>c.Deposit.PaidAmountMinor){<form asp-action="Deposit" method="post" class="row g-1">@Html.AntiForgeryToken()<input type="hidden" name="contractId" value="@c.ContractId"/><div class="col"><input name="amount" type="number" step="0.01" placeholder="Wpłata kaucji" class="form-control form-control-sm" required/></div><input type="hidden" name="paidOn" value="@today.ToString("yyyy-MM-dd")"/><div class="col"><button class="btn btn-sm btn-outline-secondary">Zapisz kaucję</button></div></form>}
+<form asp-action="Protocol" method="post" class="row g-1">@Html.AntiForgeryToken()<input type="hidden" name="contractId" value="@c.ContractId"/><input type="hidden" name="protocolDate" value="@today.ToString("yyyy-MM-dd")"/><div class="col"><select name="protocolType" class="form-select form-select-sm"><option value="Handover">Przekazanie</option><option value="Return">Odbiór</option></select></div><div class="col"><input name="notes" class="form-control form-control-sm" placeholder="Uwagi"/></div><div class="col"><button class="btn btn-sm btn-outline-secondary">Protokół PDF</button></div></form>
+</div></details>}
+</td></tr>}
+</tbody></table></div></div></div>

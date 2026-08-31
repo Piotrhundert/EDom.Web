@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>e-dom-development-secrets</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\EDom.Application\EDom.Application.csproj" />
+    <ProjectReference Include="..\EDom.Infrastructure\EDom.Infrastructure.csproj" />
+    <ProjectReference Include="..\EDom.SharedKernel\EDom.SharedKernel.csproj" />
+  </ItemGroup>
+</Project>

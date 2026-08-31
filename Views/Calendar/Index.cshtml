@@ -1,0 +1,117 @@
+@model EDom.Web.Models.CalendarPageModel
+@using EDom.Domain.Collaboration
+@{
+    ViewData["Title"] = "Kalendarz";
+    var startDefault = DateTime.Now.AddHours(1).ToString("yyyy-MM-ddTHH:mm");
+    var endDefault = DateTime.Now.AddHours(2).ToString("yyyy-MM-ddTHH:mm");
+    var currentPersonId = ViewData["CurrentPersonId"] as Guid?;
+}
+
+<section class="hero compact-hero">
+    <div>
+        <div class="eyebrow">PKG-009 · kalendarz podstawowy</div>
+        <h1>Kalendarz</h1>
+        <p>Wydarzenia własne, wspólne, grup rodzinnych i wydarzenia dziecka zgodnie z RBAC.</p>
+    </div>
+    <span class="status-pill">MVP-1</span>
+</section>
+@if (TempData["Success"] is string success) { <div class="success-box">@success</div> }
+@if (TempData["Error"] is string error) { <div class="error-box">@error</div> }
+
+<div class="split-grid top-gap">
+    <section class="panel">
+        <h2>Nowe wydarzenie</h2>
+        <form asp-action="Create" method="post">
+            @Html.AntiForgeryToken()
+            <div class="field"><label>Tytuł</label><input name="title" required maxlength="300" /></div>
+            <div class="form-grid">
+                <div class="field"><label>Od</label><input type="datetime-local" name="startsAtLocal" value="@startDefault" required /></div>
+                <div class="field"><label>Do</label><input type="datetime-local" name="endsAtLocal" value="@endDefault" required /></div>
+            </div>
+            <div class="field">
+                <label>Widoczność</label>
+                <select name="visibility">
+                    <option value="@CalendarVisibility.Own">Tylko moje</option>
+                    <option value="@CalendarVisibility.Household">Gospodarstwo</option>
+                    @if (Model.FamilyGroups.Count > 0)
+                    {
+                        <option value="@CalendarVisibility.FamilyGroup">Grupa rodzinna</option>
+                    }
+                    @if (Model.Children.Count > 0)
+                    {
+                        <option value="@CalendarVisibility.Guardian">Wydarzenie dziecka</option>
+                    }
+                </select>
+            </div>
+            @if (Model.FamilyGroups.Count > 0)
+            {
+                <div class="field">
+                    <label>Grupa rodzinna (dla widoczności Grupa rodzinna)</label>
+                    <select name="familyGroupId">
+                        <option value="">—</option>
+                        @foreach (var group in Model.FamilyGroups)
+                        {
+                            <option value="@group.Id">@group.Name</option>
+                        }
+                    </select>
+                </div>
+            }
+            @if (Model.Children.Count > 0)
+            {
+                <div class="field">
+                    <label>Dziecko (dla wydarzenia dziecka)</label>
+                    <select name="childPersonId">
+                        <option value="">—</option>
+                        @foreach (var child in Model.Children)
+                        {
+                            <option value="@child.Id">@child.FirstName @child.LastName</option>
+                        }
+                    </select>
+                </div>
+            }
+            <div class="field"><label>Miejsce</label><input name="location" maxlength="300" /></div>
+            <button class="btn btn-primary" type="submit">Dodaj wydarzenie</button>
+        </form>
+    </section>
+
+    <section class="panel">
+        <h2>Nadchodzące wydarzenia</h2>
+        <div class="data-list">
+            @if (Model.Events.Count == 0)
+            {
+                <div class="muted-block">Brak wydarzeń w najbliższym okresie.</div>
+            }
+            @foreach (var item in Model.Events)
+            {
+                <div class="data-row stacked-row">
+                    <span>
+                        <strong>@item.Title</strong>
+                        <small>@item.StartsAtUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm") – @item.EndsAtUtc.ToLocalTime().ToString("HH:mm")</small>
+                        <small>
+                            @item.Visibility
+                            @if (!string.IsNullOrWhiteSpace(item.Location))
+                            {
+                                <text> · @item.Location</text>
+                            }
+                        </small>
+                    </span>
+                    @if (currentPersonId == item.OwnerPersonId)
+                    {
+                        <details class="crud-details">
+                            <summary>Edytuj / anuluj</summary>
+                            <form asp-action="Edit" asp-route-id="@item.Id" method="post" class="mini-form">
+                                @Html.AntiForgeryToken()
+                                <input name="title" value="@item.Title" required maxlength="300" />
+                                <input name="startsAtLocal" type="datetime-local" value="@item.StartsAtUtc.ToLocalTime().ToString("yyyy-MM-ddTHH:mm")" required />
+                                <input name="endsAtLocal" type="datetime-local" value="@item.EndsAtUtc.ToLocalTime().ToString("yyyy-MM-ddTHH:mm")" required />
+                                <input name="location" value="@item.Location" maxlength="300" />
+                                <button class="btn btn-secondary" type="submit">Zapisz</button>
+                            </form>
+                            <form asp-action="Cancel" asp-route-id="@item.Id" method="post">@Html.AntiForgeryToken()<button class="btn btn-danger" type="submit">Anuluj</button></form>
+                        </details>
+                    }
+                </div>
+            }
+        </div>
+    </section>
+</div>

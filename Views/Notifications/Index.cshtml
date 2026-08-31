@@ -1,0 +1,37 @@
+@model EDom.Web.Models.NotificationsPageModel
+@using EDom.Domain.Collaboration
+@{
+    ViewData["Title"] = "Powiadomienia";
+}
+
+<section class="hero compact-hero">
+    <div>
+        <div class="eyebrow">PKG-009 · in-app</div>
+        <h1>Powiadomienia</h1>
+        <p>Terminy i decyzje finansowe są tworzone idempotentnie i widoczne wyłącznie właściwemu odbiorcy.</p>
+    </div>
+    <span class="status-pill">@Model.Notifications.Count(x => x.Status == NotificationStatuses.Unread) nieprzeczytanych</span>
+</section>
+
+<section class="panel top-gap">
+    <div class="data-list">
+        @if (Model.Notifications.Count == 0) { <div class="muted-block">Brak powiadomień.</div> }
+        @foreach (var item in Model.Notifications)
+        {
+            <div class="data-row stacked-row">
+                <span>
+                    <strong>@item.Title</strong>
+                    <small>@item.MessageSafe</small>
+                    <small>@item.CreatedAtUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm") · @item.Status</small>
+                </span>
+                @if (item.Status == NotificationStatuses.Unread)
+                {
+                    <form asp-action="Read" asp-route-id="@item.Id" method="post">
+                        @Html.AntiForgeryToken()
+                        <button class="btn btn-secondary" type="submit">Oznacz jako przeczytane</button>
+                    </form>
+                }
+            </div>
+        }
+    </div>
+</section>

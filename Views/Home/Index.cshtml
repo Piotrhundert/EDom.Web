@@ -1,0 +1,55 @@
+@{
+    ViewData["Title"] = "Pulpit";
+    var modules = ViewData["Modules"] as IReadOnlyList<ModuleDefinition> ?? Array.Empty<ModuleDefinition>();
+    var householdName = ViewData["HouseholdName"] as string ?? "Twoje gospodarstwo";
+}
+<section class="hero hero-dashboard">
+    <div>
+        <div class="eyebrow">@householdName</div>
+        <h1>Witaj, @ViewData["DisplayName"]</h1>
+        <p>Interfejs został uporządkowany tak, aby łatwiej odnaleźć moduły, szybciej przejść do działania i lepiej rozróżniać obszary aplikacji.</p>
+    </div>
+    <div class="hero-side">
+        <span class="status-pill">PKG-012 · Media</span>
+        <div class="hero-note">Widoczne kafelki i akcje nadal wynikają z Twoich aktualnych uprawnień RBAC.</div>
+    </div>
+</section>
+
+<section class="stats-grid top-gap">
+    <article class="stat-card">
+        <strong>@modules.Count</strong>
+        <span>Dostępne moduły</span>
+        <small>Tylko te, do których masz aktywne uprawnienia</small>
+    </article>
+    <article class="stat-card">
+        <strong>1</strong>
+        <span>Punkt startowy</span>
+        <small>Zaczynaj od pulpitu i przechodź do konkretnego obszaru</small>
+    </article>
+    <article class="stat-card">
+        <strong>RBAC</strong>
+        <span>Bezpieczeństwo</span>
+        <small>Przyciski i moduły są ukrywane lub blokowane zgodnie z rolą</small>
+    </article>
+</section>
+
+<section class="panel top-gap">
+    <div class="section-header">
+        <div>
+            <div class="eyebrow">Nawigacja główna</div>
+            <h2>Najważniejsze obszary aplikacji</h2>
+            <p class="lead">Kafelki prowadzą bezpośrednio do modułów. Opis pod nazwą pomaga szybko rozpoznać przeznaczenie ekranu.</p>
+        </div>
+    </div>
+
+    <div class="module-grid">
+        @foreach (var module in modules)
+        {
+            <a class="module-card" asp-controller="Modules" asp-action="Index" asp-route-key="@module.Key">
+                <span class="module-title">@module.Label</span>
+                <span class="module-description">@module.Description</span>
+                <span class="module-link">Otwórz moduł →</span>
+            </a>
+        }
+    </div>
+</section>

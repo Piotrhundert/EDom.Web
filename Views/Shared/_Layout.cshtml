@@ -1,0 +1,76 @@
+@{
+    var pageTitle = ViewData["Title"] as string ?? "e-dom";
+    var householdName = ViewData["HouseholdName"] as string;
+    var userName = User.Identity?.Name ?? "Użytkownik";
+    var userInitial = string.IsNullOrWhiteSpace(userName) ? "U" : userName.Substring(0, 1).ToUpperInvariant();
+}
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>@pageTitle - e-dom</title>
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+</head>
+<body>
+    <div class="shell-backdrop"></div>
+    <div class="app-shell">
+        @if (User.Identity?.IsAuthenticated == true)
+        {
+            <aside class="sidebar">
+                <div class="sidebar-top">
+                    <a class="brand" asp-controller="Home" asp-action="Index">
+                        <span class="brand-mark">e</span>
+                        <span>e-dom</span>
+                    </a>
+                    <p class="sidebar-subtitle">Domowy system zarządzania finansami, nieruchomościami i organizacją.</p>
+                    <div class="sidebar-card">
+                        <span class="sidebar-caption">Interfejs roboczy</span>
+                        <strong>UI refresh aktywny</strong>
+                        <small>Wygląd jest wersją roboczą; finalne dopracowanie UI/UX wykonamy w późniejszym etapie.</small>
+                    </div>
+                </div>
+                <vc:main-navigation></vc:main-navigation>
+            </aside>
+        }
+
+        <div class="page-shell @(User.Identity?.IsAuthenticated == true ? "with-sidebar" : "standalone")">
+            @if (User.Identity?.IsAuthenticated == true)
+            {
+                <header class="topbar">
+                    <div class="topbar-copy">
+                        <div class="eyebrow">@(string.IsNullOrWhiteSpace(householdName) ? "e-dom" : householdName)</div>
+                        <div class="topbar-title">@pageTitle</div>
+                        <div class="topbar-meta">Czytelniejszy układ i szybsza orientacja w module.</div>
+                    </div>
+                    <div class="topbar-actions">
+                        <div class="user-chip">
+                            <span class="user-initial">@userInitial</span>
+                            <span>
+                                <strong>@userName</strong>
+                                <small>Bezpieczna sesja</small>
+                            </span>
+                        </div>
+                        <form asp-controller="Account" asp-action="Logout" method="post">
+                            @Html.AntiForgeryToken()
+                            <button class="btn btn-secondary" type="submit">Wyloguj</button>
+                        </form>
+                    </div>
+                </header>
+            }
+            <main class="content">
+                @if (User.Identity?.IsAuthenticated == true)
+                {
+                    <div class="breadcrumb-line">
+                        <a asp-controller="Home" asp-action="Index">Pulpit</a>
+                        <span>•</span>
+                        <span>@pageTitle</span>
+                    </div>
+                }
+                @RenderBody()
+            </main>
+        </div>
+    </div>
+    @RenderSection("Scripts", required: false)
+</body>
+</html>

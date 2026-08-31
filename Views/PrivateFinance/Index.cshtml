@@ -1,0 +1,211 @@
+@model PrivateFinancePageViewModel
+@{
+    ViewData["Title"] = "Moje finanse";
+    string FmtMoney(long? minor, string currency)
+    {
+        if (!minor.HasValue) return "—";
+        return $"{new Money(minor.Value, currency).ToMajor():N2} {currency}";
+    }
+    var accounts = Model.Overview.Accounts;
+}
+
+<section class="hero">
+    <div>
+        <div class="eyebrow">Prywatny obszar właściciela</div>
+        <h1>Moje finanse</h1>
+        <p>Konta, dochody, świadczenia dziecka, wydatki i subskrypcje. Administrator gospodarstwa nie otrzymuje automatycznie dostępu do prywatnych rachunków innych osób.</p>
+    </div>
+    <div class="status-pill">PKG-007</div>
+</section>
+
+@if (TempData["Success"] is string success)
+{
+    <div class="info-box">@success</div>
+}
+@if (TempData["Error"] is string error)
+{
+    <div class="error-box">@error</div>
+}
+
+<section class="panel">
+    <h2>Konta prywatne</h2>
+    @if (accounts.Count == 0)
+    {
+        <p class="muted">Nie masz jeszcze prywatnego konta finansowego w e-dom.</p>
+    }
+    else
+    {
+        <table>
+            <thead><tr><th>Nazwa</th><th>Typ</th><th>Saldo</th><th>Status</th><th>Akcje</th></tr></thead>
+            <tbody>
+            @foreach (var account in accounts)
+            {
+                <tr><td>@account.Name</td><td>@account.AccountType</td><td>@FmtMoney(account.BalanceMinor, account.CurrencyCode)</td><td>@account.Status</td><td><details class="crud-details"><summary>Edytuj</summary><form asp-action="UpdateRecord" method="post" class="mini-form">@Html.AntiForgeryToken()<input type="hidden" name="RecordType" value="Account"/><input type="hidden" name="RecordId" value="@account.Id"/><input type="hidden" name="CurrencyCode" value="@account.CurrencyCode"/><input name="Name" value="@account.Name" required/><input name="SecondaryText" placeholder="Bank"/><select name="Status"><option>@account.Status</option><option>Active</option><option>Inactive</option><option>Archived</option></select><button class="btn btn-secondary" type="submit">Zapisz</button></form><form asp-action="ArchiveRecord" method="post" class="inline-form">@Html.AntiForgeryToken()<input type="hidden" name="recordType" value="Account"/><input type="hidden" name="recordId" value="@account.Id"/><button class="btn btn-danger" type="submit">Archiwizuj</button></form></details></td></tr>
+            }
+            </tbody>
+        </table>
+    }
+    <details>
+        <summary>Dodaj konto</summary>
+        <form asp-action="Account" method="post" class="form-grid">
+            @Html.AntiForgeryToken()
+            <label>Nazwa<input name="Name" required /></label>
+            <label>Bank<input name="BankName" /></label>
+            <label>Typ<select name="AccountType"><option value="Personal">Osobiste</option><option value="Savings">Oszczędnościowe</option><option value="Currency">Walutowe</option><option value="Joint">Wspólne</option><option value="Other">Inne</option></select></label>
+            <label>Waluta<input name="CurrencyCode" value="PLN" maxlength="3" required /></label>
+            <label>Saldo początkowe<input name="OpeningBalance" type="number" step="0.01" value="0" /></label>
+            <button class="btn" type="submit">Dodaj konto</button>
+        </form>
+    </details>
+</section>
+
+<section class="panel">
+    <h2>Dochody</h2>
+    @if (Model.Overview.PlannedIncomes.Count > 0)
+    {
+        <table>
+            <thead><tr><th>Źródło</th><th>Plan</th><th>Data</th><th>Stan</th><th>Rzeczywisty wpływ</th></tr></thead>
+            <tbody>
+            @foreach (var income in Model.Overview.PlannedIncomes)
+            {
+                <tr>
+                    <td>@income.IncomeName</td>
+                    <td>@FmtMoney(income.PlannedAmountMinor, income.CurrencyCode)</td>
+                    <td>@income.PlannedOn</td>
+                    <td>@income.Status</td>
+                    <td>
+                        @if (income.Status == "Received")
+                        {
+                            <span>@FmtMoney(income.ActualAmountMinor, income.CurrencyCode)</span>
+                        }
+                        else
+                        {
+                            <form asp-action="ConfirmIncome" method="post" class="inline-form">
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="PlannedIncomeId" value="@income.Id" />
+                                <input type="date" name="ActualReceivedOn" value="@DateOnly.FromDateTime(DateTime.Today).ToString("yyyy-MM-dd")" required />
+                                <input type="number" name="ActualAmount" step="0.01" value="@(income.PlannedAmountMinor.HasValue ? new Money(income.PlannedAmountMinor.Value, income.CurrencyCode).ToMajor() : 0)" required />
+                                <button class="btn btn-secondary" type="submit">Wpłynęło</button>
+                            </form>
+                        }
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    }
+    <details>
+        <summary>Dodaj źródło dochodu</summary>
+        @if (accounts.Count == 0)
+        {
+            <p>Najpierw dodaj konto prywatne.</p>
+        }
+        else
+        {
+            <form asp-action="Income" method="post" class="form-grid">
+                @Html.AntiForgeryToken()
+                <label>Konto<select name="FinancialAccountId">@foreach (var a in accounts){<option value="@a.Id">@a.Name (@a.CurrencyCode)</option>}</select></label>
+                <label>Nazwa<input name="Name" value="Wynagrodzenie" required /></label>
+                <label>Typ<select name="IncomeType"><option value="Salary">Wynagrodzenie</option><option value="Other">Inny dochód</option></select></label>
+                <label>Kwota planowana<input name="PlannedAmount" type="number" step="0.01" /></label>
+                <label>Waluta<input name="CurrencyCode" value="PLN" maxlength="3" /></label>
+                <label>Częstotliwość<select name="Frequency"><option value="Monthly">Miesięcznie</option><option value="Quarterly">Kwartalnie</option><option value="Yearly">Rocznie</option></select></label>
+                <label>Planowany dzień<input name="PlannedDayOfMonth" type="number" min="1" max="31" value="10" /></label>
+                <label>Od<input name="ValidFrom" type="date" value="@DateOnly.FromDateTime(DateTime.Today).ToString("yyyy-MM-dd")" /></label>
+                <label>Do<input name="ValidTo" type="date" /></label>
+                <label><input name="IsVariable" type="checkbox" value="true" /> Kwota zmienna</label>
+                <button class="btn" type="submit">Dodaj dochód</button>
+            </form>
+        }
+    </details>
+</section>
+
+<section class="panel">
+    <h2>Edycja źródeł dochodu</h2>
+    @if (Model.Overview.IncomeSources.Count == 0) { <p class="muted">Brak źródeł dochodu.</p> }
+    else { <div class="data-list">@foreach(var src in Model.Overview.IncomeSources){<div class="data-row data-row-stack"><div class="row-main"><span><strong>@src.Name</strong><small>@src.Frequency · @FmtMoney(src.PlannedAmountMinor,src.CurrencyCode) · @src.Status</small></span></div><details class="crud-details"><summary>Edytuj</summary><form asp-action="UpdateRecord" method="post" class="mini-form">@Html.AntiForgeryToken()<input type="hidden" name="RecordType" value="Income"/><input type="hidden" name="RecordId" value="@src.Id"/><input type="hidden" name="CurrencyCode" value="@src.CurrencyCode"/><input name="Name" value="@src.Name"/><input name="PlannedAmount" type="number" step="0.01" value="@(src.PlannedAmountMinor.HasValue ? new Money(src.PlannedAmountMinor.Value,src.CurrencyCode).ToMajor() : 0)"/><input name="DateValue" type="date" value="@(src.ValidTo?.ToString("yyyy-MM-dd"))"/><select name="Status"><option>@src.Status</option><option>Active</option><option>Inactive</option><option>Archived</option></select><button class="btn btn-secondary" type="submit">Zapisz</button></form><form asp-action="ArchiveRecord" method="post" class="inline-form">@Html.AntiForgeryToken()<input type="hidden" name="recordType" value="Income"/><input type="hidden" name="recordId" value="@src.Id"/><button class="btn btn-danger" type="submit">Archiwizuj</button></form></details></div>}</div> }
+</section>
+
+<section class="panel">
+    <h2>Świadczenia i wydatki dziecka</h2>
+    @if (Model.Overview.Benefits.Count > 0)
+    {
+        <table><thead><tr><th>Nazwa</th><th>Dziecko</th><th>Kwota</th><th>Cykl</th><th>Akcje</th></tr></thead><tbody>
+        @foreach (var item in Model.Overview.Benefits){<tr><td>@item.Name</td><td>@item.BeneficiaryName</td><td>@FmtMoney(item.PlannedAmountMinor,item.CurrencyCode)</td><td>@item.Frequency</td><td><details class="crud-details"><summary>Edytuj</summary><form asp-action="UpdateRecord" method="post" class="mini-form">@Html.AntiForgeryToken()<input type="hidden" name="RecordType" value="Benefit"/><input type="hidden" name="RecordId" value="@item.Id"/><input type="hidden" name="CurrencyCode" value="@item.CurrencyCode"/><input name="Name" value="@item.Name"/><input name="PlannedAmount" type="number" step="0.01" value="@(new Money(item.PlannedAmountMinor,item.CurrencyCode).ToMajor())"/><select name="Status"><option>@item.Status</option><option>Active</option><option>Inactive</option><option>Archived</option></select><button class="btn btn-secondary" type="submit">Zapisz</button></form><form asp-action="ArchiveRecord" method="post" class="inline-form">@Html.AntiForgeryToken()<input type="hidden" name="recordType" value="Benefit"/><input type="hidden" name="recordId" value="@item.Id"/><button class="btn btn-danger" type="submit">Archiwizuj</button></form></details></td></tr>}
+        </tbody></table>
+    }
+    @if (Model.Children.Count > 0 && accounts.Count > 0)
+    {
+        <details>
+            <summary>Dodaj świadczenie dotyczące dziecka</summary>
+            <form asp-action="Benefit" method="post" class="form-grid">
+                @Html.AntiForgeryToken()
+                <label>Dziecko<select name="BeneficiaryPersonId">@foreach(var c in Model.Children){<option value="@c.Id">@c.Name</option>}</select></label>
+                <label>Konto wpływu<select name="FinancialAccountId">@foreach(var a in accounts){<option value="@a.Id">@a.Name</option>}</select></label>
+                <label>Nazwa<input name="Name" value="Świadczenie" /></label>
+                <label>Typ<input name="BenefitType" value="Other" /></label>
+                <label>Kwota<input name="PlannedAmount" type="number" step="0.01" /></label>
+                <label>Waluta<input name="CurrencyCode" value="PLN" maxlength="3" /></label>
+                <label>Cykl<select name="Frequency"><option value="Monthly">Miesięcznie</option><option value="OneTime">Jednorazowo</option><option value="Yearly">Rocznie</option></select></label>
+                <label>Od<input name="ValidFrom" type="date" value="@DateOnly.FromDateTime(DateTime.Today).ToString("yyyy-MM-dd")" /></label>
+                <label>Instytucja<input name="Institution" /></label>
+                <label>Nr decyzji/sprawy<input name="DecisionReference" /></label>
+                <button class="btn" type="submit">Dodaj świadczenie</button>
+            </form>
+        </details>
+    }
+</section>
+
+<section class="panel">
+    <h2>Wydatki prywatne</h2>
+    @if (Model.Overview.Expenses.Count > 0)
+    {
+        <table><thead><tr><th>Nazwa</th><th>Kategoria</th><th>Termin</th><th>Kwota</th><th>Status</th><th>Akcje</th></tr></thead><tbody>
+        @foreach(var e in Model.Overview.Expenses){<tr><td>@e.Name</td><td>@e.Category</td><td>@e.DueOn</td><td>@FmtMoney(e.ActualAmountMinor ?? e.PlannedAmountMinor,e.CurrencyCode)</td><td>@e.Status</td><td><details class="crud-details"><summary>Edytuj</summary><form asp-action="UpdateRecord" method="post" class="mini-form">@Html.AntiForgeryToken()<input type="hidden" name="RecordType" value="Expense"/><input type="hidden" name="RecordId" value="@e.Id"/><input type="hidden" name="CurrencyCode" value="@e.CurrencyCode"/><input name="Name" value="@e.Name"/><input name="SecondaryText" value="@e.Category"/><input name="PlannedAmount" type="number" step="0.01" value="@(new Money(e.PlannedAmountMinor,e.CurrencyCode).ToMajor())"/><input name="DateValue" type="date" value="@e.DueOn.ToString("yyyy-MM-dd")"/><button class="btn btn-secondary" type="submit">Zapisz</button></form><form asp-action="ArchiveRecord" method="post" class="inline-form">@Html.AntiForgeryToken()<input type="hidden" name="recordType" value="Expense"/><input type="hidden" name="recordId" value="@e.Id"/><button class="btn btn-danger" type="submit">Anuluj</button></form></details></td></tr>}
+        </tbody></table>
+    }
+    <details>
+        <summary>Dodaj wydatek</summary>
+        <form asp-action="Expense" method="post" class="form-grid">
+            @Html.AntiForgeryToken()
+            <label>Konto<select name="FinancialAccountId"><option value="">Bez wskazania</option>@foreach(var a in accounts){<option value="@a.Id">@a.Name</option>}</select></label>
+            <label>Nazwa<input name="Name" required /></label>
+            <label>Kategoria<input name="Category" value="Other" /></label>
+            <label>Kwota<input name="PlannedAmount" type="number" step="0.01" /></label>
+            <label>Waluta<input name="CurrencyCode" value="PLN" maxlength="3" /></label>
+            <label>Termin<input name="DueOn" type="date" value="@DateOnly.FromDateTime(DateTime.Today).ToString("yyyy-MM-dd")" /></label>
+            <label>Dziecko (opcjonalnie)<select name="ChildPersonId"><option value="">—</option>@foreach(var c in Model.Children){<option value="@c.Id">@c.Name</option>}</select></label>
+            <label>Udział dziecka<input name="ChildAmount" type="number" step="0.01" /></label>
+            <button class="btn" type="submit">Dodaj wydatek</button>
+        </form>
+    </details>
+</section>
+
+<section class="panel">
+    <h2>Subskrypcje</h2>
+    @if (Model.Overview.Subscriptions.Count > 0)
+    {
+        <table><thead><tr><th>Nazwa</th><th>Dostawca</th><th>Kwota</th><th>Cykl</th><th>Następne pobranie</th><th>Akcje</th></tr></thead><tbody>
+        @foreach(var s in Model.Overview.Subscriptions){<tr><td>@s.Name</td><td>@s.Provider</td><td>@FmtMoney(s.PlannedAmountMinor,s.CurrencyCode)</td><td>@s.Cycle</td><td>@s.NextChargeOn</td><td><details class="crud-details"><summary>Edytuj</summary><form asp-action="UpdateRecord" method="post" class="mini-form">@Html.AntiForgeryToken()<input type="hidden" name="RecordType" value="Subscription"/><input type="hidden" name="RecordId" value="@s.Id"/><input type="hidden" name="CurrencyCode" value="@s.CurrencyCode"/><input name="Name" value="@s.Name"/><input name="SecondaryText" value="@s.Provider"/><input name="PlannedAmount" type="number" step="0.01" value="@(new Money(s.PlannedAmountMinor,s.CurrencyCode).ToMajor())"/><input name="DateValue" type="date" value="@s.NextChargeOn.ToString("yyyy-MM-dd")"/><select name="Status"><option>@s.Status</option><option>Active</option><option>Inactive</option><option>Archived</option></select><button class="btn btn-secondary" type="submit">Zapisz</button></form><form asp-action="ArchiveRecord" method="post" class="inline-form">@Html.AntiForgeryToken()<input type="hidden" name="recordType" value="Subscription"/><input type="hidden" name="recordId" value="@s.Id"/><button class="btn btn-danger" type="submit">Archiwizuj</button></form></details></td></tr>}
+        </tbody></table>
+    }
+    <details>
+        <summary>Dodaj subskrypcję</summary>
+        <form asp-action="Subscription" method="post" class="form-grid">
+            @Html.AntiForgeryToken()
+            <label>Konto<select name="FinancialAccountId"><option value="">Bez wskazania</option>@foreach(var a in accounts){<option value="@a.Id">@a.Name</option>}</select></label>
+            <label>Nazwa<input name="Name" required /></label>
+            <label>Dostawca<input name="Provider" /></label>
+            <label>Kategoria<input name="Category" value="Other" /></label>
+            <label>Kwota<input name="PlannedAmount" type="number" step="0.01" /></label>
+            <label>Waluta<input name="CurrencyCode" value="PLN" maxlength="3" /></label>
+            <label>Cykl<select name="Cycle"><option value="Monthly">Miesięcznie</option><option value="Quarterly">Kwartalnie</option><option value="SemiAnnual">Półrocznie</option><option value="Yearly">Rocznie</option></select></label>
+            <label>Następne pobranie<input name="NextChargeOn" type="date" value="@DateOnly.FromDateTime(DateTime.Today).ToString("yyyy-MM-dd")" /></label>
+            <label>Metoda płatności<input name="PaymentMethodLabel" placeholder="np. karta prywatna" /></label>
+            <label>Ostatnie 4 cyfry<input name="PaymentMethodLast4" maxlength="4" inputmode="numeric" /></label>
+            <label>Dni przypomnienia<input name="ReminderDays" type="number" min="0" value="7" /></label>
+            <label><input name="AutoRenew" type="checkbox" value="true" checked /> Automatyczne odnowienie</label>
+            <button class="btn" type="submit">Dodaj subskrypcję</button>
+        </form>
+    </details>
+</section>
