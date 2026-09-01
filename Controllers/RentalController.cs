@@ -13,6 +13,7 @@ namespace EDom.Web.Controllers;
 public sealed class RentalController(
     WebAccessService access,
     IRentalService rentalService,
+    ILeaseClosingService leaseClosingService,
     ICollaborationService collaborationService) : Controller
 {
     [HttpGet("")]
@@ -51,7 +52,11 @@ public sealed class RentalController(
 
     [HttpPost("End"), ValidateAntiForgeryToken]
     public async Task<IActionResult> End(Guid contractId, DateOnly endedOn, string reason, CancellationToken cancellationToken)
-        => await ExecuteAsync(async actor => { await rentalService.EndLeaseAsync(actor, new(contractId, endedOn, reason), cancellationToken); return "Zakończono umowę i wygaszono przypisanie pokoju."; }, cancellationToken);
+        => await ExecuteAsync(async actor =>
+        {
+            await leaseClosingService.StartAsync(actor, new StartLeaseClosingRequest(contractId, endedOn, endedOn, reason), cancellationToken);
+            return "Rozpoczęto proces zamknięcia najmu i wygaszono aktywne przypisanie lokatora. Pokój zostanie zwolniony dopiero po odbiorze i rozliczeniu końcowym.";
+        }, cancellationToken);
 
     [HttpPost("Deposit"), ValidateAntiForgeryToken]
     public async Task<IActionResult> Deposit(Guid contractId, decimal amount, DateOnly paidOn, CancellationToken cancellationToken)

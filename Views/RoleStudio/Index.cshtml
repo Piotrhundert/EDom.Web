@@ -1,0 +1,686 @@
+@model EDom.Web.Models.RoleStudioPageViewModel
+@{
+    ViewData["Title"] = "Role i uprawnienia";
+    var selectedRole = Model.Roles.First(x => x.Code == Model.SelectedRoleCode);
+    var groups = Model.Permissions.Select(x => new { x.GroupKey, x.GroupLabel }).Distinct().OrderBy(x => x.GroupLabel).ToList();
+    var customRoles = Model.Roles.Where(x => x.IsCustom).OrderBy(x => x.Name).ToList();
+    var systemRoles = Model.Roles.Where(x => !x.IsCustom).OrderBy(x => x.Name).ToList();
+    var canEditSelectedRole = !Model.SelectedRoleIsProtected;
+    var moduleGroups = Model.Permissions.GroupBy(x => new { x.GroupKey, x.GroupLabel, x.GroupDescription }).OrderBy(x => x.Key.GroupLabel).ToList();
+}
+
+<section class="hero role-studio-hero">
+    <div>
+        <div class="eyebrow">Ustawienia · bezpieczeństwo · RBAC</div>
+        <h1>Role i uprawnienia</h1>
+        <p class="muted">Tutaj ustawiasz, jakie moduły, zakładki, przyciski i operacje na danych są dostępne dla danej roli. Ekran został podzielony na czytelne sekcje: katalog ról, opis roli, macierz uprawnień i przypisania użytkowników.</p>
+    </div>
+    <div class="hero-side">
+        <span class="status-chip status-chip-good">Superadministrator</span>
+        <span class="muted small">@Model.HouseholdName</span>
+    </div>
+</section>
+
+@if (TempData["Success"] is string success)
+{
+    <div class="alert alert-success">@success</div>
+}
+@if (TempData["Error"] is string error)
+{
+    <div class="alert alert-danger">@error</div>
+}
+
+<div class="panel role-studio-anchor-panel">
+    <div class="role-tabs">
+        <a href="#sekcja-rola" class="role-tab-link">1. Wybrana rola</a>
+        <a href="#sekcja-uprawnienia" class="role-tab-link">2. Uprawnienia</a>
+        <a href="#sekcja-przypisania" class="role-tab-link">3. Przypisania</a>
+        <a href="#sekcja-zasady" class="role-tab-link">4. Zasady i bezpieczeństwo</a>
+    </div>
+    <div class="role-inline-help">
+        <div class="role-help-card">
+            <strong>Co daje rola?</strong>
+            <span>Rola określa <b>co wolno</b>: moduły, zakładki, przyciski i operacje na danych.</span>
+        </div>
+        <div class="role-help-card">
+            <strong>Co daje przypisanie?</strong>
+            <span>Przypisanie określa <b>komu, gdzie i do kiedy</b> dana rola obowiązuje.</span>
+        </div>
+        <div class="role-help-card">
+            <strong>Co jest zablokowane?</strong>
+            <span>Nie można edytować tylko <b>głównej roli administratora</b>. Pozostałe role można dostosowywać.</span>
+        </div>
+    </div>
+</div>
+
+<div class="role-studio-layout role-studio-layout-improved">
+    <aside class="panel role-catalog-panel">
+        <div class="section-header compact">
+            <div>
+                <div class="eyebrow">Katalog</div>
+                <h2>Role</h2>
+                <p class="muted">Najpierw wybierz rolę, którą chcesz przejrzeć lub edytować.</p>
+            </div>
+            <span class="count-badge">@Model.Roles.Count</span>
+        </div>
+
+        <div class="role-catalog-group">
+            <div class="role-catalog-group-title">Role systemowe</div>
+            <div class="role-catalog-list">
+                @foreach (var role in systemRoles)
+                {
+                    <a class="role-catalog-item @(role.Code == Model.SelectedRoleCode ? "active" : string.Empty)" asp-controller="RoleStudio" asp-action="Index" asp-route-roleCode="@role.Code">
+                        <span class="role-catalog-title">
+                            <strong>@role.Name</strong>
+                            <span class="badge @(role.IsProtected ? "badge-warning" : "badge-neutral")">@(role.IsProtected ? "Główna admina" : "Systemowa")</span>
+                        </span>
+                        <small>@role.Code</small>
+                        <span class="role-catalog-meta">
+                            <span>✓ @role.AllowCount</span>
+                            <span>× @role.DenyCount</span>
+                            <span>👤 @role.ActiveAssignments</span>
+                        </span>
+                    </a>
+                }
+            </div>
+        </div>
+
+        <div class="role-catalog-group">
+            <div class="role-catalog-group-title">Role własne</div>
+            <div class="role-catalog-list">
+                @if (customRoles.Count == 0)
+                {
+                    <div class="empty-note">Nie utworzono jeszcze żadnych własnych ról.</div>
+                }
+                else
+                {
+                    @foreach (var role in customRoles)
+                    {
+                        <a class="role-catalog-item @(role.Code == Model.SelectedRoleCode ? "active" : string.Empty)" asp-controller="RoleStudio" asp-action="Index" asp-route-roleCode="@role.Code">
+                            <span class="role-catalog-title">
+                                <strong>@role.Name</strong>
+                                <span class="badge badge-success">Własna</span>
+                            </span>
+                            <small>@role.Code</small>
+                            <span class="role-catalog-meta">
+                                <span>✓ @role.AllowCount</span>
+                                <span>× @role.DenyCount</span>
+                                <span>👤 @role.ActiveAssignments</span>
+                            </span>
+                        </a>
+                    }
+                }
+            </div>
+        </div>
+    </aside>
+
+    <main class="role-studio-main">
+        <section class="panel role-summary-panel" id="sekcja-rola">
+            <div class="section-header">
+                <div>
+                    <div class="eyebrow">Wybrana rola</div>
+                    <h2>@selectedRole.Name</h2>
+                    <p class="muted code-line">@selectedRole.Code</p>
+                    <p class="muted">Ta sekcja pokazuje podsumowanie roli i pozwala edytować jej nazwę oraz zakres uprawnień. Główna rola administratora pozostaje zablokowana.</p>
+                </div>
+                <div class="role-summary-actions">
+                    @if (Model.SelectedRoleIsProtected)
+                    {
+                        <span class="status-chip status-chip-danger">Główna rola administratora · tylko podgląd</span>
+                    }
+                    else if (Model.SelectedRoleIsCustom)
+                    {
+                        <span class="status-chip status-chip-good">Rola własna · pełna edycja</span>
+                    }
+                    else
+                    {
+                        <span class="status-chip">Rola systemowa · edytowalna</span>
+                    }
+                </div>
+            </div>
+
+            <div class="stats-grid role-stats-grid">
+                <div class="stat-card"><span class="stat-label">Allow</span><strong>@Model.AllowCount</strong><small>uprawnienia jawnie dozwolone</small></div>
+                <div class="stat-card"><span class="stat-label">Deny</span><strong>@Model.DenyCount</strong><small>uprawnienia jawnie zablokowane</small></div>
+                <div class="stat-card"><span class="stat-label">Bez wpisu</span><strong>@Model.UnsetCount</strong><small>decyzja z innych źródeł / default deny</small></div>
+                <div class="stat-card"><span class="stat-label">Przypisania</span><strong>@selectedRole.ActiveAssignments</strong><small>aktywne przypisania tej roli</small></div>
+            </div>
+
+            <div class="role-definition-grid">
+                <div class="role-definition-card">
+                    <h3>Moduły i zakładki</h3>
+                    <p>Jeżeli rola ma Allow dla widoku lub listy, użytkownik zobaczy odpowiedni moduł, ekran lub zakładkę w aplikacji.</p>
+                </div>
+                <div class="role-definition-card">
+                    <h3>Przyciski i akcje</h3>
+                    <p>Uprawnienia typu create, edit, approve, reject, publish czy manage sterują widocznością i możliwością użycia przycisków akcji.</p>
+                </div>
+                <div class="role-definition-card">
+                    <h3>Operacje na danych</h3>
+                    <p>Nawet jeśli element interfejsu jest ukryty, serwer nadal sprawdza RBAC. To oznacza realną ochronę, a nie tylko zmianę wyglądu.</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="panel">
+            <div class="section-header">
+                <div>
+                    <div class="eyebrow">Projektowanie roli</div>
+                    <h2>Tworzenie nowej roli</h2>
+                    <p class="muted">Możesz utworzyć nową rolę od zera albo skopiować inną rolę jako punkt startowy, a następnie zmienić jej szczegółowe uprawnienia.</p>
+                </div>
+            </div>
+            <form asp-controller="RoleStudio" asp-action="CreateRole" method="post" class="form-grid role-create-grid">
+                @Html.AntiForgeryToken()
+                <div class="field">
+                    <label>Nazwa po polsku</label>
+                    <input name="name" maxlength="200" placeholder="Np. Opiekun domu" required />
+                    <small>Ta nazwa będzie widoczna administratorom podczas przypisywania roli.</small>
+                </div>
+                <div class="field">
+                    <label>Kod techniczny</label>
+                    <input name="codeSuffix" maxlength="50" placeholder="np. opiekun-domu" />
+                    <small>Jeśli zostawisz puste, system spróbuje utworzyć kod na podstawie nazwy.</small>
+                </div>
+                <div class="field">
+                    <label>Skopiuj uprawnienia z</label>
+                    <select name="copyFromRoleCode">
+                        <option value="">— pusta rola —</option>
+                        @foreach (var role in Model.Roles)
+                        {
+                            <option value="@role.Code" selected="@(role.Code == Model.SelectedRoleCode)">@role.Name (@(role.IsCustom ? "własna" : "systemowa"))</option>
+                        }
+                    </select>
+                    <small>Najwygodniej zacząć od roli podobnej do docelowej.</small>
+                </div>
+                <div class="field field-action">
+                    <label>&nbsp;</label>
+                    <button class="btn btn-primary" type="submit">Utwórz rolę</button>
+                </div>
+            </form>
+        </section>
+
+        <section class="panel">
+            <div class="section-header compact">
+                <div>
+                    <div class="eyebrow">Edycja roli</div>
+                    <h2>Nazwa i utrzymanie roli</h2>
+                    <p class="muted">Tutaj zmieniasz nazwę roli. Usunięcie jest dostępne tylko dla własnych ról, które nie mają aktywnych przypisań.</p>
+                </div>
+            </div>
+            <div class="split-grid role-identity-grid">
+                <form asp-controller="RoleStudio" asp-action="RenameRole" method="post" class="inline-form">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="roleCode" value="@Model.SelectedRoleCode" />
+                    <input name="name" value="@selectedRole.Name" maxlength="200" required @(canEditSelectedRole ? null : "disabled") />
+                    <button class="btn btn-primary" type="submit" disabled="@(!canEditSelectedRole)">Zapisz nazwę roli</button>
+                </form>
+
+                @if (Model.SelectedRoleIsCustom)
+                {
+                    <form asp-controller="RoleStudio" asp-action="DeleteRole" method="post" class="role-delete-form" data-confirm="Usunąć tę własną rolę? Operacja jest możliwa tylko, gdy nikt jej już nie używa.">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="roleCode" value="@Model.SelectedRoleCode" />
+                        <button class="btn btn-danger" type="submit">Usuń własną rolę</button>
+                    </form>
+                }
+                else
+                {
+                    <div class="inline-info-box">
+                        @if (Model.SelectedRoleIsProtected)
+                        {
+                            <strong>Ta rola jest zablokowana.</strong>
+                            <span>Główna rola administratora pozostaje tylko do odczytu.</span>
+                        }
+                        else
+                        {
+                            <strong>Rola systemowa bez usuwania.</strong>
+                            <span>Możesz ją edytować, ale nie możesz jej usunąć z katalogu ról systemowych.</span>
+                        }
+                    </div>
+                }
+            </div>
+        </section>
+
+        <section class="panel permission-matrix-panel" id="sekcja-uprawnienia">
+            <div class="section-header">
+                <div>
+                    <div class="eyebrow">Macierz szczegółowa</div>
+                    <h2>Uprawnienia roli według modułów</h2>
+                    <p class="muted">Każdy moduł jest osobną, zwijaną sekcją. Najpierw wybierasz obszar aplikacji, a dopiero potem konkretną funkcję. Przy każdej pozycji widzisz dokładnie <strong>co zmieniasz</strong> i <strong>jaki będzie efekt</strong>.</p>
+                </div>
+                @if (Model.SelectedRoleIsProtected)
+                {
+                    <span class="badge badge-warning">Główna rola administratora · bez edycji</span>
+                }
+                else
+                {
+                    <span class="badge badge-success">Edycja włączona</span>
+                }
+            </div>
+
+            <div class="permission-legend-grid">
+                <div class="legend-card"><strong>Allow</strong><span>Rola otrzymuje dostęp do tej konkretnej funkcji, jeśli pasuje także profil i zakres.</span></div>
+                <div class="legend-card"><strong>Deny</strong><span>Rola jawnie blokuje tę funkcję. Używaj, gdy chcesz mieć pewność, że dana akcja jest zabroniona.</span></div>
+                <div class="legend-card"><strong>Bez wpisu</strong><span>Ta rola sama nic nie przyznaje. Dostęp może pochodzić z innej roli, a w przeciwnym razie zadziała default deny.</span></div>
+            </div>
+
+            <div class="permission-toolbar permission-toolbar-modular">
+                <input id="permissionSearch" type="search" placeholder="Szukaj funkcji, np. edycja umowy, wpłata, licznik…" />
+                <select id="permissionGroupFilter">
+                    <option value="">Wszystkie moduły</option>
+                    @foreach (var group in groups)
+                    {
+                        <option value="@group.GroupKey">@group.GroupLabel</option>
+                    }
+                </select>
+                <select id="permissionRiskFilter">
+                    <option value="">Każde ryzyko</option>
+                    <option value="R1">R1 · niskie</option>
+                    <option value="R2">R2 · umiarkowane</option>
+                    <option value="R3">R3 · wysokie</option>
+                    <option value="R4">R4 · krytyczne</option>
+                </select>
+                <select id="permissionEffectFilter">
+                    <option value="">Każda decyzja</option>
+                    <option value="Allow">Allow</option>
+                    <option value="Deny">Deny</option>
+                    <option value="Unset">Bez wpisu</option>
+                </select>
+            </div>
+
+            @if (canEditSelectedRole)
+            {
+                <div class="bulk-actions">
+                    <span class="muted small">Dla wszystkich aktualnie widocznych funkcji:</span>
+                    <button type="button" class="btn btn-small" data-bulk-effect="Allow">Ustaw Allow</button>
+                    <button type="button" class="btn btn-small btn-outline-danger" data-bulk-effect="Deny">Ustaw Deny</button>
+                    <button type="button" class="btn btn-small btn-secondary" data-bulk-effect="Unset">Wyczyść wpis</button>
+                </div>
+            }
+
+            <form asp-controller="RoleStudio" asp-action="SavePermissions" method="post" id="permissionMatrixForm">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="roleCode" value="@Model.SelectedRoleCode" />
+
+                <div class="permission-module-list">
+                    @foreach (var module in moduleGroups)
+                    {
+                        var moduleAllow = module.Count(x => x.Effect == "Allow");
+                        var moduleDeny = module.Count(x => x.Effect == "Deny");
+                        var moduleUnset = module.Count(x => x.Effect == "Unset");
+                        <details class="permission-module-section" data-module="@module.Key.GroupKey">
+                            <summary class="permission-module-summary">
+                                <span class="permission-module-heading">
+                                    <strong>@module.Key.GroupLabel</strong>
+                                    <small>@module.Key.GroupDescription</small>
+                                </span>
+                                <span class="permission-module-stats">
+                                    <span class="badge badge-success module-allow-count">Allow @moduleAllow</span>
+                                    <span class="badge badge-warning module-deny-count">Deny @moduleDeny</span>
+                                    <span class="badge badge-neutral module-unset-count">Bez wpisu @moduleUnset</span>
+                                    <span class="count-badge">@module.Count()</span>
+                                </span>
+                            </summary>
+
+                            <div class="permission-module-body">
+                                <div class="permission-module-help">
+                                    <strong>Co kontroluje ten moduł?</strong>
+                                    <span>@module.Key.GroupDescription</span>
+                                </div>
+
+                                @if (canEditSelectedRole)
+                                {
+                                    <div class="module-permission-actions">
+                                        <div class="module-permission-actions-copy">
+                                            <strong>Uprawnienia całego modułu</strong>
+                                            <small>Te przyciski zmienią wszystkie funkcje należące do tego modułu, niezależnie od aktualnego filtra.</small>
+                                        </div>
+                                        <div class="module-permission-actions-buttons">
+                                            <button type="button" class="btn btn-small module-effect-allow" data-module-effect="Allow">Zezwól cały moduł</button>
+                                            <button type="button" class="btn btn-small btn-outline-danger" data-module-effect="Deny">Zablokuj cały moduł</button>
+                                            <button type="button" class="btn btn-small btn-secondary" data-module-effect="Unset">Wyczyść moduł</button>
+                                        </div>
+                                    </div>
+                                }
+
+                                <div class="table-scroll role-permission-table-wrap">
+                                    <table class="data-table role-permission-table role-permission-table-modular">
+                                        <thead>
+                                            <tr>
+                                                <th>Funkcja</th>
+                                                <th>Co zmieniasz</th>
+                                                <th>Jaki będzie efekt</th>
+                                                <th>Zakres</th>
+                                                <th>Ryzyko</th>
+                                                <th>Decyzja</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach (var permission in module)
+                                            {
+                                                var permissionSearch = (permission.Code + " " + permission.Description + " " + permission.ActionLabel + " " + permission.ImpactDescription).ToLowerInvariant();
+                                                <tr class="permission-row" data-search="@permissionSearch" data-group="@permission.GroupKey" data-risk="@permission.RiskLevel" data-effect="@permission.Effect">
+                                                    <td>
+                                                        <span class="ui-kind-chip">@permission.UiKind</span>
+                                                        <strong class="permission-action-label">@permission.ActionLabel</strong>
+                                                    </td>
+                                                    <td>
+                                                        <strong>@permission.Description</strong>
+                                                        <small class="permission-code">@permission.Code</small>
+                                                        <small class="muted">Wprowadzono: @permission.IntroducedPackage</small>
+                                                    </td>
+                                                    <td>
+                                                        <span class="permission-impact-text">@permission.ImpactDescription</span>
+                                                    </td>
+                                                    <td>
+                                                        <code>@permission.DefaultScopeType</code>
+                                                        <small class="muted">Zakres, dla którego uprawnienie jest domyślnie oceniane.</small>
+                                                    </td>
+                                                    <td>
+                                                        <span class="risk-chip risk-@(permission.RiskLevel.ToLowerInvariant())">@permission.RiskLevel</span>
+                                                    </td>
+                                                    <td>
+                                                        <input type="hidden" name="permissionCodes" value="@permission.Code" />
+                                                        <select name="permissionEffects" class="permission-effect" disabled="@(!canEditSelectedRole)">
+                                                            <option value="Unset" selected="@(permission.Effect == "Unset")">Bez wpisu</option>
+                                                            <option value="Allow" selected="@(permission.Effect == "Allow")">Allow · zezwól</option>
+                                                            <option value="Deny" selected="@(permission.Effect == "Deny")">Deny · zablokuj</option>
+                                                        </select>
+                                                    </td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </details>
+                    }
+                </div>
+
+                @if (canEditSelectedRole)
+                {
+                    <div class="sticky-save-bar">
+                        <div><strong>Zapis uprawnień roli</strong><small>Zapisujesz ustawienia ze wszystkich modułów jednocześnie.</small></div>
+                        <button class="btn btn-primary" type="submit">Zapisz wszystkie zmiany</button>
+                    </div>
+                }
+            </form>
+        </section>
+
+        <section class="panel" id="sekcja-przypisania">
+            <div class="section-header">
+                <div>
+                    <div class="eyebrow">Zakres roli u użytkownika</div>
+                    <h2>Przypisania użytkowników</h2>
+                    <p class="muted">W tej sekcji wybierasz użytkownika, rolę, profil, zakres i okres obowiązywania. To właśnie przypisanie określa, gdzie konkretna rola naprawdę działa.</p>
+                </div>
+                <span class="count-badge">@Model.Assignments.Count aktywnych</span>
+            </div>
+
+            <details class="role-add-assignment" open="@(Model.Assignments.Count == 0)">
+                <summary>+ Dodaj przypisanie roli</summary>
+                <form asp-controller="RoleStudio" asp-action="AddAssignment" method="post" class="form-grid assignment-form">
+                    @Html.AntiForgeryToken()
+                    <div class="field">
+                        <label>Użytkownik</label>
+                        <select name="userAccountId" required>
+                            @foreach (var user in Model.Users)
+                            {
+                                <option value="@user.AccountId">@user.DisplayName · @user.Login</option>
+                            }
+                        </select>
+                        <small>To konto otrzyma wybraną rolę.</small>
+                    </div>
+                    <div class="field">
+                        <label>Rola</label>
+                        <select name="roleCode" required>
+                            @foreach (var role in Model.Roles)
+                            {
+                                <option value="@role.Code" selected="@(role.Code == Model.SelectedRoleCode)">@role.Name</option>
+                            }
+                        </select>
+                        <small>Wybierz rolę, która ma zostać przypisana.</small>
+                    </div>
+                    <div class="field">
+                        <label>Profil dostępu</label>
+                        <select name="profileCode" required>
+                            @foreach (var profile in Model.Profiles)
+                            {
+                                <option value="@profile.Code">@profile.Name · poziom @profile.Rank</option>
+                            }
+                        </select>
+                        <small>Profil określa „siłę” i ogólny poziom dostępu.</small>
+                    </div>
+                    <div class="field">
+                        <label>Typ zakresu</label>
+                        <select name="scopeType" required>
+                            @foreach (var scope in Model.ScopeTypes)
+                            {
+                                <option value="@scope">@scope</option>
+                            }
+                        </select>
+                        <small>Np. całe gospodarstwo, budynek, pokój albo konkretny zasób.</small>
+                    </div>
+                    <div class="field">
+                        <label>ID zasobu / zakres szczegółowy</label>
+                        <input name="scopeId" maxlength="200" placeholder="Puste = cały zakres danego typu" />
+                        <small>Wypełnij tylko wtedy, gdy rola ma działać dla konkretnego obiektu.</small>
+                    </div>
+                    <div class="field">
+                        <label>Ważne do</label>
+                        <input type="datetime-local" name="validToLocal" />
+                        <small>Puste pole oznacza przypisanie bez terminu końcowego.</small>
+                    </div>
+                    <div class="field full">
+                        <label>Powód / opis</label>
+                        <input name="reason" maxlength="500" placeholder="Np. dostęp do obsługi Domu 2 do końca miesiąca" />
+                    </div>
+                    <div class="field full actions">
+                        <button class="btn btn-primary" type="submit">Przypisz rolę</button>
+                    </div>
+                </form>
+            </details>
+
+            <div class="assignment-list">
+                @foreach (var item in Model.Assignments)
+                {
+                    <details class="assignment-card @(item.RoleCode == Model.SelectedRoleCode ? "highlight" : string.Empty)">
+                        <summary>
+                            <span>
+                                <strong>@item.UserDisplayName</strong>
+                                <small>@item.Login</small>
+                            </span>
+                            <span class="assignment-summary-role">
+                                <strong>@item.RoleName</strong>
+                                <small>@item.ProfileName · @item.ScopeType @(string.IsNullOrWhiteSpace(item.ScopeId) ? "" : "· " + item.ScopeId)</small>
+                            </span>
+                            @if (item.IsCurrent)
+                            {
+                                <span class="badge badge-warning">Twoje konto</span>
+                            }
+                        </summary>
+                        <form asp-controller="RoleStudio" asp-action="UpdateAssignment" method="post" class="form-grid assignment-form compact-form">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="assignmentId" value="@item.Id" />
+                            <div class="field">
+                                <label>Rola</label>
+                                <select name="roleCode">
+                                    @foreach (var role in Model.Roles)
+                                    {
+                                        <option value="@role.Code" selected="@(role.Code == item.RoleCode)">@role.Name</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="field">
+                                <label>Profil</label>
+                                <select name="profileCode">
+                                    @foreach (var profile in Model.Profiles)
+                                    {
+                                        <option value="@profile.Code" selected="@(profile.Code == item.ProfileCode)">@profile.Name · @profile.Rank</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="field">
+                                <label>Zakres</label>
+                                <select name="scopeType">
+                                    @foreach (var scope in Model.ScopeTypes)
+                                    {
+                                        <option value="@scope" selected="@(scope == item.ScopeType)">@scope</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="field">
+                                <label>ID zasobu</label>
+                                <input name="scopeId" value="@item.ScopeId" maxlength="200" />
+                            </div>
+                            <div class="field">
+                                <label>Ważne do</label>
+                                <input type="datetime-local" name="validToLocal" value="@(item.ValidToUtc?.ToLocalTime().ToString("yyyy-MM-ddTHH:mm"))" />
+                            </div>
+                            <div class="field">
+                                <label>Aktywne od</label>
+                                <input value="@item.ValidFromUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm")" disabled />
+                            </div>
+                            <div class="field full">
+                                <label>Powód</label>
+                                <input name="reason" value="@item.Reason" maxlength="500" />
+                            </div>
+                            <div class="field full actions assignment-actions">
+                                <button class="btn btn-primary" type="submit">Zapisz przypisanie</button>
+                            </div>
+                        </form>
+                        <form asp-controller="RoleStudio" asp-action="EndAssignment" method="post" class="assignment-end-form" data-confirm="Zakończyć to przypisanie roli? Użytkownik może natychmiast utracić część dostępu.">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="assignmentId" value="@item.Id" />
+                            <input type="hidden" name="selectedRoleCode" value="@Model.SelectedRoleCode" />
+                            <button class="btn btn-danger btn-small" type="submit">Zakończ przypisanie</button>
+                        </form>
+                    </details>
+                }
+            </div>
+        </section>
+
+        <section class="panel role-safety-panel" id="sekcja-zasady">
+            <div class="section-header compact">
+                <div>
+                    <div class="eyebrow">Zasady bezpieczeństwa</div>
+                    <h2>O czym trzeba pamiętać</h2>
+                    <p class="muted">Poniższe zasady chronią system przed przypadkowym odebraniem dostępu lub zbyt szerokim nadaniem uprawnień.</p>
+                </div>
+            </div>
+            <ul class="change-list">
+                <li><strong>Nieedytowalna pozostaje tylko główna rola administratora.</strong> Pozostałe role możesz dopasowywać do potrzeb.</li>
+                <li>Ról systemowych nie można usuwać z katalogu, ale można zmieniać ich nazwę i macierz uprawnień, jeśli nie są rolą główną administratora.</li>
+                <li>Nie można usunąć własnej roli, dopóki ma aktywne przypisania.</li>
+                <li>Nie można odebrać ani zakończyć ostatniego aktywnego Superadministratora gospodarstwa.</li>
+                <li>Zmiany PermissionCode aktualizują AccessPolicyVersion i AccessGeneration, więc nie pozostają w starych sesjach.</li>
+                <li>Widoczność interfejsu nie jest jedyną ochroną — serwer nadal wykonuje własną kontrolę RBAC dla każdej chronionej operacji.</li>
+            </ul>
+        </section>
+    </main>
+</div>
+
+@section Scripts {
+<script>
+(() => {
+    const search = document.getElementById('permissionSearch');
+    const group = document.getElementById('permissionGroupFilter');
+    const risk = document.getElementById('permissionRiskFilter');
+    const effect = document.getElementById('permissionEffectFilter');
+    const rows = Array.from(document.querySelectorAll('.permission-row'));
+
+    function applyFilters() {
+        const q = (search?.value || '').trim().toLowerCase();
+        const g = group?.value || '';
+        const r = risk?.value || '';
+        const e = effect?.value || '';
+        rows.forEach(row => {
+            const show = (!q || row.dataset.search.includes(q))
+                && (!g || row.dataset.group === g)
+                && (!r || row.dataset.risk === r)
+                && (!e || row.querySelector('.permission-effect')?.value === e);
+            row.hidden = !show;
+        });
+
+        document.querySelectorAll('.permission-module-section').forEach(section => {
+            const moduleRows = Array.from(section.querySelectorAll('.permission-row'));
+            const visibleCount = moduleRows.filter(row => !row.hidden).length;
+            section.hidden = visibleCount === 0;
+            if ((q || g || r || e) && visibleCount > 0) section.open = true;
+        });
+    }
+
+    [search, group, risk, effect].forEach(el => el?.addEventListener('input', applyFilters));
+    [group, risk, effect].forEach(el => el?.addEventListener('change', applyFilters));
+
+    function updateModuleStats(section) {
+        if (!section) return;
+        const moduleRows = Array.from(section.querySelectorAll('.permission-row'));
+        const effects = moduleRows.map(row => row.querySelector('.permission-effect')?.value || 'Unset');
+        const allow = effects.filter(value => value === 'Allow').length;
+        const deny = effects.filter(value => value === 'Deny').length;
+        const unset = effects.filter(value => value === 'Unset').length;
+        const allowBadge = section.querySelector('.module-allow-count');
+        const denyBadge = section.querySelector('.module-deny-count');
+        const unsetBadge = section.querySelector('.module-unset-count');
+        if (allowBadge) allowBadge.textContent = `Allow ${allow}`;
+        if (denyBadge) denyBadge.textContent = `Deny ${deny}`;
+        if (unsetBadge) unsetBadge.textContent = `Bez wpisu ${unset}`;
+    }
+
+    function setRowsEffect(targetRows, value) {
+        targetRows.forEach(row => {
+            const select = row.querySelector('.permission-effect');
+            if (select && !select.disabled) {
+                select.value = value;
+                row.dataset.effect = value;
+            }
+        });
+    }
+
+    document.querySelectorAll('[data-bulk-effect]').forEach(button => {
+        button.addEventListener('click', () => {
+            const value = button.dataset.bulkEffect;
+            const visibleRows = rows.filter(row => !row.hidden);
+            setRowsEffect(visibleRows, value);
+            document.querySelectorAll('.permission-module-section').forEach(updateModuleStats);
+            applyFilters();
+        });
+    });
+
+    document.querySelectorAll('[data-module-effect]').forEach(button => {
+        button.addEventListener('click', () => {
+            const section = button.closest('.permission-module-section');
+            if (!section) return;
+            const value = button.dataset.moduleEffect;
+            const moduleName = section.querySelector('.permission-module-heading strong')?.textContent?.trim() || 'ten moduł';
+            if (value === 'Deny' && !window.confirm(`Zablokować wszystkie funkcje modułu „${moduleName}”?`)) return;
+            const moduleRows = Array.from(section.querySelectorAll('.permission-row'));
+            setRowsEffect(moduleRows, value);
+            updateModuleStats(section);
+            applyFilters();
+        });
+    });
+
+    document.querySelectorAll('.permission-effect').forEach(select => {
+        select.addEventListener('change', () => {
+            const row = select.closest('.permission-row');
+            if (row) row.dataset.effect = select.value;
+            updateModuleStats(select.closest('.permission-module-section'));
+            applyFilters();
+        });
+    });
+
+    document.querySelectorAll('.permission-module-section').forEach(updateModuleStats);
+
+    document.querySelectorAll('form[data-confirm]').forEach(form => {
+        form.addEventListener('submit', event => {
+            if (!window.confirm(form.dataset.confirm || 'Potwierdzić operację?')) event.preventDefault();
+        });
+    });
+
+    applyFilters();
+})();
+</script>
+}

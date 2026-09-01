@@ -4,6 +4,7 @@ using EDom.Infrastructure;
 using EDom.Infrastructure.Administration;
 using EDom.Infrastructure.Authorization;
 using EDom.Infrastructure.Identity;
+using EDom.Infrastructure.Operations;
 using EDom.Infrastructure.Households;
 using EDom.Infrastructure.HouseholdFinance;
 using EDom.Infrastructure.Collaboration;
@@ -16,6 +17,7 @@ using EDom.Infrastructure.Storage;
 using EDom.Web.Authentication;
 using EDom.Web.Authorization;
 using EDom.Web.Infrastructure;
+using EDom.Web.Services;
 using Microsoft.AspNetCore.Authentication.Cookies;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -40,6 +42,8 @@ builder.Services.AddEDomIdentity();
 builder.Services.AddEDomAuthorization();
 builder.Services.AddEDomPlatformFoundation();
 builder.Services.AddScoped<WebAccessService>();
+builder.Services.AddScoped<FinanceReminderService>();
+builder.Services.AddHostedService<FinancialReminderWorker>();
 
 builder.Services
     .AddAuthentication("EDomCookie")
@@ -83,6 +87,7 @@ builder.Services
 var app = builder.Build();
 
 var databaseStartup = await DatabaseBootstrapper.InitializeAsync(app.Services, eDomOptions);
+await FinancialPaymentPermissionBootstrapper.EnsureAsync(app.Services);
 
 if (!app.Environment.IsDevelopment())
 {
@@ -91,6 +96,19 @@ if (!app.Environment.IsDevelopment())
 
 app.UseMiddleware<CorrelationIdMiddleware>();
 app.UseMiddleware<GlobalExceptionMiddleware>();
+app.UseStatusCodePages(async statusContext =>
+{
+    var context = statusContext.HttpContext;
+    var correlationId = CorrelationIdMiddleware.Get(context);
+    var safe = context.Response.StatusCode switch
+    {
+        403 => new EDom.Application.Common.Results.SafeError(403, "ACCESS_DENIED", "Nie masz uprawnienia do tej operacji lub zasobu.", correlationId),
+        404 => new EDom.Application.Common.Results.SafeError(404, "NOT_FOUND", "Nie znaleziono wskazanej strony lub zasobu.", correlationId),
+        409 => new EDom.Application.Common.Results.SafeError(409, "CONFLICT", "Operacja jest sprzeczna z aktualnym stanem danych.", correlationId),
+        _ => new EDom.Application.Common.Results.SafeError(context.Response.StatusCode, "HTTP_ERROR", "Nie można wykonać żądania.", correlationId)
+    };
+    await SafeStatusPageWriter.WriteAsync(context, safe);
+});
 app.UseHttpsRedirection();
 app.UseStaticFiles();
 app.UseMiddleware<FirstRunMiddleware>();
@@ -154,6 +172,8 @@ app.MapGet("/health", () => Results.Ok(new
         recurringIncome = true,
         childLinkedRecords = true,
         subscriptions = true,
+        financialReminders = true,
+        recurringHouseContributionReminder = true,
         integerMoney = true
     },
     householdFinance = new
@@ -213,6 +233,40 @@ app.MapGet("/health", () => Results.Ok(new
         allocationPolicies = true,
         pelletTwelveMonthPlan = true,
         fixedPointRates = true
+    },
+    tenantSettlements = new
+    {
+        status = "Ready",
+        monthlySettlementBuilder = true,
+        missingSourcePublicationBlock = true,
+        paymentSubmissionApprovalFlow = true,
+        partialAndOverpayments = true,
+        paymentArrangements = true,
+        lateFeesAndCorrections = true,
+        tenantOwnScope = true
+    },
+    leaseClosing = new
+    {
+        status = "Ready",
+        multiStepClosing = true,
+        roomReleaseAfterReturn = true,
+        depositSettlement = true,
+        finalMeterReadingsGate = true,
+        finalBalanceGate = true,
+        historyPreserved = true,
+        mvp2E2E = true
+    },
+    mvpRelease = new
+    {
+        status = "ReleaseCandidate",
+        gate = "G6",
+        schemaChanged = false,
+        schemaVersion = SchemaCompatibility.CurrentSchemaVersion,
+        regressionPacks = new[] { "REG-CORE", "REG-DATA", "REG-AUTH", "REG-FIN", "REG-RENT", "REG-OPS", "REG-E2E-MVP" },
+        backupIncludesAttachments = true,
+        isolatedRestoreDrill = true,
+        releaseEvidence = true,
+        manualUatRequired = true
     }
 }));
 
@@ -247,8 +301,11 @@ if (app.Environment.IsDevelopment())
         IBackupService backupService,
         CancellationToken cancellationToken) =>
     {
-        var result = await backupService.CreateAndVerifyAsync("PKG-012-self-test", cancellationToken);
-        return result.Verified ? Results.Ok(result) : Results.Problem("Test backup/restore nie powiódł się.", statusCode: 503);
+        var result = await backupService.CreateAndVerifyAsync("PKG-015-self-test", cancellationToken);
+        var restore = await backupService.RestoreDrillAsync(result, cancellationToken);
+        return result.Verified && restore.Verified
+            ? Results.Ok(new { backup = result, restore })
+            : Results.Problem("Test backup/restore nie powiódł się.", statusCode: 503);
     });
 
     app.MapGet("/health/household/self-test", async (
@@ -309,6 +366,30 @@ if (app.Environment.IsDevelopment())
 
     app.MapGet("/health/utilities/self-test", async (
         Pkg012UtilitiesSelfTest selfTest,
+        CancellationToken cancellationToken) =>
+    {
+        var result = await selfTest.RunAsync(cancellationToken);
+        return Results.Ok(result);
+    });
+
+    app.MapGet("/health/tenant-settlements/self-test", async (
+        Pkg013TenantSettlementsSelfTest selfTest,
+        CancellationToken cancellationToken) =>
+    {
+        var result = await selfTest.RunAsync(cancellationToken);
+        return Results.Ok(result);
+    });
+
+    app.MapGet("/health/lease-closing/self-test", async (
+        Pkg014LeaseClosingSelfTest selfTest,
+        CancellationToken cancellationToken) =>
+    {
+        var result = await selfTest.RunAsync(cancellationToken);
+        return Results.Ok(result);
+    });
+
+    app.MapGet("/health/release/self-test", async (
+        Pkg015MvpReleaseSelfTest selfTest,
         CancellationToken cancellationToken) =>
     {
         var result = await selfTest.RunAsync(cancellationToken);

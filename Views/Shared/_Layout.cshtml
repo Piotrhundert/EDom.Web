@@ -3,67 +3,102 @@
     var householdName = ViewData["HouseholdName"] as string;
     var userName = User.Identity?.Name ?? "Użytkownik";
     var userInitial = string.IsNullOrWhiteSpace(userName) ? "U" : userName.Substring(0, 1).ToUpperInvariant();
+    var isAuthenticated = User.Identity?.IsAuthenticated == true;
 }
 <!DOCTYPE html>
 <html lang="pl">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#102a43" />
     <title>@pageTitle - e-dom</title>
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
 </head>
-<body>
-    <div class="shell-backdrop"></div>
+<body class="@(isAuthenticated ? "app-authenticated" : "app-public")">
+    <div class="shell-backdrop" aria-hidden="true"></div>
     <div class="app-shell">
-        @if (User.Identity?.IsAuthenticated == true)
+        @if (isAuthenticated)
         {
-            <aside class="sidebar">
+            <button class="sidebar-overlay" type="button" data-sidebar-close aria-label="Zamknij menu"></button>
+            <aside class="sidebar" id="appSidebar">
                 <div class="sidebar-top">
-                    <a class="brand" asp-controller="Home" asp-action="Index">
-                        <span class="brand-mark">e</span>
-                        <span>e-dom</span>
-                    </a>
-                    <p class="sidebar-subtitle">Domowy system zarządzania finansami, nieruchomościami i organizacją.</p>
-                    <div class="sidebar-card">
-                        <span class="sidebar-caption">Interfejs roboczy</span>
-                        <strong>UI refresh aktywny</strong>
-                        <small>Wygląd jest wersją roboczą; finalne dopracowanie UI/UX wykonamy w późniejszym etapie.</small>
+                    <div class="brand-row">
+                        <a class="brand" asp-controller="Home" asp-action="Index" aria-label="e-dom - pulpit">
+                            <span class="brand-mark" aria-hidden="true">e</span>
+                            <span class="brand-copy">
+                                <strong>e-dom</strong>
+                                <small>centrum domu</small>
+                            </span>
+                        </a>
+                        <button class="sidebar-collapse" type="button" data-sidebar-collapse aria-label="Zwiń pasek boczny" title="Zwiń pasek boczny">
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 5 7.5 12l7 7" /></svg>
+                        </button>
+                    </div>
+
+                    <div class="sidebar-context">
+                        <span class="sidebar-caption">Aktywne gospodarstwo</span>
+                        <strong>@(string.IsNullOrWhiteSpace(householdName) ? "e-dom" : householdName)</strong>
+                        <small>MVP · PKG-015</small>
                     </div>
                 </div>
+
                 <vc:main-navigation></vc:main-navigation>
+
+                <div class="sidebar-footer">
+                    <span class="sidebar-footer-dot" aria-hidden="true"></span>
+                    <span class="sidebar-footer-copy">
+                        <strong>System gotowy</strong>
+                        <small>Schema 12 · lokalnie</small>
+                    </span>
+                </div>
             </aside>
         }
 
-        <div class="page-shell @(User.Identity?.IsAuthenticated == true ? "with-sidebar" : "standalone")">
-            @if (User.Identity?.IsAuthenticated == true)
+        <div class="page-shell @(isAuthenticated ? "with-sidebar" : "standalone")">
+            @if (isAuthenticated)
             {
                 <header class="topbar">
-                    <div class="topbar-copy">
-                        <div class="eyebrow">@(string.IsNullOrWhiteSpace(householdName) ? "e-dom" : householdName)</div>
-                        <div class="topbar-title">@pageTitle</div>
-                        <div class="topbar-meta">Czytelniejszy układ i szybsza orientacja w module.</div>
+                    <div class="topbar-main">
+                        <button class="icon-button mobile-menu-button" type="button" data-sidebar-open aria-label="Otwórz menu" title="Menu">
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
+                        </button>
+                        <div class="topbar-copy">
+                            <div class="eyebrow">@(string.IsNullOrWhiteSpace(householdName) ? "e-dom" : householdName)</div>
+                            <div class="topbar-title">@pageTitle</div>
+                            <div class="topbar-meta">Wszystkie akcje są dostępne zgodnie z rolą i zakresem uprawnień.</div>
+                        </div>
                     </div>
                     <div class="topbar-actions">
-                        <div class="user-chip">
+                        <a class="icon-button" asp-controller="Notifications" asp-action="Index" title="Powiadomienia" aria-label="Powiadomienia">
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" /></svg>
+                        </a>
+                        <a class="user-chip" asp-controller="UserProfile" asp-action="Index" title="Otwórz mój profil" aria-label="Otwórz mój profil">
                             <span class="user-initial">@userInitial</span>
-                            <span>
+                            <span class="user-chip-copy">
                                 <strong>@userName</strong>
-                                <small>Bezpieczna sesja</small>
+                                <small>Mój profil</small>
                             </span>
-                        </div>
-                        <form asp-controller="Account" asp-action="Logout" method="post">
+                        </a>
+                        <form asp-controller="Account" asp-action="Logout" method="post" class="logout-form">
                             @Html.AntiForgeryToken()
-                            <button class="btn btn-secondary" type="submit">Wyloguj</button>
+                            <button class="btn btn-secondary btn-compact" type="submit">
+                                <svg class="btn-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 17l5-5-5-5M15 12H3M14 4h5a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-5" /></svg>
+                                <span>Wyloguj</span>
+                            </button>
                         </form>
                     </div>
                 </header>
             }
-            <main class="content">
-                @if (User.Identity?.IsAuthenticated == true)
+
+            <main class="content" id="mainContent">
+                @if (isAuthenticated)
                 {
-                    <div class="breadcrumb-line">
-                        <a asp-controller="Home" asp-action="Index">Pulpit</a>
-                        <span>•</span>
+                    <div class="breadcrumb-line" aria-label="Okruszki">
+                        <a asp-controller="Home" asp-action="Index">
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 11 9-8 9 8M5 10v10h14V10M9 20v-6h6v6" /></svg>
+                            <span>Pulpit</span>
+                        </a>
+                        <span class="breadcrumb-separator" aria-hidden="true">/</span>
                         <span>@pageTitle</span>
                     </div>
                 }
@@ -71,6 +106,12 @@
             </main>
         </div>
     </div>
+
+    <button class="scroll-top" type="button" data-scroll-top aria-label="Wróć na górę" title="Wróć na górę">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 15 6-6 6 6" /></svg>
+    </button>
+
+    <script src="~/js/site.js" asp-append-version="true"></script>
     @RenderSection("Scripts", required: false)
 </body>
 </html>

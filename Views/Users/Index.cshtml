@@ -1,0 +1,305 @@
+@model EDom.Web.Models.UserAdministrationPageViewModel
+@{
+    ViewData["Title"] = "Użytkownicy";
+}
+
+<section class="hero users-admin-hero">
+    <div>
+        <div class="eyebrow">Ustawienia · użytkownicy · bezpieczeństwo</div>
+        <h1>Użytkownicy</h1>
+        <p class="muted">Lista wszystkich użytkowników gospodarstwa wraz z rolami, statusem konta, zatwierdzeniem i wymaganiem zmiany hasła. Z tego miejsca możesz przejść do pełnej edycji profilu i wykonać operacje bezpieczeństwa konta.</p>
+    </div>
+    <div class="hero-side">
+        <span class="status-chip status-chip-good">@Model.HouseholdName</span>
+        <span class="muted small">@Model.TotalCount kont</span>
+    </div>
+</section>
+
+@if (TempData["Success"] is string success)
+{
+    <div class="alert alert-success">@success</div>
+}
+@if (TempData["Error"] is string error)
+{
+    <div class="alert alert-danger">@error</div>
+}
+
+<section class="stats-grid user-admin-stats">
+    <div class="stat-card"><span class="stat-label">Wszyscy</span><strong>@Model.TotalCount</strong><small>konta w gospodarstwie</small></div>
+    <div class="stat-card"><span class="stat-label">Aktywne</span><strong>@Model.ActiveCount</strong><small>mogą się logować</small></div>
+    <div class="stat-card"><span class="stat-label">Zablokowane</span><strong>@Model.LockedCount</strong><small>wymagają odblokowania</small></div>
+    <div class="stat-card"><span class="stat-label">Zmiana hasła</span><strong>@Model.MustChangePasswordCount</strong><small>mają wymuszoną zmianę</small></div>
+</section>
+
+<section class="panel users-admin-toolbar-panel">
+    <div class="users-admin-toolbar">
+        <div class="field users-search-field">
+            <label for="usersSearch">Szukaj użytkownika</label>
+            <input id="usersSearch" type="search" placeholder="Imię, nazwisko, login, rola…" autocomplete="off" />
+        </div>
+        <div class="field">
+            <label for="usersStatus">Status</label>
+            <select id="usersStatus">
+                <option value="">Wszystkie statusy</option>
+                <option value="Active">Aktywne</option>
+                <option value="Locked">Zablokowane</option>
+                <option value="Inactive">Nieaktywne</option>
+                <option value="MustChange">Wymagana zmiana hasła</option>
+            </select>
+        </div>
+        <div class="users-toolbar-actions">
+            <a class="btn btn-secondary" asp-controller="RoleStudio" asp-action="Index">Role i uprawnienia</a>
+            <a class="btn btn-secondary" asp-controller="PasswordPolicy" asp-action="Index">Polityka haseł</a>
+        </div>
+    </div>
+</section>
+
+<section class="users-admin-list" id="usersList">
+    @foreach (var user in Model.Users)
+    {
+        var searchText = (user.DisplayName + " " + user.Login + " " + user.OrganizationalRole + " " + string.Join(" ", user.Roles.Select(x => x.RoleName))).ToLowerInvariant();
+        var primaryRoleCode = user.Roles.FirstOrDefault()?.RoleCode;
+        <article class="panel user-admin-card"
+                 data-user-card
+                 data-search="@searchText"
+                 data-status="@user.AccountStatus"
+                 data-must-change="@(user.MustChangePassword ? "true" : "false")">
+            <div class="user-admin-card-head">
+                <div class="user-admin-identity">
+                    <div class="user-admin-avatar">@(string.IsNullOrWhiteSpace(user.DisplayName) ? "?" : user.DisplayName.Substring(0, 1).ToUpperInvariant())</div>
+                    <div>
+                        <div class="user-admin-name-line">
+                            <h2>@user.DisplayName</h2>
+                            @if (user.IsCurrentAccount)
+                            {
+                                <span class="badge badge-warning">Twoje konto</span>
+                            }
+                        </div>
+                        <div class="muted">@user.Login · @user.OrganizationalRole</div>
+                    </div>
+                </div>
+                <div class="user-admin-statuses">
+                    <span class="status-chip @(user.IsApproved ? "status-chip-good" : string.Empty)">@user.ApprovalLabel</span>
+                    <span class="status-chip @(user.IsLocked ? "status-chip-danger" : user.IsActive ? "status-chip-good" : string.Empty)">@user.AccountStatusLabel</span>
+                    @if (user.MustChangePassword)
+                    {
+                        <span class="status-chip status-chip-warning">Wymagana zmiana hasła</span>
+                    }
+                </div>
+            </div>
+
+            <div class="user-admin-summary-grid">
+                <div class="user-summary-cell">
+                    <span>Role</span>
+                    <div class="user-role-badges">
+                        @if (user.Roles.Count == 0)
+                        {
+                            <span class="badge badge-neutral">Brak aktywnej roli</span>
+                        }
+                        else
+                        {
+                            @foreach (var role in user.Roles)
+                            {
+                                <span class="user-role-badge" title="@role.ProfileName · @role.ScopeType @(string.IsNullOrWhiteSpace(role.ScopeId) ? "" : role.ScopeId)">
+                                    <strong>@role.RoleName</strong>
+                                    <small>@role.ProfileName · @role.ScopeType</small>
+                                </span>
+                            }
+                        }
+                    </div>
+                </div>
+                <div class="user-summary-cell">
+                    <span>Ostatnie logowanie</span>
+                    <strong>@(user.LastLoginAtUtc?.ToLocalTime().ToString("dd.MM.yyyy HH:mm") ?? "Nigdy")</strong>
+                </div>
+                <div class="user-summary-cell">
+                    <span>Hasło zmienione</span>
+                    <strong>@(user.PasswordChangedAtUtc?.ToLocalTime().ToString("dd.MM.yyyy HH:mm") ?? "Brak danych")</strong>
+                </div>
+                <div class="user-summary-cell">
+                    <span>Błędne logowania</span>
+                    <strong>@user.FailedLoginCount / 3</strong>
+                </div>
+            </div>
+
+            <div class="user-admin-primary-actions">
+                <a class="btn btn-primary" asp-controller="UserProfile" asp-action="Index" asp-route-accountId="@user.AccountId">Edytuj pełne dane</a>
+                <a class="btn btn-secondary" asp-controller="RoleStudio" asp-action="Index" asp-route-roleCode="@primaryRoleCode">Role i uprawnienia</a>
+                <button class="btn btn-secondary" type="button" data-toggle-user-security="@user.AccountId">Bezpieczeństwo konta</button>
+            </div>
+
+            <div class="user-security-panel" id="security-@user.AccountId" hidden>
+                <div class="section-header compact">
+                    <div>
+                        <div class="eyebrow">Bezpieczeństwo</div>
+                        <h3>Zarządzanie kontem</h3>
+                        <p class="muted">Zmiany tutaj dotyczą logowania i hasła. Edycja danych osobowych odbywa się przez „Edytuj pełne dane”.</p>
+                    </div>
+                </div>
+
+                @if (!Model.CanManageSecurity)
+                {
+                    <div class="alert alert-warning">Nie masz uprawnienia <code>identity.account.security_manage</code>. Operacje bezpieczeństwa są tylko do podglądu.</div>
+                }
+                else
+                {
+                    <div class="user-security-actions-grid">
+                        <div class="user-security-action-card">
+                            <h4>Status konta</h4>
+                            <p>Aktywacja pozwala użytkownikowi się logować. Blokada natychmiast unieważnia jego aktywne sesje.</p>
+                            <div class="actions">
+                                @if (!user.IsActive)
+                                {
+                                    <form asp-controller="Users" asp-action="Activate" method="post">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="accountId" value="@user.AccountId" />
+                                        <button class="btn btn-success" type="submit">Zatwierdź / aktywuj konto</button>
+                                    </form>
+                                }
+                                @if (!user.IsLocked && !user.IsCurrentAccount && !user.IsLastSuperAdministrator)
+                                {
+                                    <form asp-controller="Users" asp-action="Lock" method="post" data-confirm="Zablokować konto tego użytkownika? Wszystkie aktywne sesje zostaną unieważnione.">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="accountId" value="@user.AccountId" />
+                                        <button class="btn btn-danger" type="submit">Zablokuj konto</button>
+                                    </form>
+                                }
+                                @if (user.IsCurrentAccount)
+                                {
+                                    <small class="muted">Nie można zablokować konta, z którego aktualnie zarządzasz systemem.</small>
+                                }
+                                @if (user.IsLastSuperAdministrator)
+                                {
+                                    <small class="muted">To ostatni Superadministrator — blokada jest chroniona.</small>
+                                }
+                            </div>
+                        </div>
+
+                        <div class="user-security-action-card">
+                            <h4>Wymuś zmianę hasła</h4>
+                            <p>Użytkownik zostanie wylogowany i przy następnym logowaniu system zażąda ustawienia nowego hasła.</p>
+                            <form asp-controller="Users" asp-action="ForcePasswordChange" method="post" data-confirm="Wymusić zmianę hasła dla tego użytkownika? Aktywne sesje zostaną unieważnione.">
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="accountId" value="@user.AccountId" />
+                                <button class="btn btn-secondary" type="submit" disabled="@user.MustChangePassword">@(user.MustChangePassword ? "Zmiana już wymagana" : "Wymuś zmianę hasła")</button>
+                            </form>
+                        </div>
+
+                        <div class="user-security-action-card user-password-reset-card">
+                            <h4>Zmień / zresetuj hasło</h4>
+                            <p>Administrator ustawia hasło tymczasowe. Musi ono spełniać aktualną politykę haseł gospodarstwa.</p>
+                            <form asp-controller="Users" asp-action="ResetPassword" method="post" class="user-reset-password-form">
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="accountId" value="@user.AccountId" />
+                                <div class="field">
+                                    <label>Nowe hasło tymczasowe</label>
+                                    <div class="password-inline-field">
+                                        <input type="password" name="temporaryPassword" required autocomplete="new-password" data-temp-password />
+                                        <button class="btn btn-small btn-secondary" type="button" data-generate-password>Generuj</button>
+                                        <button class="btn btn-small btn-secondary" type="button" data-toggle-password>Pokaz / ukryj</button>
+                                    </div>
+                                </div>
+                                <label class="check-row">
+                                    <input type="checkbox" name="mustChangePassword" value="true" checked />
+                                    <span>Wymuś zmianę tego hasła przy następnym logowaniu</span>
+                                </label>
+                                <button class="btn btn-primary" type="submit">Ustaw nowe hasło</button>
+                            </form>
+                        </div>
+                    </div>
+                }
+
+                @if (!string.IsNullOrWhiteSpace(user.LockoutReason))
+                {
+                    <div class="user-lockout-note"><strong>Powód blokady:</strong> @user.LockoutReason</div>
+                }
+            </div>
+        </article>
+    }
+</section>
+
+<div class="panel empty-state" id="usersEmptyState" hidden>
+    <h2>Brak pasujących użytkowników</h2>
+    <p class="muted">Zmień wyszukiwanie lub filtr statusu.</p>
+</div>
+
+@section Scripts {
+<script>
+(() => {
+    const cards = Array.from(document.querySelectorAll('[data-user-card]'));
+    const search = document.getElementById('usersSearch');
+    const status = document.getElementById('usersStatus');
+    const empty = document.getElementById('usersEmptyState');
+
+    function applyFilters() {
+        const q = (search?.value || '').trim().toLowerCase();
+        const filter = status?.value || '';
+        let visible = 0;
+        cards.forEach(card => {
+            const statusMatch = !filter
+                || (filter === 'MustChange' ? card.dataset.mustChange === 'true' : card.dataset.status === filter);
+            const searchMatch = !q || (card.dataset.search || '').includes(q);
+            card.hidden = !(statusMatch && searchMatch);
+            if (!card.hidden) visible++;
+        });
+        if (empty) empty.hidden = visible !== 0;
+    }
+
+    search?.addEventListener('input', applyFilters);
+    status?.addEventListener('change', applyFilters);
+
+    document.querySelectorAll('[data-toggle-user-security]').forEach(button => {
+        button.addEventListener('click', () => {
+            const panel = document.getElementById('security-' + button.dataset.toggleUserSecurity);
+            if (!panel) return;
+            panel.hidden = !panel.hidden;
+            if (!panel.hidden) panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        });
+    });
+
+    document.querySelectorAll('[data-generate-password]').forEach(button => {
+        button.addEventListener('click', () => {
+            const form = button.closest('form');
+            const input = form?.querySelector('[data-temp-password]');
+            if (!input || !window.crypto?.getRandomValues) return;
+            const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+            const lower = 'abcdefghijkmnopqrstuvwxyz';
+            const digits = '23456789';
+            const special = '!#$%*-_+';
+            const all = upper + lower + digits + special;
+            const bytes = new Uint32Array(16);
+            window.crypto.getRandomValues(bytes);
+            const chars = [
+                upper[bytes[0] % upper.length],
+                lower[bytes[1] % lower.length],
+                digits[bytes[2] % digits.length],
+                special[bytes[3] % special.length]
+            ];
+            for (let i = 4; i < bytes.length; i++) chars.push(all[bytes[i] % all.length]);
+            for (let i = chars.length - 1; i > 0; i--) {
+                const j = bytes[i % bytes.length] % (i + 1);
+                [chars[i], chars[j]] = [chars[j], chars[i]];
+            }
+            input.value = chars.join('');
+            input.type = 'text';
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+        });
+    });
+
+    document.querySelectorAll('[data-toggle-password]').forEach(button => {
+        button.addEventListener('click', () => {
+            const input = button.closest('form')?.querySelector('[data-temp-password]');
+            if (input) input.type = input.type === 'password' ? 'text' : 'password';
+        });
+    });
+
+    document.querySelectorAll('form[data-confirm]').forEach(form => {
+        form.addEventListener('submit', event => {
+            if (!window.confirm(form.dataset.confirm || 'Potwierdzić operację?')) event.preventDefault();
+        });
+    });
+
+    applyFilters();
+})();
+</script>
+}

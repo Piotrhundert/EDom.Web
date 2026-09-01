@@ -1,0 +1,387 @@
+@model EDom.Web.Models.UserProfilePageViewModel
+@{
+    ViewData["Title"] = Model.IsOwnProfile ? "Mój profil" : $"Profil · {Model.DisplayName}";
+    string Date(DateOnly? value) => value?.ToString("dd.MM.yyyy") ?? "—";
+    string DateTimeLocal(DateTime? value) => value?.ToLocalTime().ToString("dd.MM.yyyy HH:mm") ?? "—";
+    var shortPersonId = Model.PersonId.ToString("N").Substring(0, 8);
+}
+
+<div class="profile-page">
+    <section class="profile-hero panel">
+        <div class="profile-avatar" aria-hidden="true">@((Model.FirstName.FirstOrDefault()).ToString().ToUpperInvariant())@((Model.LastName.FirstOrDefault()).ToString().ToUpperInvariant())</div>
+        <div class="profile-hero-copy">
+            <div class="eyebrow">Profil użytkownika</div>
+            <h1>@Model.DisplayName</h1>
+            <div class="profile-hero-meta">
+                <span>@Model.OrganizationalRole</span>
+                <span>@Model.Login</span>
+                <span>@Model.AccountStatus</span>
+            </div>
+            <p>Pełne dane osoby, kontakty, gospodarstwo, grupy rodzinne, role systemowe i bezpieczeństwo konta.</p>
+        </div>
+        <div class="profile-hero-actions">
+            @if (Model.CanManageUsers)
+            {
+                <a class="btn btn-secondary" asp-controller="UserManagement" asp-action="Index">Zarządzaj użytkownikami i rolami</a>
+            }
+        </div>
+    </section>
+
+    @if (TempData["Success"] is string success)
+    {
+        <div class="alert alert-success">@success</div>
+    }
+    @if (TempData["Error"] is string error)
+    {
+        <div class="alert alert-danger">@error</div>
+    }
+
+    @if (Model.CanManageUsers && Model.HouseholdAccounts.Count > 1)
+    {
+        <section class="panel profile-switcher">
+            <div>
+                <strong>Podgląd użytkownika</strong>
+                <span>Jako administrator możesz przejść bezpośrednio do profilu dowolnego konta w tym gospodarstwie.</span>
+            </div>
+            <select class="form-select" data-profile-switch aria-label="Wybierz użytkownika">
+                @foreach (var item in Model.HouseholdAccounts)
+                {
+                    if (item.AccountId == Model.AccountId)
+                    {
+                        <option value="@Url.Action("Index", "UserProfile", new { accountId = item.AccountId })" selected>@item.DisplayName · @item.Login · @item.Status</option>
+                    }
+                    else
+                    {
+                        <option value="@Url.Action("Index", "UserProfile", new { accountId = item.AccountId })">@item.DisplayName · @item.Login · @item.Status</option>
+                    }
+                }
+            </select>
+        </section>
+    }
+
+    <div class="profile-grid">
+        <div class="profile-main-column">
+            <section class="panel">
+                <div class="section-header">
+                    <div>
+                        <div class="eyebrow">Dane podstawowe</div>
+                        <h2>Dane osoby i kontakt</h2>
+                        <p>Informacje wykorzystywane przez moduły gospodarstwa, dokumenty i najem.</p>
+                    </div>
+                    <span class="badge">ID osoby: @shortPersonId</span>
+                </div>
+
+                @if (Model.CanEditProfile)
+                {
+                    <form asp-action="Save" method="post" class="form-grid profile-edit-form">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="AccountId" value="@Model.AccountId" />
+
+                        <div class="field">
+                            <label for="FirstName">Imię</label>
+                            <input id="FirstName" name="FirstName" value="@Model.FirstName" maxlength="100" required />
+                        </div>
+                        <div class="field">
+                            <label for="LastName">Nazwisko</label>
+                            <input id="LastName" name="LastName" value="@Model.LastName" maxlength="150" required />
+                        </div>
+                        <div class="field">
+                            <label for="BirthDate">Data urodzenia</label>
+                            <input id="BirthDate" name="BirthDate" type="date" value="@(Model.BirthDate?.ToString("yyyy-MM-dd"))" />
+                        </div>
+                        <div class="field">
+                            <label>Typ osoby</label>
+                            <input value="@Model.PersonType" disabled />
+                            <small>Typ osoby jest kontrolowany przez moduł gospodarstwa/najmu.</small>
+                        </div>
+
+                        <div class="field full profile-sensitive-field">
+                            <div class="field-label-row">
+                                <label for="Pesel">PESEL</label>
+                                <span class="sensitive-badge">dane chronione</span>
+                            </div>
+                            <div class="input-action-row">
+                                <input id="Pesel" name="Pesel" value="@(Model.PeselAvailable ? Model.Pesel : string.Empty)" inputmode="numeric" maxlength="11" autocomplete="off" placeholder="11 cyfr" />
+                                <button class="btn btn-secondary btn-compact" type="button" data-toggle-pesel>Pokaż / ukryj</button>
+                            </div>
+                            @if (!string.IsNullOrWhiteSpace(Model.PeselStatusMessage))
+                            {
+                                <small class="field-warning">@Model.PeselStatusMessage</small>
+                            }
+                            <label class="check-line"><input type="checkbox" name="RemovePesel" value="true" /> Usuń zapisany PESEL</label>
+                        </div>
+
+                        <div class="field">
+                            <label for="Email">E-mail</label>
+                            <input id="Email" name="Email" type="email" value="@Model.Email" maxlength="250" autocomplete="email" />
+                        </div>
+                        <div class="field">
+                            <label for="Phone">Telefon</label>
+                            <input id="Phone" name="Phone" value="@Model.Phone" maxlength="50" autocomplete="tel" />
+                        </div>
+
+                        <div class="field full"><div class="form-section-label">Adres</div></div>
+                        <div class="field">
+                            <label for="Country">Kraj</label>
+                            <input id="Country" name="Country" value="@Model.Country" maxlength="3" />
+                        </div>
+                        <div class="field">
+                            <label for="Region">Województwo / region</label>
+                            <input id="Region" name="Region" value="@Model.Region" maxlength="120" />
+                        </div>
+                        <div class="field">
+                            <label for="City">Miejscowość</label>
+                            <input id="City" name="City" value="@Model.City" maxlength="120" />
+                        </div>
+                        <div class="field">
+                            <label for="PostalCode">Kod pocztowy</label>
+                            <input id="PostalCode" name="PostalCode" value="@Model.PostalCode" maxlength="20" />
+                        </div>
+                        <div class="field">
+                            <label for="Street">Ulica</label>
+                            <input id="Street" name="Street" value="@Model.Street" maxlength="150" />
+                        </div>
+                        <div class="field profile-address-numbers">
+                            <div>
+                                <label for="BuildingNo">Nr domu</label>
+                                <input id="BuildingNo" name="BuildingNo" value="@Model.BuildingNo" maxlength="30" />
+                            </div>
+                            <div>
+                                <label for="UnitNo">Nr lokalu</label>
+                                <input id="UnitNo" name="UnitNo" value="@Model.UnitNo" maxlength="30" />
+                            </div>
+                        </div>
+
+                        <div class="field full form-actions-row">
+                            <button class="btn btn-primary" type="submit">Zapisz profil</button>
+                            <span class="text-muted small">Zmiany danych profilu są zapisywane w audycie.</span>
+                        </div>
+                    </form>
+                }
+            </section>
+
+            <section class="panel">
+                <div class="section-header">
+                    <div>
+                        <div class="eyebrow">Przynależność</div>
+                        <h2>Gospodarstwo i grupy rodzinne</h2>
+                        <p>Rola organizacyjna nie jest tym samym co techniczna rola dostępu RBAC.</p>
+                    </div>
+                </div>
+                <div class="profile-info-cards">
+                    <article class="profile-info-card">
+                        <span>Gospodarstwo</span>
+                        <strong>@Model.HouseholdName</strong>
+                        <small>Od @Date(Model.MembershipValidFrom)</small>
+                    </article>
+                    <article class="profile-info-card">
+                        <span>Rola w gospodarstwie</span>
+                        <strong>@Model.OrganizationalRole</strong>
+                        <small>Status osoby: @Model.PersonStatus</small>
+                    </article>
+                    <article class="profile-info-card">
+                        <span>Grupy rodzinne</span>
+                        <strong>@Model.Groups.Count</strong>
+                        <small>Aktywne przypisania</small>
+                    </article>
+                </div>
+
+                @if (Model.Groups.Count == 0)
+                {
+                    <div class="empty-state compact">Użytkownik nie należy obecnie do żadnej grupy rodzinnej.</div>
+                }
+                else
+                {
+                    <div class="profile-list">
+                        @foreach (var group in Model.Groups)
+                        {
+                            <div class="profile-list-row">
+                                <div><strong>@group.GroupName</strong><span>@group.GroupRole</span></div>
+                                <small>od @Date(group.ValidFrom)</small>
+                            </div>
+                        }
+                    </div>
+                }
+            </section>
+
+            <section class="panel">
+                <div class="section-header">
+                    <div>
+                        <div class="eyebrow">Uprawnienia</div>
+                        <h2>Role i profile dostępu</h2>
+                        <p>Lista pokazuje aktywne przypisania RBAC dla bieżącego gospodarstwa.</p>
+                    </div>
+                    @if (Model.CanManageUsers)
+                    {
+                        <a class="btn btn-secondary btn-compact" asp-controller="UserManagement" asp-action="Index">Zmień role</a>
+                    }
+                </div>
+                @if (Model.Roles.Count == 0)
+                {
+                    <div class="empty-state compact">Brak aktywnych przypisań roli w tym gospodarstwie.</div>
+                }
+                else
+                {
+                    <div class="role-profile-grid">
+                        @foreach (var role in Model.Roles)
+                        {
+                            <article class="role-profile-card">
+                                <div class="role-profile-head">
+                                    <div><strong>@role.RoleName</strong><small>@role.RoleCode</small></div>
+                                    <span class="badge">@role.ProfileName</span>
+                                </div>
+                                <dl class="profile-dl compact">
+                                    <dt>Profil</dt><dd>@role.ProfileName <small>(@role.ProfileCode)</small></dd>
+                                    <dt>Zakres</dt><dd>@role.ScopeType @(string.IsNullOrWhiteSpace(role.ScopeId) ? string.Empty : $"· {role.ScopeId}")</dd>
+                                    <dt>Ważność</dt><dd>@(role.ValidToUtc.HasValue ? $"do {DateTimeLocal(role.ValidToUtc)}" : "bez daty końcowej")</dd>
+                                </dl>
+                            </article>
+                        }
+                    </div>
+                }
+            </section>
+
+            @if (Model.Residences.Count > 0 || Model.EmergencyContacts.Count > 0 || Model.IdentityDocuments.Count > 0)
+            {
+                <section class="panel">
+                    <div class="section-header">
+                        <div>
+                            <div class="eyebrow">Dodatkowe dane</div>
+                            <h2>Miejsce zamieszkania, kontakty alarmowe i dokumenty</h2>
+                        </div>
+                    </div>
+                    <div class="profile-three-columns">
+                        <div>
+                            <h3>Miejsce zamieszkania</h3>
+                            @if (Model.Residences.Count == 0) { <p class="text-muted">Brak przypisania.</p> }
+                            @foreach (var item in Model.Residences)
+                            {
+                                <div class="mini-data-card"><strong>@item.BuildingName / @item.RoomName</strong><span>@item.ResidenceType · od @Date(item.ValidFrom)</span></div>
+                            }
+                        </div>
+                        <div>
+                            <h3>Kontakt alarmowy</h3>
+                            @if (Model.EmergencyContacts.Count == 0) { <p class="text-muted">Brak kontaktu alarmowego.</p> }
+                            @foreach (var item in Model.EmergencyContacts)
+                            {
+                                <div class="mini-data-card"><strong>@item.Name</strong><span>@item.RelationshipType</span></div>
+                            }
+                        </div>
+                        <div>
+                            <h3>Dokumenty tożsamości</h3>
+                            @if (Model.IdentityDocuments.Count == 0) { <p class="text-muted">Brak dokumentów.</p> }
+                            @foreach (var item in Model.IdentityDocuments)
+                            {
+                                <div class="mini-data-card"><strong>@item.DocumentType · @item.CountryCode</strong><span>@Date(item.IssuedOn) – @Date(item.ExpiresOn) · @item.Status</span></div>
+                            }
+                        </div>
+                    </div>
+                </section>
+            }
+        </div>
+
+        <aside class="profile-side-column">
+            <section class="panel profile-summary-panel">
+                <div class="eyebrow">Konto</div>
+                <h2>@Model.Login</h2>
+                <dl class="profile-dl">
+                    <dt>Status konta</dt><dd><strong>@Model.AccountStatus</strong></dd>
+                    <dt>Ostatnie logowanie</dt><dd>@DateTimeLocal(Model.LastLoginAtUtc)</dd>
+                    <dt>Zmiana hasła</dt><dd>@DateTimeLocal(Model.PasswordChangedAtUtc)</dd>
+                    <dt>Wymuszenie zmiany</dt><dd>@(Model.MustChangePassword ? "Tak" : "Nie")</dd>
+                    <dt>Błędne logowania</dt><dd>@Model.FailedLoginCount</dd>
+                    <dt>Utworzono profil</dt><dd>@Model.CreatedAtUtc.ToLocalTime().ToString("dd.MM.yyyy HH:mm")</dd>
+                </dl>
+                @if (!string.IsNullOrWhiteSpace(Model.LockoutReason))
+                {
+                    <div class="alert alert-warning compact">Powód blokady: @Model.LockoutReason</div>
+                }
+                @if (Model.CanResetPassword && Model.AccountStatus == "Zablokowane")
+                {
+                    <form asp-action="Unlock" method="post">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="accountId" value="@Model.AccountId" />
+                        <button class="btn btn-success w-100" type="submit">Odblokuj konto</button>
+                    </form>
+                }
+            </section>
+
+            @if (Model.IsOwnProfile)
+            {
+                <section class="panel">
+                    <div class="eyebrow">Bezpieczeństwo</div>
+                    <h2>Zmień moje hasło</h2>
+                    <p class="text-muted">Po zmianie hasła wszystkie aktywne sesje zostaną unieważnione.</p>
+                    <form asp-action="ChangePassword" method="post" class="stack-form">
+                        @Html.AntiForgeryToken()
+                        <div class="field"><label>Aktualne hasło</label><input name="currentPassword" type="password" autocomplete="current-password" required /></div>
+                        <div class="field"><label>Nowe hasło</label><input name="newPassword" type="password" autocomplete="new-password" required /></div>
+                        <div class="field"><label>Powtórz nowe hasło</label><input name="confirmPassword" type="password" autocomplete="new-password" required /></div>
+                        <button class="btn btn-primary w-100" type="submit">Zmień hasło</button>
+                    </form>
+                </section>
+            }
+
+            @if (Model.CanResetPassword)
+            {
+                <section class="panel reset-password-panel">
+                    <div class="eyebrow">Administracja kontem</div>
+                    <h2>Reset hasła</h2>
+                    <p class="text-muted">Reset zapisuje zdarzenie w audycie i natychmiast unieważnia wszystkie aktywne sesje użytkownika.</p>
+                    <form asp-action="ResetPassword" method="post" class="stack-form">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="accountId" value="@Model.AccountId" />
+                        <div class="field">
+                            <label>Hasło tymczasowe</label>
+                            <div class="input-action-row">
+                                <input id="temporaryPassword" name="temporaryPassword" type="text" autocomplete="off" required />
+                                <button class="btn btn-secondary btn-compact" type="button" data-generate-password>Generuj</button>
+                            </div>
+                        </div>
+                        <label class="check-line"><input type="checkbox" name="mustChangePassword" value="true" checked /> Wymuś zmianę hasła przy następnym logowaniu</label>
+                        <button class="btn btn-danger w-100" type="submit">Resetuj hasło</button>
+                    </form>
+                </section>
+            }
+        </aside>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+(() => {
+    const switcher = document.querySelector('[data-profile-switch]');
+    switcher?.addEventListener('change', () => { if (switcher.value) window.location.href = switcher.value; });
+
+    const pesel = document.getElementById('Pesel');
+    const toggle = document.querySelector('[data-toggle-pesel]');
+    if (pesel && toggle) {
+        pesel.type = 'password';
+        toggle.addEventListener('click', () => { pesel.type = pesel.type === 'password' ? 'text' : 'password'; });
+    }
+
+    const generator = document.querySelector('[data-generate-password]');
+    const password = document.getElementById('temporaryPassword');
+    generator?.addEventListener('click', () => {
+        const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+        const lower = 'abcdefghijkmnopqrstuvwxyz';
+        const digits = '23456789';
+        const special = '!' + String.fromCharCode(64) + '#$%*-_+';
+        const all = upper + lower + digits + special;
+        const randomIndex = length => {
+            const buffer = new Uint32Array(1);
+            crypto.getRandomValues(buffer);
+            return buffer[0] % length;
+        };
+        const random = source => source[randomIndex(source.length)];
+        const chars = [random(upper), random(lower), random(digits), random(special)];
+        while (chars.length < 18) chars.push(random(all));
+        for (let i = chars.length - 1; i > 0; i--) {
+            const j = randomIndex(i + 1);
+            [chars[i], chars[j]] = [chars[j], chars[i]];
+        }
+        if (password) { password.value = chars.join(''); password.focus(); password.select(); }
+    });
+})();
+</script>
+}

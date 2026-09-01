@@ -8,26 +8,42 @@
     {
         return (key ?? string.Empty).ToLowerInvariant() switch
         {
-            "household" => "OS",
-            "private-finance" => "MF",
-            "household-finance" => "BF",
-            "documents" => "DO",
-            "calendar" => "KA",
-            "property" => "NI",
-            "rental" => "NA",
-            "user-management" => "UA",
-            _ => string.IsNullOrWhiteSpace(key) ? "MD" : new string(key.Where(char.IsLetterOrDigit).Take(2).ToArray()).ToUpperInvariant()
+            "household" => "<svg viewBox='0 0 24 24'><path d='M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75'/></svg>",
+            "private-finance" => "<svg viewBox='0 0 24 24'><path d='M4 7h16v13H4zM4 9l8-5 8 5M8 13h8M8 17h5'/></svg>",
+            "finances" => "<svg viewBox='0 0 24 24'><path d='M3 7h18v13H3zM3 10h18M7 15h4'/></svg>",
+            "documents" => "<svg viewBox='0 0 24 24'><path d='M6 2h9l5 5v15H6zM14 2v6h6M9 13h8M9 17h8'/></svg>",
+            "calendar" => "<svg viewBox='0 0 24 24'><path d='M3 5h18v16H3zM7 3v4M17 3v4M3 10h18M7 14h2M12 14h2M17 14h1'/></svg>",
+            "property" => "<svg viewBox='0 0 24 24'><path d='m3 11 9-8 9 8M5 10v10h14V10M9 20v-6h6v6'/></svg>",
+            "rental" => "<svg viewBox='0 0 24 24'><path d='M4 21V7l8-4 8 4v14M8 11h8M8 15h8M10 21v-3h4v3'/></svg>",
+            "utilities" => "<svg viewBox='0 0 24 24'><path d='M13 2 5 14h7l-1 8 8-12h-7z'/></svg>",
+            "maintenance" => "<svg viewBox='0 0 24 24'><path d='m14.7 6.3 3-3a4 4 0 0 1-5 5l-7.4 7.4a2 2 0 0 0 2.8 2.8l7.4-7.4a4 4 0 0 1 5-5l-3 3'/></svg>",
+            "settings" => "<svg viewBox='0 0 24 24'><path d='M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21h-4v-.1A1.7 1.7 0 0 0 8.6 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H3v-4h.1A1.7 1.7 0 0 0 4.6 8.6a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V3h4v.1A1.7 1.7 0 0 0 15.4 4.6a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 9c.38.28.72.62 1 1 .27.34.47.72.6 1.1V11h.1v4H21a1.7 1.7 0 0 0-1.6 0'/></svg>",
+            _ => "<svg viewBox='0 0 24 24'><path d='M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z'/></svg>"
         };
     };
 
     Func<ModuleDefinition, string> sectionFor = module =>
     {
         var key = (module.Key ?? string.Empty).ToLowerInvariant();
-        if (key is "household" or "user-management") return "Gospodarstwo";
+        if (key is "household" or "settings") return "Gospodarstwo";
         if (key.Contains("finance")) return "Finanse";
-        if (key is "documents" or "calendar") return "Współpraca";
-        if (key is "property" or "rental" or "utilities") return "Nieruchomości i najem";
+        if (key is "documents" or "calendar") return "Organizacja";
+        if (key is "property" or "rental" or "utilities" or "maintenance") return "Dom i najem";
         return "Pozostałe";
+    };
+
+    Func<ModuleDefinition, (string Controller, string Action)> targetFor = module => module.Key switch
+    {
+        "household" => ("Household", "Index"),
+        "private-finance" => ("PrivateFinance", "Index"),
+        "finances" => ("HouseholdFinance", "Index"),
+        "calendar" => ("Calendar", "Index"),
+        "documents" => ("Documents", "Index"),
+        "property" => ("Property", "Index"),
+        "rental" => ("Rental", "Index"),
+        "utilities" => ("Utilities", "Index"),
+        "settings" => ("Users", "Index"),
+        _ => ("Modules", "Index")
     };
 
     var groups = Model
@@ -36,8 +52,8 @@
         {
             "Gospodarstwo" => 1,
             "Finanse" => 2,
-            "Współpraca" => 3,
-            "Nieruchomości i najem" => 4,
+            "Organizacja" => 3,
+            "Dom i najem" => 4,
             _ => 9
         })
         .ToList();
@@ -46,11 +62,18 @@
 <nav class="main-nav" aria-label="Główna nawigacja">
     <div class="nav-section">
         <div class="sidebar-caption">Start</div>
-        <a class="nav-item @((currentPath == "/" || currentPath.StartsWith("/Home")) ? "active" : string.Empty)" asp-controller="Home" asp-action="Index">
-            <span class="nav-icon">PU</span>
+        <a class="nav-item @((currentPath == "/" || currentPath.StartsWith("/Home", StringComparison.OrdinalIgnoreCase)) ? "active" : string.Empty)" asp-controller="Home" asp-action="Index">
+            <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 13h6V4H4zM14 20h6V11h-6zM4 20h6v-4H4zM14 8h6V4h-6z" /></svg></span>
             <span class="nav-copy">
                 <strong>Pulpit</strong>
-                <small>Szybki przegląd i wejście do modułów</small>
+                <small>Podsumowanie i moduły</small>
+            </span>
+        </a>
+        <a class="nav-item @(currentPath.StartsWith("/UserProfile", StringComparison.OrdinalIgnoreCase) ? "active" : string.Empty)" asp-controller="UserProfile" asp-action="Index">
+            <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M20 21a8 8 0 0 0-16 0M12 13a4 4 0 1 0 0-8 4 4 0 0 0 0 8" /></svg></span>
+            <span class="nav-copy">
+                <strong>Mój profil</strong>
+                <small>Dane, grupy, role i bezpieczeństwo</small>
             </span>
         </a>
     </div>
@@ -71,18 +94,54 @@
                     "utilities" => "/Utilities",
                     "calendar" => "/Calendar",
                     "documents" => "/Documents",
-                    "settings" => "/UserManagement",
+                    "settings" => "/Users",
                     _ => "/module/" + module.Key
                 };
-                var isActive = string.Equals(currentKey, module.Key, StringComparison.OrdinalIgnoreCase) || currentPath.StartsWith(routePrefix, StringComparison.OrdinalIgnoreCase);
-                <a class="nav-item @(isActive ? "active" : string.Empty)" asp-controller="Modules" asp-action="Index" asp-route-key="@module.Key">
-                    <span class="nav-icon">@iconForKey(module.Key)</span>
-                    <span class="nav-copy">
-                        <strong>@module.Label</strong>
-                        <small>@module.Description</small>
-                    </span>
-                </a>
+                var isActive = string.Equals(currentKey, module.Key, StringComparison.OrdinalIgnoreCase)
+                    || currentPath.StartsWith(routePrefix, StringComparison.OrdinalIgnoreCase)
+                    || (module.Key == "settings" && (currentPath.StartsWith("/RoleStudio", StringComparison.OrdinalIgnoreCase)
+                        || currentPath.StartsWith("/Users", StringComparison.OrdinalIgnoreCase)
+                        || currentPath.StartsWith("/PasswordPolicy", StringComparison.OrdinalIgnoreCase)));
+                var target = targetFor(module);
+                if (module.Key is "maintenance")
+                {
+                    <a class="nav-item @(isActive ? "active" : string.Empty)" asp-controller="Modules" asp-action="Index" asp-route-key="@module.Key">
+                        <span class="nav-icon" aria-hidden="true">@Html.Raw(iconForKey(module.Key))</span>
+                        <span class="nav-copy"><strong>@module.Label</strong><small>@module.Description</small></span>
+                    </a>
+                }
+                else
+                {
+                    <a class="nav-item @(isActive ? "active" : string.Empty)" asp-controller="@target.Controller" asp-action="@target.Action">
+                        <span class="nav-icon" aria-hidden="true">@Html.Raw(iconForKey(module.Key))</span>
+                        <span class="nav-copy"><strong>@module.Label</strong><small>@module.Description</small></span>
+                    </a>
+                }
+
+                @if (module.Key == "rental")
+                {
+                    <div class="nav-submenu">
+                        <a class="nav-subitem @(currentPath.StartsWith("/Rental/Settlements", StringComparison.OrdinalIgnoreCase) ? "active" : string.Empty)" asp-controller="TenantSettlements" asp-action="Index">Rozliczenia lokatorów</a>
+                        <a class="nav-subitem @(currentPath.StartsWith("/Rental/Closing", StringComparison.OrdinalIgnoreCase) ? "active" : string.Empty)" asp-controller="LeaseClosing" asp-action="Index">Zamknięcie najmu</a>
+                    </div>
+                }
+                @if (module.Key == "settings")
+                {
+                    <div class="nav-submenu">
+                        <a class="nav-subitem @(currentPath.StartsWith("/Users", StringComparison.OrdinalIgnoreCase) ? "active" : string.Empty)" asp-controller="Users" asp-action="Index">Użytkownicy</a>
+                        <a class="nav-subitem @(currentPath.StartsWith("/RoleStudio", StringComparison.OrdinalIgnoreCase) ? "active" : string.Empty)" asp-controller="RoleStudio" asp-action="Index">Role i uprawnienia</a>
+                        <a class="nav-subitem @(currentPath.StartsWith("/PasswordPolicy", StringComparison.OrdinalIgnoreCase) ? "active" : string.Empty)" asp-controller="PasswordPolicy" asp-action="Index">Polityka haseł</a>
+                    </div>
+                }
             }
         </div>
     }
+
+    <div class="nav-section">
+        <div class="sidebar-caption">Komunikacja</div>
+        <a class="nav-item @(currentPath.StartsWith("/Notifications", StringComparison.OrdinalIgnoreCase) ? "active" : string.Empty)" asp-controller="Notifications" asp-action="Index">
+            <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" /></svg></span>
+            <span class="nav-copy"><strong>Powiadomienia</strong><small>Alerty, terminy i informacje systemowe</small></span>
+        </a>
+    </div>
 </nav>

@@ -80,10 +80,10 @@ public sealed class PropertyController(WebAccessService access, IPropertyAssetSe
     }
 
     [HttpPost("Asset"), ValidateAntiForgeryToken]
-    public async Task<IActionResult> Asset(CreateAssetViewModel model, CancellationToken cancellationToken)
+    public async Task<IActionResult> Asset(CreateAssetViewModel input, CancellationToken cancellationToken)
     {
         var actor = await GetActorAsync(cancellationToken); if (actor is null) return Forbid();
-        await propertyService.CreateAssetAsync(actor, new CreateAssetRequest(model.Name, model.CategoryCode, model.OwnershipType, model.Manufacturer, model.Model, model.SerialNo, InitialRoomId: model.RoomId, AssignedFrom: DateOnly.FromDateTime(DateTime.Today)), cancellationToken);
+        await propertyService.CreateAssetAsync(actor, new CreateAssetRequest(input.Name, input.CategoryCode, input.OwnershipType, input.Manufacturer, input.Model, input.SerialNo, InitialRoomId: input.RoomId, AssignedFrom: DateOnly.FromDateTime(DateTime.Today)), cancellationToken);
         TempData["Success"] = "Dodano element wyposażenia.";
         return RedirectToAction(nameof(Index));
     }

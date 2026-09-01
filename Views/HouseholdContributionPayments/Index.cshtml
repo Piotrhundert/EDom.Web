@@ -1,0 +1,214 @@
+@model EDom.Web.Models.HouseholdContributionPaymentsViewModel
+@{
+    ViewData["Title"] = "Wpłaty do domu";
+    string Money(long minor, string currency) => $"{minor / 100m:N2} {currency}";
+    string StatusLabel(string status) => status switch
+    {
+        "Pending" => "Oczekuje na zatwierdzenie",
+        "Approved" => "Zatwierdzona",
+        "Rejected" => "Odrzucona",
+        _ => status
+    };
+}
+
+<section class="hero contribution-payments-hero">
+    <div>
+        <div class="eyebrow">Finanse domowe · wpłaty domowników</div>
+        <h1>Wpłaty do domu</h1>
+        <p class="muted">Domownik oznacza, że pieniądze zostały wysłane. Administrator sprawdza zgłoszenie i dopiero po zatwierdzeniu wpłata zwiększa saldo gospodarstwa.</p>
+    </div>
+    <div class="hero-side">
+        <a class="btn btn-secondary" href="/PrivateFinance">← Moje finanse</a>
+    </div>
+</section>
+
+@if (TempData["Success"] is string success)
+{
+    <div class="alert alert-success">@success</div>
+}
+@if (TempData["Error"] is string error)
+{
+    <div class="alert alert-danger">@error</div>
+}
+
+<section class="contribution-flow-strip" aria-label="Proces wpłaty">
+    <div><span>1</span><strong>Domownik wysyła pieniądze</strong><small>Przelew lub gotówka poza aplikacją.</small></div>
+    <div><span>2</span><strong>Oznacza „Wysłałem pieniądze”</strong><small>Powstaje zgłoszenie oczekujące.</small></div>
+    <div><span>3</span><strong>Administrator zatwierdza</strong><small>Dopiero wtedy następuje księgowanie.</small></div>
+</section>
+
+@if (Model.CanSubmit)
+{
+    <section class="panel contribution-section">
+        <div class="section-header">
+            <div>
+                <div class="eyebrow">Twoje zobowiązania</div>
+                <h2>Do wpłaty</h2>
+                <p class="muted">Jeśli wykonałeś przelew lub przekazałeś gotówkę, zgłoś wpłatę tutaj. Samo zgłoszenie nie zmienia salda domu.</p>
+            </div>
+            <span class="count-badge">@Model.MyObligations.Count(x => x.RemainingMinor > 0)</span>
+        </div>
+
+        @if (!Model.MyObligations.Any(x => x.RemainingMinor > 0))
+        {
+            <div class="empty-note">Nie masz obecnie nierozliczonych wpłat do domu.</div>
+        }
+        else
+        {
+            <div class="contribution-obligation-grid">
+                @foreach (var item in Model.MyObligations.Where(x => x.RemainingMinor > 0))
+                {
+                    var selected = Model.SelectedObligationId == item.Id;
+                    <article class="contribution-obligation-card @(selected ? "selected" : string.Empty)">
+                        <div class="contribution-card-head">
+                            <div>
+                                <small>Okres</small>
+                                <strong>@item.PeriodKey</strong>
+                            </div>
+                            <span class="status-chip @(item.DueDate < DateOnly.FromDateTime(DateTime.Today) ? "status-chip-danger" : string.Empty)">@item.Status</span>
+                        </div>
+                        <div class="contribution-money-grid">
+                            <div><small>Wymagane</small><strong>@Money(item.RequiredMinor, item.CurrencyCode)</strong></div>
+                            <div><small>Wpłacono</small><strong>@Money(item.PaidMinor, item.CurrencyCode)</strong></div>
+                            <div class="remaining"><small>Pozostało</small><strong>@Money(item.RemainingMinor, item.CurrencyCode)</strong></div>
+                        </div>
+                        <div class="contribution-due">Termin: <strong>@item.DueDate.ToString("dd.MM.yyyy")</strong></div>
+
+                        @if (item.HasPendingSubmission)
+                        {
+                            <div class="contribution-pending-box">
+                                <strong>✓ Zgłoszenie wysłane</strong>
+                                <span>Oczekuje na zatwierdzenie administratora. Saldo domu jeszcze się nie zmieniło.</span>
+                            </div>
+                        }
+                        else
+                        {
+                            <details class="contribution-submit-details">
+                                <summary>Wysłałem pieniądze</summary>
+                                <form asp-controller="HouseholdContributionPayments" asp-action="Submit" method="post" class="form-grid contribution-submit-form">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="obligationId" value="@item.Id" />
+                                    <div class="field">
+                                        <label>Kwota wysłana</label>
+                                        <input type="number" name="amount" min="0.01" step="0.01" value="@((item.RemainingMinor / 100m).ToString("0.00", System.Globalization.CultureInfo.InvariantCulture))" required />
+                                        <small>Możesz zgłosić pełną lub częściową wpłatę.</small>
+                                    </div>
+                                    <div class="field">
+                                        <label>Data wysłania</label>
+                                        <input type="datetime-local" name="paidAtLocal" value="@DateTime.Now.ToString("yyyy-MM-ddTHH:mm")" required />
+                                    </div>
+                                    <div class="field">
+                                        <label>Forma wpłaty</label>
+                                        <select name="paymentMethod" required>
+                                            <option value="Bank">Przelew bankowy</option>
+                                            <option value="Cash">Gotówka</option>
+                                        </select>
+                                    </div>
+                                    <div class="field">
+                                        <label>Tytuł / numer przelewu</label>
+                                        <input name="transferReference" maxlength="120" placeholder="Opcjonalnie, np. DOM 09/2026" />
+                                        <small>Pomaga rozpoznać i wykryć powtórzone zgłoszenie.</small>
+                                    </div>
+                                    <div class="field full actions">
+                                        <button class="btn btn-primary" type="submit">✓ Potwierdzam: wysłałem pieniądze</button>
+                                    </div>
+                                </form>
+                            </details>
+                        }
+                    </article>
+                }
+            </div>
+        }
+    </section>
+
+    <section class="panel contribution-section">
+        <div class="section-header compact">
+            <div>
+                <div class="eyebrow">Historia</div>
+                <h2>Moje zgłoszenia wpłat</h2>
+            </div>
+        </div>
+        @if (Model.MySubmissions.Count == 0)
+        {
+            <div class="empty-note">Nie zgłaszałeś jeszcze wpłat do domu.</div>
+        }
+        else
+        {
+            <div class="table-scroll">
+                <table class="data-table contribution-history-table">
+                    <thead><tr><th>Okres</th><th>Kwota</th><th>Data wysłania</th><th>Forma</th><th>Status</th><th>Decyzja</th></tr></thead>
+                    <tbody>
+                    @foreach (var item in Model.MySubmissions)
+                    {
+                        <tr>
+                            <td><strong>@item.PeriodKey</strong></td>
+                            <td>@Money(item.AmountMinor, item.CurrencyCode)</td>
+                            <td>@item.PaidAtUtc.ToLocalTime().ToString("dd.MM.yyyy HH:mm")</td>
+                            <td>@(item.PaymentMethod == "Bank" ? "Przelew" : "Gotówka")</td>
+                            <td><span class="badge @(item.Status == "Approved" ? "badge-success" : item.Status == "Rejected" ? "badge-danger" : "badge-warning")">@StatusLabel(item.Status)</span></td>
+                            <td>@(string.IsNullOrWhiteSpace(item.DecisionReason) ? "—" : item.DecisionReason)</td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+}
+
+@if (Model.CanApprove)
+{
+    <section class="panel contribution-section contribution-admin-section">
+        <div class="section-header">
+            <div>
+                <div class="eyebrow">Administrator / Manager finansów</div>
+                <h2>Wpłaty do zatwierdzenia</h2>
+                <p class="muted">Sprawdź zgłoszenie domownika. Zatwierdzenie utworzy rzeczywisty wpływ w rachunku domowym i rozliczy należność tego okresu.</p>
+            </div>
+            <span class="count-badge">@Model.PendingForApproval.Count</span>
+        </div>
+
+        @if (Model.PendingForApproval.Count == 0)
+        {
+            <div class="empty-note">Brak wpłat oczekujących na zatwierdzenie.</div>
+        }
+        else
+        {
+            <div class="contribution-approval-list">
+                @foreach (var item in Model.PendingForApproval)
+                {
+                    <article class="contribution-approval-card">
+                        <div class="contribution-approval-main">
+                            <div><small>Domownik</small><strong>@item.PersonName</strong></div>
+                            <div><small>Okres</small><strong>@item.PeriodKey</strong></div>
+                            <div><small>Zgłoszona kwota</small><strong>@Money(item.AmountMinor, item.CurrencyCode)</strong></div>
+                            <div><small>Wysłano</small><strong>@item.PaidAtUtc.ToLocalTime().ToString("dd.MM.yyyy HH:mm")</strong></div>
+                            <div><small>Forma</small><strong>@(item.PaymentMethod == "Bank" ? "Przelew bankowy" : "Gotówka")</strong></div>
+                        </div>
+                        <div class="contribution-approval-actions">
+                            <form asp-controller="HouseholdContributionPayments" asp-action="Approve" method="post" class="approval-form">
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="submissionId" value="@item.Id" />
+                                <label>
+                                    <span>Kwota do zatwierdzenia</span>
+                                    <input type="number" name="approvedAmount" min="0.01" step="0.01" value="@((item.AmountMinor / 100m).ToString("0.00", System.Globalization.CultureInfo.InvariantCulture))" required />
+                                </label>
+                                <label class="grow">
+                                    <span>Notatka do decyzji</span>
+                                    <input name="decisionReason" maxlength="500" placeholder="Opcjonalnie" />
+                                </label>
+                                <button class="btn btn-success" type="submit">Zatwierdź i zaksięguj</button>
+                            </form>
+                            <form asp-controller="HouseholdContributionPayments" asp-action="Reject" method="post" class="reject-form" data-confirm="Odrzucić to zgłoszenie wpłaty? Saldo domu nie zostanie zmienione.">
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="submissionId" value="@item.Id" />
+                                <input name="reason" maxlength="500" placeholder="Powód odrzucenia" required />
+                                <button class="btn btn-danger" type="submit">Odrzuć</button>
+                            </form>
+                        </div>
+                    </article>
+                }
+            </div>
+        }
+    </section>
+}

@@ -6,12 +6,12 @@
 <section class="hero hero-dashboard">
     <div>
         <div class="eyebrow">@householdName</div>
-        <h1>Witaj, @ViewData["DisplayName"]</h1>
-        <p>Interfejs został uporządkowany tak, aby łatwiej odnaleźć moduły, szybciej przejść do działania i lepiej rozróżniać obszary aplikacji.</p>
+        <h1>Dzień dobry, @ViewData["DisplayName"]</h1>
+        <p>Wybierz obszar, w którym chcesz pracować. Najważniejsze moduły i akcje są teraz uporządkowane w jednym, spójnym układzie.</p>
     </div>
     <div class="hero-side">
-        <span class="status-pill">PKG-012 · Media</span>
-        <div class="hero-note">Widoczne kafelki i akcje nadal wynikają z Twoich aktualnych uprawnień RBAC.</div>
+        <span class="status-pill">MVP · PKG-015</span>
+        <div class="hero-note">Widoczność modułów i operacji nadal wynika z aktualnej roli, profilu i zakresu RBAC.</div>
     </div>
 </section>
 
@@ -19,17 +19,17 @@
     <article class="stat-card">
         <strong>@modules.Count</strong>
         <span>Dostępne moduły</span>
-        <small>Tylko te, do których masz aktywne uprawnienia</small>
+        <small>Lista jest automatycznie ograniczona do Twoich uprawnień.</small>
     </article>
     <article class="stat-card">
-        <strong>1</strong>
-        <span>Punkt startowy</span>
-        <small>Zaczynaj od pulpitu i przechodź do konkretnego obszaru</small>
+        <strong>12</strong>
+        <span>Wersja schematu</span>
+        <small>Aktualny schemat danych po zakończeniu pierwszego etapu MVP.</small>
     </article>
     <article class="stat-card">
-        <strong>RBAC</strong>
-        <span>Bezpieczeństwo</span>
-        <small>Przyciski i moduły są ukrywane lub blokowane zgodnie z rolą</small>
+        <strong>G6</strong>
+        <span>Etap MVP</span>
+        <small>Warstwa bazowa jest gotowa do testów użytkowych i poprawek UI/UX.</small>
     </article>
 </section>
 
@@ -37,8 +37,8 @@
     <div class="section-header">
         <div>
             <div class="eyebrow">Nawigacja główna</div>
-            <h2>Najważniejsze obszary aplikacji</h2>
-            <p class="lead">Kafelki prowadzą bezpośrednio do modułów. Opis pod nazwą pomaga szybko rozpoznać przeznaczenie ekranu.</p>
+            <h2>Obszary e-dom</h2>
+            <p class="lead">Każdy kafelek prowadzi bezpośrednio do właściwego modułu. Te same obszary znajdziesz w lewym pasku.</p>
         </div>
     </div>
 
@@ -46,9 +46,10 @@
         @foreach (var module in modules)
         {
             <a class="module-card" asp-controller="Modules" asp-action="Index" asp-route-key="@module.Key">
+                <span class="module-card-icon" aria-hidden="true">@module.Label.Substring(0, 1).ToUpperInvariant()</span>
                 <span class="module-title">@module.Label</span>
                 <span class="module-description">@module.Description</span>
-                <span class="module-link">Otwórz moduł →</span>
+                <span class="module-link">Otwórz moduł</span>
             </a>
         }
     </div>

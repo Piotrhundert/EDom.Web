@@ -1,0 +1,208 @@
+@model EDom.Web.Models.PasswordPolicyViewModel
+@{
+    ViewData["Title"] = "Polityka haseł";
+}
+
+<section class="hero password-policy-hero">
+    <div>
+        <div class="eyebrow">Ustawienia · bezpieczeństwo kont</div>
+        <h1>Polityka haseł</h1>
+        <p class="muted">Ustal wymagania dla nowych i zmienianych haseł użytkowników gospodarstwa. Zmiany obowiązują przy zmianie hasła, resecie hasła oraz przy kolejnych logowaniach, jeśli ustawisz okres ważności.</p>
+    </div>
+    <div class="hero-side">
+        <span class="status-chip status-chip-good">@Model.PolicySource</span>
+        <span class="muted small">@Model.HouseholdName</span>
+    </div>
+</section>
+
+@if (TempData["Success"] is string success)
+{
+    <div class="alert alert-success">@success</div>
+}
+@if (TempData["Error"] is string error)
+{
+    <div class="alert alert-danger">@error</div>
+}
+
+<div class="password-policy-layout">
+    <main class="panel password-policy-editor">
+        <div class="section-header">
+            <div>
+                <div class="eyebrow">Reguły hasła</div>
+                <h2>Wymagania dotyczące znaków</h2>
+                <p class="muted">Wartość 0 przy danej klasie znaków oznacza, że nie jest ona obowiązkowa. Minimalna długość nadal musi być spełniona.</p>
+            </div>
+        </div>
+
+        <form asp-controller="PasswordPolicy" asp-action="Save" method="post" id="passwordPolicyForm">
+            @Html.AntiForgeryToken()
+
+            <div class="password-rule-grid">
+                <label class="password-rule-card">
+                    <span class="rule-icon">Aa</span>
+                    <span class="rule-copy"><strong>Minimalna długość</strong><small>Łączna minimalna liczba znaków w haśle.</small></span>
+                    <input type="number" name="MinLength" id="MinLength" min="6" max="128" value="@Model.MinLength" required />
+                </label>
+
+                <label class="password-rule-card">
+                    <span class="rule-icon">A</span>
+                    <span class="rule-copy"><strong>Wielkie litery</strong><small>Minimalna liczba znaków A–Z.</small></span>
+                    <input type="number" name="MinUpper" id="MinUpper" min="0" max="20" value="@Model.MinUpper" required />
+                </label>
+
+                <label class="password-rule-card">
+                    <span class="rule-icon">a</span>
+                    <span class="rule-copy"><strong>Małe litery</strong><small>Minimalna liczba znaków a–z.</small></span>
+                    <input type="number" name="MinLower" id="MinLower" min="0" max="20" value="@Model.MinLower" required />
+                </label>
+
+                <label class="password-rule-card">
+                    <span class="rule-icon">123</span>
+                    <span class="rule-copy"><strong>Cyfry</strong><small>Minimalna liczba cyfr 0–9.</small></span>
+                    <input type="number" name="MinDigits" id="MinDigits" min="0" max="20" value="@Model.MinDigits" required />
+                </label>
+
+                <label class="password-rule-card">
+                    <span class="rule-icon">#!</span>
+                    <span class="rule-copy"><strong>Znaki specjalne</strong><small>Minimalna liczba znaków innych niż litery i cyfry.</small></span>
+                    <input type="number" name="MinSpecial" id="MinSpecial" min="0" max="20" value="@Model.MinSpecial" required />
+                </label>
+            </div>
+
+            <div class="section-divider"></div>
+
+            <div class="section-header compact">
+                <div>
+                    <div class="eyebrow">Cykl życia hasła</div>
+                    <h2>Historia i ważność</h2>
+                    <p class="muted">Te ustawienia ograniczają ponowne używanie starych haseł i pozwalają wymusić okresową zmianę hasła.</p>
+                </div>
+            </div>
+
+            <div class="password-lifecycle-grid">
+                <label class="settings-card-input">
+                    <span><strong>Historia haseł</strong><small>Ilu ostatnich haseł użytkownik nie może użyć ponownie.</small></span>
+                    <input type="number" name="HistoryCount" id="HistoryCount" min="0" max="50" value="@Model.HistoryCount" required />
+                </label>
+                <label class="settings-card-input">
+                    <span><strong>Ważność hasła w dniach</strong><small>0 = hasło nie wygasa. Po wygaśnięciu system wymusi zmianę przy logowaniu.</small></span>
+                    <input type="number" name="PasswordMaxAgeDays" id="PasswordMaxAgeDays" min="0" max="3650" value="@(Model.PasswordMaxAgeDays ?? 0)" />
+                </label>
+                <div class="settings-card-input locked-setting">
+                    <span><strong>Blokada po błędnych logowaniach</strong><small>Stała reguła bezpieczeństwa MVP. Konto odblokowuje administrator.</small></span>
+                    <div class="locked-setting-value">@Model.LockoutThreshold próby</div>
+                </div>
+            </div>
+
+            <div class="password-policy-notice">
+                <strong>Reset hasła</strong>
+                <span>Administrator nadal może przy resecie zaznaczyć „Wymuś zmianę hasła przy następnym logowaniu”. Nowe hasło musi spełnić wszystkie reguły ustawione powyżej.</span>
+            </div>
+
+            <div class="sticky-save-bar password-policy-savebar">
+                <div>
+                    <strong>Zapisz politykę gospodarstwa</strong>
+                    <small>Po zmianie aktywne sesje użytkowników gospodarstwa zostaną unieważnione, aby nowa polityka zaczęła obowiązywać spójnie.</small>
+                </div>
+                <button class="btn btn-primary" type="submit">Zapisz politykę haseł</button>
+            </div>
+        </form>
+    </main>
+
+    <aside class="password-policy-side">
+        <section class="panel policy-summary-panel">
+            <div class="section-header compact">
+                <div>
+                    <div class="eyebrow">Podgląd</div>
+                    <h2>Aktualne wymagania</h2>
+                </div>
+            </div>
+            <div id="policySummary" class="policy-summary-list"></div>
+        </section>
+
+        <section class="panel password-tester-panel">
+            <div class="section-header compact">
+                <div>
+                    <div class="eyebrow">Tester</div>
+                    <h2>Sprawdź przykładowe hasło</h2>
+                    <p class="muted">Tester działa tylko w przeglądarce. Wpisana wartość nie jest zapisywana ani wysyłana.</p>
+                </div>
+            </div>
+            <div class="field">
+                <label for="passwordTester">Przykładowe hasło</label>
+                <input type="password" id="passwordTester" autocomplete="new-password" placeholder="Wpisz przykładowe hasło" />
+            </div>
+            <div id="passwordTesterResult" class="password-test-result neutral">Wpisz hasło, aby sprawdzić wymagania.</div>
+            <ul id="passwordTesterRules" class="password-test-rules"></ul>
+        </section>
+
+        <section class="panel policy-help-panel">
+            <div class="section-header compact">
+                <div>
+                    <div class="eyebrow">Wskazówka</div>
+                    <h2>Bezpieczny punkt startowy</h2>
+                </div>
+            </div>
+            <p>Dokumentacja e-dom zaleca minimum <strong>10 znaków</strong>, po jednej małej i wielkiej literze, jednej cyfrze, jednym znaku specjalnym oraz blokadę ponownego użycia <strong>5 ostatnich haseł</strong>.</p>
+        </section>
+    </aside>
+</div>
+
+@section Scripts {
+<script>
+(() => {
+    const ids = ['MinLength','MinUpper','MinLower','MinDigits','MinSpecial','HistoryCount','PasswordMaxAgeDays'];
+    const el = Object.fromEntries(ids.map(id => [id, document.getElementById(id)]));
+    const summary = document.getElementById('policySummary');
+    const tester = document.getElementById('passwordTester');
+    const result = document.getElementById('passwordTesterResult');
+    const rules = document.getElementById('passwordTesterRules');
+
+    const n = id => Math.max(0, Number.parseInt(el[id]?.value || '0', 10) || 0);
+
+    function renderSummary() {
+        const maxAge = n('PasswordMaxAgeDays');
+        const items = [
+            ['Minimalna długość', `${n('MinLength')} znaków`],
+            ['Wielkie litery', n('MinUpper') ? `minimum ${n('MinUpper')}` : 'niewymagane'],
+            ['Małe litery', n('MinLower') ? `minimum ${n('MinLower')}` : 'niewymagane'],
+            ['Cyfry', n('MinDigits') ? `minimum ${n('MinDigits')}` : 'niewymagane'],
+            ['Znaki specjalne', n('MinSpecial') ? `minimum ${n('MinSpecial')}` : 'niewymagane'],
+            ['Historia', n('HistoryCount') ? `${n('HistoryCount')} ostatnich haseł` : 'wyłączona'],
+            ['Wygasanie', maxAge ? `co ${maxAge} dni` : 'wyłączone']
+        ];
+        summary.innerHTML = items.map(([label,value]) => `<div><span>${label}</span><strong>${value}</strong></div>`).join('');
+        testPassword();
+    }
+
+    function testPassword() {
+        const value = tester.value || '';
+        if (!value) {
+            result.className = 'password-test-result neutral';
+            result.textContent = 'Wpisz hasło, aby sprawdzić wymagania.';
+            rules.innerHTML = '';
+            return;
+        }
+        const upper = (value.match(/[A-Z]/g) || []).length;
+        const lower = (value.match(/[a-z]/g) || []).length;
+        const digits = (value.match(/[0-9]/g) || []).length;
+        const special = (value.match(/[^A-Za-z0-9]/g) || []).length;
+        const checks = [
+            [`Długość: ${value.length} / ${n('MinLength')}`, value.length >= n('MinLength')],
+            [`Wielkie litery: ${upper} / ${n('MinUpper')}`, upper >= n('MinUpper')],
+            [`Małe litery: ${lower} / ${n('MinLower')}`, lower >= n('MinLower')],
+            [`Cyfry: ${digits} / ${n('MinDigits')}`, digits >= n('MinDigits')],
+            [`Znaki specjalne: ${special} / ${n('MinSpecial')}`, special >= n('MinSpecial')]
+        ];
+        const ok = checks.every(x => x[1]);
+        result.className = `password-test-result ${ok ? 'good' : 'bad'}`;
+        result.textContent = ok ? 'Hasło spełnia ustawione wymagania znakowe.' : 'Hasło nie spełnia wszystkich ustawionych wymagań.';
+        rules.innerHTML = checks.map(([label,pass]) => `<li class="${pass ? 'pass' : 'fail'}">${pass ? '✓' : '×'} ${label}</li>`).join('');
+    }
+
+    ids.forEach(id => el[id]?.addEventListener('input', renderSummary));
+    tester?.addEventListener('input', testPassword);
+    renderSummary();
+})();
+</script>
+}

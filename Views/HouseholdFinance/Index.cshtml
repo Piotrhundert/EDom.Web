@@ -4,280 +4,584 @@
 @{
     ViewData["Title"] = "Finanse domowe";
     string Fmt(long minor, string currency = "PLN") => $"{new Money(minor, currency).ToMajor():N2} {currency}";
-    decimal Major(long minor, string currency = "PLN") => new Money(minor, currency).ToMajor();
     var openObligations = Model.Overview.Obligations.Where(x => x.RemainingMinor > 0).ToArray();
     var pendingSubmissions = Model.Overview.PaymentSubmissions.Where(x => x.Status == SubmissionStatuses.Pending).ToArray();
     var openInvoices = Model.Overview.Invoices.Where(x => x.RemainingMinor > 0).ToArray();
     var actionableClaims = Model.Overview.Claims.Where(x => x.Status is ClaimStatuses.Approved or ClaimStatuses.PartiallyApproved).ToArray();
+    var pendingClaims = Model.Overview.Claims.Where(x => x.Status == ClaimStatuses.Pending).ToArray();
+
+    var totalOutstandingMinor = openObligations.Sum(x => x.RemainingMinor);
+    var totalPendingMinor = pendingSubmissions.Sum(x => x.AmountMinor);
+    var totalInvoicesMinor = openInvoices.Sum(x => x.RemainingMinor);
+    var totalClaimsMinor = actionableClaims.Sum(x => (x.ApprovedAmountMinor ?? 0) - x.SettledMinor);
+
+    string SubmissionBadge(string? status) => status switch
+    {
+        var s when s == SubmissionStatuses.Pending => "badge badge-warn",
+        var s when s == SubmissionStatuses.Approved => "badge badge-success",
+        var s when s == SubmissionStatuses.Rejected => "badge badge-danger",
+        _ => "badge badge-muted"
+    };
+
+    string ObligationBadge(string? status, long remainingMinor) => remainingMinor switch
+    {
+        <= 0 => "badge badge-success",
+        _ when string.Equals(status, "Overdue", StringComparison.OrdinalIgnoreCase) => "badge badge-danger",
+        _ => "badge badge-warn"
+    };
+
+    string ClaimBadge(string? status) => status switch
+    {
+        var s when s == ClaimStatuses.Pending => "badge badge-warn",
+        var s when s == ClaimStatuses.Approved => "badge badge-success",
+        var s when s == ClaimStatuses.PartiallyApproved => "badge badge-info",
+        var s when s == ClaimStatuses.Rejected => "badge badge-danger",
+        _ => "badge badge-muted"
+    };
 }
 
-<section class="hero">
+<section class="hero hero-bank household-finance-hero">
     <div>
-        <div class="eyebrow">Wspólny rachunek gospodarstwa</div>
+        <div class="eyebrow">Moduł wspólnego budżetu</div>
         <h1>Finanse domowe</h1>
-        <p>Centralny ledger bank/gotówka, obowiązkowe wpłaty, faktury, roszczenia za koszty opłacone prywatnie i jawne korekty. Prywatne rachunki domowników pozostają poza tym modułem.</p>
+        <p>
+            Przejrzysty widok rachunku gospodarstwa, obowiązkowych wpłat, zgłoszeń domowników,
+            faktur i roszczeń. Domownik widzi własne wpłaty i ich status, a administrator może
+            je szybko zatwierdzić lub odrzucić.
+        </p>
     </div>
-    <div class="status-pill">PKG-008</div>
+    <div class="status-pill">PKG-015h</div>
 </section>
 
-@if (TempData["Error"] is string error) { <div class="error-box">@error</div> }
+@if (TempData["Error"] is string error)
+{
+    <div class="error-box">@error</div>
+}
 @if (TempData["Success"] is string success)
 {
     <div class="info-box">@success</div>
 }
 
-<section class="panel">
-    <h2>Rachunek domowy</h2>
-    @if (Model.CanManage)
-    {
-        <div class="stats-grid">
-            <div class="stat-card"><span>Bank</span><strong>@Fmt(Model.Overview.Ledger.BankBalanceMinor, Model.Overview.Ledger.CurrencyCode)</strong></div>
-            <div class="stat-card"><span>Gotówka</span><strong>@Fmt(Model.Overview.Ledger.CashBalanceMinor, Model.Overview.Ledger.CurrencyCode)</strong></div>
-            <div class="stat-card"><span>Łącznie</span><strong>@Fmt(Model.Overview.Ledger.TotalBalanceMinor, Model.Overview.Ledger.CurrencyCode)</strong></div>
+<section class="panel hf-shell">
+    <div class="hf-topbar">
+        <div>
+            <h2>Centrum finansów domowych</h2>
+            <p class="muted">
+                @(Model.CanManage
+                    ? "Tu zarządzasz wspólnym rachunkiem, należnościami, zgłoszeniami wpłat i decyzjami administracyjnymi."
+                    : "Tu widzisz własne należności wobec domu, swoje zgłoszenia wpłat i ich bieżący status.")
+            </p>
         </div>
-        <p class="muted">Saldo jest wyliczane wyłącznie z zatwierdzonych LedgerEntry. Zgłoszenie wpłaty nie zmienia salda przed akceptacją.</p>
-    }
-    else
-    {
-        <p class="muted">W tym widoku widzisz własne należności, wpłaty i zgłoszenia. Szczegółowe saldo bank/gotówka rachunku domowego pozostaje w zakresie administracyjnym.</p>
-    }
-</section>
-
-<section class="panel">
-    <h2>Należności i obowiązkowe wpłaty</h2>
-    @if (Model.Overview.Obligations.Count == 0)
-    {
-        <p class="muted">Brak należności.</p>
-    }
-    else
-    {
-        <table>
-            <thead><tr><th>Osoba</th><th>Okres</th><th>Pierwotnie</th><th>Korekty</th><th>Wpłacono</th><th>Pozostało</th><th>Termin</th><th>Status</th></tr></thead>
-            <tbody>
-            @foreach (var x in Model.Overview.Obligations)
+        <div class="hf-quick-links">
+            @if (Model.CanManage)
             {
-                <tr>
-                    <td>@x.PersonName</td><td>@x.PeriodKey</td><td>@Fmt(x.OriginalAmountMinor, x.CurrencyCode)</td>
-                    <td>@Fmt(x.AdjustmentsMinor, x.CurrencyCode)</td><td>@Fmt(x.PaidMinor, x.CurrencyCode)</td>
-                    <td>@Fmt(x.RemainingMinor, x.CurrencyCode)</td><td>@x.DueDate</td><td>@x.Status</td>
-                </tr>
+                <a href="#hf-pending" class="hf-tile-link">
+                    <span>Do zatwierdzenia</span>
+                    <strong>@pendingSubmissions.Length</strong>
+                    <small>zgłoszeń wpłat</small>
+                </a>
+                <a href="#hf-obligations" class="hf-tile-link">
+                    <span>Należności</span>
+                    <strong>@openObligations.Length</strong>
+                    <small>otwartych pozycji</small>
+                </a>
+                <a href="#hf-invoices" class="hf-tile-link">
+                    <span>Faktury</span>
+                    <strong>@openInvoices.Length</strong>
+                    <small>do opłacenia</small>
+                </a>
+                <a href="#hf-claims" class="hf-tile-link">
+                    <span>Roszczenia</span>
+                    <strong>@pendingClaims.Length</strong>
+                    <small>oczekuje na decyzję</small>
+                </a>
             }
-            </tbody>
-        </table>
-    }
+            else
+            {
+                <a href="#hf-submit-payment" class="hf-tile-link">
+                    <span>Wyślij wpłatę</span>
+                    <strong>+</strong>
+                    <small>zgłoszenie do domu</small>
+                </a>
+                <a href="#hf-my-status" class="hf-tile-link">
+                    <span>Status wpłat</span>
+                    <strong>@Model.Overview.PaymentSubmissions.Count</strong>
+                    <small>moich zgłoszeń</small>
+                </a>
+                <a href="#hf-obligations" class="hf-tile-link">
+                    <span>Należności</span>
+                    <strong>@openObligations.Length</strong>
+                    <small>otwartych pozycji</small>
+                </a>
+            }
+        </div>
+    </div>
 
-    @if (Model.CanManage)
-    {
-        <details>
-            <summary>Dodaj regułę wpłaty</summary>
-            <form asp-action="Rule" method="post" class="form-grid">
-                @Html.AntiForgeryToken()
-                <label>Osoba<select name="PersonId">@foreach (var p in Model.People){<option value="@p.Id">@p.Name</option>}</select></label>
-                <label>Metoda<select name="Method"><option value="Fixed">Stała kwota</option><option value="Percent">Procent wynagrodzenia</option><option value="FixedPlusPercent">Kwota + procent</option></select></label>
-                <label>Kwota stała<input name="FixedAmount" type="number" step="0.01" min="0" /></label>
-                <label>Procent<input name="Percent" type="number" step="0.01" min="0" max="100" /></label>
-                <label>Termin<select name="DuePolicyType"><option value="FixedDay">Stały dzień miesiąca</option><option value="IncomeOffset">Dni od faktycznej wypłaty</option></select></label>
-                <label>Dzień / liczba dni<input name="DueDayOrOffset" type="number" value="10" min="0" max="365" /></label>
-                <label>Od<input name="ValidFrom" type="date" value="@DateOnly.FromDateTime(DateTime.Today).ToString("yyyy-MM-dd")" /></label>
-                <label>Do<input name="ValidTo" type="date" /></label>
-                <button class="btn" type="submit">Dodaj regułę</button>
-            </form>
-        </details>
-
-        @if (Model.Overview.Rules.Count > 0)
+    <div class="hf-kpi-grid">
+        @if (Model.CanManage)
         {
-            <details>
-                <summary>Utwórz należność ręcznie / planowaną</summary>
-                <form asp-action="Obligation" method="post" class="form-grid">
-                    @Html.AntiForgeryToken()
-                    <label>Reguła<select name="ContributionRuleId">@foreach (var r in Model.Overview.Rules){<option value="@r.Id">@r.PersonName — @r.Method</option>}</select></label>
-                    <label>Osoba<select name="PersonId">@foreach (var p in Model.People){<option value="@p.Id">@p.Name</option>}</select></label>
-                    <label>Okres<input name="PeriodKey" value="@DateTime.Today.ToString("yyyy-MM")" pattern="[0-9]{4}-[0-9]{2}" /></label>
-                    <label>Podstawa dochodu<input name="IncomeAmount" type="number" step="0.01" min="0" /></label>
-                    <label>Data dochodu<input name="IncomeDate" type="date" /></label>
-                    <label><input name="IsDraft" type="checkbox" value="true" checked /> Robocza</label>
-                    <button class="btn" type="submit">Utwórz należność</button>
-                </form>
-            </details>
+            <article class="hf-kpi-card">
+                <span>Saldo bankowe</span>
+                <strong>@Fmt(Model.Overview.Ledger.BankBalanceMinor, Model.Overview.Ledger.CurrencyCode)</strong>
+                <small>Środki na rachunku domu</small>
+            </article>
+            <article class="hf-kpi-card">
+                <span>Saldo gotówki</span>
+                <strong>@Fmt(Model.Overview.Ledger.CashBalanceMinor, Model.Overview.Ledger.CurrencyCode)</strong>
+                <small>Środki gotówkowe</small>
+            </article>
+            <article class="hf-kpi-card">
+                <span>Wpłaty do akceptacji</span>
+                <strong>@pendingSubmissions.Length</strong>
+                <small>@Fmt(totalPendingMinor, Model.Overview.Ledger.CurrencyCode)</small>
+            </article>
+            <article class="hf-kpi-card">
+                <span>Otwarte należności</span>
+                <strong>@Fmt(totalOutstandingMinor, Model.Overview.Ledger.CurrencyCode)</strong>
+                <small>@openObligations.Length aktywnych pozycji</small>
+            </article>
         }
-    }
+        else
+        {
+            <article class="hf-kpi-card">
+                <span>Pozostało do wpłaty</span>
+                <strong>@Fmt(totalOutstandingMinor, "PLN")</strong>
+                <small>Twoje aktywne należności wobec domu</small>
+            </article>
+            <article class="hf-kpi-card">
+                <span>Wysłane zgłoszenia</span>
+                <strong>@Model.Overview.PaymentSubmissions.Count</strong>
+                <small>Ile wpłat zgłoszono do zatwierdzenia</small>
+            </article>
+            <article class="hf-kpi-card">
+                <span>Oczekujące decyzje</span>
+                <strong>@pendingSubmissions.Length</strong>
+                <small>Zgłoszenia ze statusem „Oczekuje”</small>
+            </article>
+            <article class="hf-kpi-card">
+                <span>Rozliczone wpłaty</span>
+                <strong>@Model.Overview.PaymentSubmissions.Count(x => x.Status == SubmissionStatuses.Approved)</strong>
+                <small>Zatwierdzone przez administratora</small>
+            </article>
+        }
+    </div>
 </section>
 
-<section class="panel">
-    <h2>Wpłaty domowników</h2>
-    <details open>
-        <summary>Zgłoś własną wpłatę</summary>
+@if (Model.CanManage)
+{
+    <section class="panel hf-section" id="hf-pending">
+        <div class="hf-section-head">
+            <div>
+                <h2>Wpłaty domowników do zatwierdzenia</h2>
+                <p class="muted">Najważniejsza sekcja dla administratora. Tutaj widać nowe zgłoszenia i można je od razu zatwierdzić albo odrzucić.</p>
+            </div>
+            <div class="hf-inline-chip">@pendingSubmissions.Length oczekujących</div>
+        </div>
+
+        @if (pendingSubmissions.Length == 0)
+        {
+            <div class="empty-note">Brak zgłoszeń oczekujących na decyzję.</div>
+        }
+        else
+        {
+            <div class="hf-status-table-wrap hf-pending-table-wrap">
+                <table class="hf-status-table hf-pending-table">
+                    <thead>
+                        <tr>
+                            <th>Domownik</th>
+                            <th>Okres</th>
+                            <th>Kwota</th>
+                            <th>Forma</th>
+                            <th>Status</th>
+                            <th>Decyzja</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var s in pendingSubmissions)
+                    {
+                        <tr>
+                            <td>
+                                <strong>@s.PersonName</strong>
+                                <small class="muted">Zgłoszenie do wspólnego rachunku</small>
+                            </td>
+                            <td>@s.PeriodKey</td>
+                            <td><strong>@Fmt(s.AmountMinor, s.CurrencyCode)</strong></td>
+                            <td>@s.PaymentMethod</td>
+                            <td><span class="@SubmissionBadge(s.Status)">@s.Status</span></td>
+                            <td class="hf-pending-action-cell">
+                                <details class="hf-row-decision">
+                                    <summary>Rozpatrz wpłatę</summary>
+                                    <div class="hf-row-decision-body">
+                                        <form asp-controller="HouseholdContributionPayments" asp-action="Approve" method="post" class="hf-inline-decision-form">
+                                            @Html.AntiForgeryToken()
+                                            <input type="hidden" name="submissionId" value="@s.Id" />
+                                            <input type="hidden" name="approvedAmount" value="@((s.AmountMinor / 100m).ToString("0.00", System.Globalization.CultureInfo.InvariantCulture))" />
+                                            <label>
+                                                Uwagi do zatwierdzenia
+                                                <input name="decisionReason" maxlength="500" placeholder="np. przelew zgodny" />
+                                            </label>
+                                            <button class="btn btn-success" type="submit">Zatwierdź i zaksięguj</button>
+                                        </form>
+
+                                        <form asp-controller="HouseholdContributionPayments" asp-action="Reject" method="post" class="hf-inline-decision-form hf-inline-reject-form" data-confirm="Odrzucić to zgłoszenie wpłaty? Saldo domu nie zostanie zmienione.">
+                                            @Html.AntiForgeryToken()
+                                            <input type="hidden" name="submissionId" value="@s.Id" />
+                                            <label>
+                                                Powód odrzucenia
+                                                <input name="reason" maxlength="500" required placeholder="np. błędna kwota lub brak potwierdzenia" />
+                                            </label>
+                                            <button class="btn btn-danger" type="submit">Odrzuć zgłoszenie</button>
+                                        </form>
+                                    </div>
+                                </details>
+                            </td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+            <p class="muted hf-pending-help">Zatwierdzenie księguje wpływ na rachunku domu i tworzy odpowiadające mu obciążenie prywatnego konta domownika. Odrzucenie nie zmienia żadnego salda.</p>
+        }
+    </section>
+}
+
+<section class="panel hf-section" id="hf-submit-payment">
+    <div class="hf-section-head">
+        <div>
+            <h2>@(Model.CanManage ? "Dodaj lub zgłoś wpłatę" : "Wyślij wpłatę do domu")</h2>
+            <p class="muted">
+                @(Model.CanManage
+                    ? "Administrator może też ręcznie zgłosić wpłatę, ale saldo domu zmieni się dopiero po zatwierdzeniu zgłoszenia."
+                    : "Po wysłaniu zgłoszenia administrator zobaczy Twoją wpłatę i będzie mógł ją zatwierdzić. Do tego czasu status pozostaje oczekujący.")
+            </p>
+        </div>
+        <div class="hf-inline-chip">Zgłoszenie bez księgowania salda</div>
+    </div>
+
+    <div class="hf-form-card">
         <form asp-action="SubmitPayment" method="post" class="form-grid">
             @Html.AntiForgeryToken()
             <label>Okres<input name="PeriodKey" value="@DateTime.Today.ToString("yyyy-MM")" /></label>
             <label>Kwota<input name="Amount" type="number" step="0.01" min="0.01" required /></label>
             <label>Waluta<input name="CurrencyCode" value="PLN" maxlength="3" /></label>
-            <label>Forma<select name="PaymentMethod"><option value="Bank">Przelew</option><option value="Cash">Gotówka</option></select></label>
-            <label>Data<input name="PaidAtUtc" type="datetime-local" value="@DateTime.Now.ToString("yyyy-MM-ddTHH:mm")" /></label>
-            <label>Identyfikator potwierdzenia<input name="ProofFingerprint" maxlength="128" /></label>
-            <button class="btn" type="submit">Zgłoś wpłatę</button>
+            <label>Forma
+                <select name="PaymentMethod">
+                    <option value="Bank">Przelew</option>
+                    <option value="Cash">Gotówka</option>
+                </select>
+            </label>
+            <label>Data wysłania<input name="PaidAtUtc" type="datetime-local" value="@DateTime.Now.ToString("yyyy-MM-ddTHH:mm")" /></label>
+            <label>Identyfikator potwierdzenia<input name="ProofFingerprint" maxlength="128" placeholder="np. końcówka przelewu" /></label>
+            <button class="btn" type="submit">Wyślij zgłoszenie wpłaty</button>
         </form>
-    </details>
+    </div>
+</section>
 
-    @if (Model.Overview.PaymentSubmissions.Count > 0)
+<section class="panel hf-section" id="hf-my-status">
+    <div class="hf-section-head">
+        <div>
+            <h2>@(Model.CanManage ? "Rejestr wszystkich zgłoszeń wpłat" : "Moje wysłane wpłaty i status")</h2>
+            <p class="muted">
+                @(Model.CanManage
+                    ? "Pełna lista zgłoszeń od wszystkich domowników z czytelnym statusem i wynikiem decyzji."
+                    : "Tutaj sprawdzisz, czy Twoja wpłata czeka na decyzję, została zatwierdzona czy odrzucona.")
+            </p>
+        </div>
+        <div class="hf-inline-chip">@Model.Overview.PaymentSubmissions.Count zgłoszeń</div>
+    </div>
+
+    @if (Model.Overview.PaymentSubmissions.Count == 0)
     {
-        <table>
-            <thead><tr><th>Osoba</th><th>Okres</th><th>Kwota</th><th>Forma</th><th>Status</th><th>Decyzja</th></tr></thead>
-            <tbody>
-            @foreach (var s in Model.Overview.PaymentSubmissions)
-            {
-                <tr><td>@s.PersonName</td><td>@s.PeriodKey</td><td>@Fmt(s.AmountMinor, s.CurrencyCode)</td><td>@s.PaymentMethod</td><td>@s.Status</td><td>@s.DecisionReason</td></tr>
-            }
-            </tbody>
-        </table>
+        <div class="empty-note">Brak zgłoszonych wpłat.</div>
     }
-
-    @if (Model.CanManage && pendingSubmissions.Length > 0)
+    else
     {
-        <details>
-            <summary>Zweryfikuj zgłoszenie wpłaty</summary>
-            <form asp-action="ApprovePayment" method="post" class="form-grid">
-                @Html.AntiForgeryToken()
-                <label>Zgłoszenie<select name="SubmissionId">@foreach (var s in pendingSubmissions){<option value="@s.Id">@s.PersonName — @Fmt(s.AmountMinor, s.CurrencyCode)</option>}</select></label>
-                <label>Kwota zatwierdzona<input name="ApprovedAmount" type="number" step="0.01" min="0.01" required /></label>
-                <label>Należność<select name="ObligationId"><option value="">Bez alokacji</option>@foreach (var o in openObligations){<option value="@o.Id">@o.PersonName — @o.PeriodKey — @Fmt(o.RemainingMinor, o.CurrencyCode)</option>}</select></label>
-                <label>Kwota alokacji<input name="AllocateAmount" type="number" step="0.01" min="0" /></label>
-                <label>Uwagi<input name="DecisionReason" /></label>
-                <button class="btn" type="submit">Zatwierdź</button>
-            </form>
-            <form asp-action="RejectPayment" method="post" class="form-grid">
-                @Html.AntiForgeryToken()
-                <label>Zgłoszenie<select name="SubmissionId">@foreach (var s in pendingSubmissions){<option value="@s.Id">@s.PersonName — @Fmt(s.AmountMinor, s.CurrencyCode)</option>}</select></label>
-                <label>Powód<input name="Reason" required /></label>
-                <button class="btn btn-secondary" type="submit">Odrzuć</button>
-            </form>
-        </details>
+        <div class="hf-status-table-wrap">
+            <table class="hf-status-table">
+                <thead>
+                    <tr>
+                        <th>Osoba</th>
+                        <th>Okres</th>
+                        <th>Kwota</th>
+                        <th>Forma</th>
+                        <th>Status</th>
+                        <th>Uwagi / decyzja</th>
+                    </tr>
+                </thead>
+                <tbody>
+                @foreach (var s in Model.Overview.PaymentSubmissions)
+                {
+                    <tr>
+                        <td>@s.PersonName</td>
+                        <td>@s.PeriodKey</td>
+                        <td>@Fmt(s.AmountMinor, s.CurrencyCode)</td>
+                        <td>@s.PaymentMethod</td>
+                        <td><span class="@SubmissionBadge(s.Status)">@s.Status</span></td>
+                        <td>@(string.IsNullOrWhiteSpace(s.DecisionReason) ? "—" : s.DecisionReason)</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
     }
 </section>
 
-<section class="panel">
-    <h2>Faktury gospodarstwa</h2>
-    @if (Model.Overview.Invoices.Count > 0)
+<section class="panel hf-section" id="hf-obligations">
+    <div class="hf-section-head">
+        <div>
+            <h2>@(Model.CanManage ? "Należności i obowiązkowe wpłaty" : "Twoje należności wobec domu")</h2>
+            <p class="muted">Zestawienie aktualnych zobowiązań z widoczną kwotą wpłaconą, pozostałą do spłaty i terminem.</p>
+        </div>
+        <div class="hf-inline-chip">@Fmt(totalOutstandingMinor, "PLN") do rozliczenia</div>
+    </div>
+
+    @if (Model.Overview.Obligations.Count == 0)
     {
-        <table>
-            <thead><tr><th>Numer</th><th>Dostawca</th><th>Kategoria</th><th>Brutto</th><th>Zapłacono</th><th>Pozostało</th><th>Termin</th><th>Status</th></tr></thead>
-            <tbody>@foreach (var i in Model.Overview.Invoices){<tr><td>@i.InvoiceNo</td><td>@i.Supplier</td><td>@i.CategoryCode</td><td>@Fmt(i.GrossMinor,i.CurrencyCode)</td><td>@Fmt(i.PaidMinor,i.CurrencyCode)</td><td>@Fmt(i.RemainingMinor,i.CurrencyCode)</td><td>@i.DueDate</td><td>@i.Status</td></tr>}</tbody>
-        </table>
+        <div class="empty-note">Brak należności.</div>
     }
+    else
+    {
+        <div class="hf-obligation-grid">
+            @foreach (var x in Model.Overview.Obligations)
+            {
+                <article class="hf-obligation-card">
+                    <div class="hf-obligation-head">
+                        <div>
+                            <h3>@x.PersonName</h3>
+                            <p>@x.PeriodKey</p>
+                        </div>
+                        <span class="@ObligationBadge(x.Status, x.RemainingMinor)">@x.Status</span>
+                    </div>
+
+                    <div class="hf-obligation-body">
+                        <div><span>Pierwotnie</span><strong>@Fmt(x.OriginalAmountMinor, x.CurrencyCode)</strong></div>
+                        <div><span>Korekty</span><strong>@Fmt(x.AdjustmentsMinor, x.CurrencyCode)</strong></div>
+                        <div><span>Wpłacono</span><strong>@Fmt(x.PaidMinor, x.CurrencyCode)</strong></div>
+                        <div><span>Pozostało</span><strong>@Fmt(x.RemainingMinor, x.CurrencyCode)</strong></div>
+                        <div><span>Termin</span><strong>@x.DueDate</strong></div>
+                    </div>
+                </article>
+            }
+        </div>
+    }
+
     @if (Model.CanManage)
     {
-        <details>
-            <summary>Dodaj fakturę</summary>
-            <form asp-action="Invoice" method="post" class="form-grid">
-                @Html.AntiForgeryToken()
-                <label>Numer<input name="InvoiceNo" required /></label><label>Dostawca<input name="Supplier" required /></label>
-                <label>Kategoria<input name="CategoryCode" value="Other" /></label><label>Od<input name="PeriodFrom" type="date" /></label><label>Do<input name="PeriodTo" type="date" /></label>
-                <label>Wystawiono<input name="IssuedOn" type="date" value="@DateOnly.FromDateTime(DateTime.Today).ToString("yyyy-MM-dd")" /></label>
-                <label>Termin<input name="DueDate" type="date" value="@DateOnly.FromDateTime(DateTime.Today.AddDays(14)).ToString("yyyy-MM-dd")" /></label>
-                <label>Netto<input name="Net" type="number" step="0.01" min="0" /></label><label>VAT<input name="Vat" type="number" step="0.01" min="0" /></label>
-                <label>Brutto<input name="Gross" type="number" step="0.01" min="0.01" required /></label><label>Waluta<input name="CurrencyCode" value="PLN" maxlength="3" /></label>
-                <button class="btn" type="submit">Dodaj fakturę</button>
-            </form>
-        </details>
-        @if (openInvoices.Length > 0)
-        {
-            <details>
-                <summary>Zarejestruj płatność faktury</summary>
-                <form asp-action="PayInvoice" method="post" class="form-grid">
+        <div class="hf-management-split">
+            <details class="hf-details-card" id="hf-rules">
+                <summary>Dodaj regułę wpłaty</summary>
+                <form asp-action="Rule" method="post" class="form-grid">
                     @Html.AntiForgeryToken()
-                    <label>Faktura<select name="InvoiceId">@foreach (var i in openInvoices){<option value="@i.Id">@i.InvoiceNo — @Fmt(i.RemainingMinor,i.CurrencyCode)</option>}</select></label>
-                    <label>Kwota<input name="Amount" type="number" step="0.01" min="0.01" required /></label>
-                    <label>Źródło<select name="SourceType"><option value="HouseholdBank">Rachunek domowy — bank</option><option value="HouseholdCash">Rachunek domowy — gotówka</option></select></label>
-                    <label>Data<input name="PaidAtUtc" type="datetime-local" value="@DateTime.Now.ToString("yyyy-MM-ddTHH:mm")" /></label>
-                    <button class="btn" type="submit">Zaksięguj płatność</button>
+                    <label>Osoba<select name="PersonId">@foreach (var p in Model.People){<option value="@p.Id">@p.Name</option>}</select></label>
+                    <label>Metoda<select name="Method"><option value="Fixed">Stała kwota</option><option value="Percent">Procent wynagrodzenia</option><option value="FixedPlusPercent">Kwota + procent</option></select></label>
+                    <label>Kwota stała<input name="FixedAmount" type="number" step="0.01" min="0" /></label>
+                    <label>Procent<input name="Percent" type="number" step="0.01" min="0" max="100" /></label>
+                    <label>Termin<select name="DuePolicyType"><option value="FixedDay">Stały dzień miesiąca</option><option value="IncomeOffset">Dni od faktycznej wypłaty</option></select></label>
+                    <label>Dzień / liczba dni<input name="DueDayOrOffset" type="number" value="10" min="0" max="365" /></label>
+                    <label>Od<input name="ValidFrom" type="date" value="@DateOnly.FromDateTime(DateTime.Today).ToString("yyyy-MM-dd")" /></label>
+                    <label>Do<input name="ValidTo" type="date" /></label>
+                    <button class="btn" type="submit">Dodaj regułę</button>
                 </form>
             </details>
-        }
+
+            @if (Model.Overview.Rules.Count > 0)
+            {
+                <details class="hf-details-card">
+                    <summary>Utwórz należność ręcznie / planowaną</summary>
+                    <form asp-action="Obligation" method="post" class="form-grid">
+                        @Html.AntiForgeryToken()
+                        <label>Reguła<select name="ContributionRuleId">@foreach (var r in Model.Overview.Rules){<option value="@r.Id">@r.PersonName — @r.Method</option>}</select></label>
+                        <label>Osoba<select name="PersonId">@foreach (var p in Model.People){<option value="@p.Id">@p.Name</option>}</select></label>
+                        <label>Okres<input name="PeriodKey" value="@DateTime.Today.ToString("yyyy-MM")" pattern="[0-9]{4}-[0-9]{2}" /></label>
+                        <label>Podstawa dochodu<input name="IncomeAmount" type="number" step="0.01" min="0" /></label>
+                        <label>Data dochodu<input name="IncomeDate" type="date" /></label>
+                        <label><input name="IsDraft" type="checkbox" value="true" checked /> Robocza</label>
+                        <button class="btn" type="submit">Utwórz należność</button>
+                    </form>
+                </details>
+            }
+        </div>
     }
 </section>
 
-<section class="panel">
-    <h2>Rachunek opłacony prywatnie</h2>
-    <details>
+<section class="panel hf-section" id="hf-invoices">
+    <div class="hf-section-head">
+        <div>
+            <h2>Faktury gospodarstwa</h2>
+            <p class="muted">Lista wspólnych rachunków domu z kwotą pozostałą do zapłaty i szybkim przejściem do księgowania płatności.</p>
+        </div>
+        <div class="hf-inline-chip">@Fmt(totalInvoicesMinor, "PLN") do zapłaty</div>
+    </div>
+
+    @if (Model.Overview.Invoices.Count > 0)
+    {
+        <div class="hf-status-table-wrap">
+            <table class="hf-status-table">
+                <thead><tr><th>Numer</th><th>Dostawca</th><th>Kategoria</th><th>Brutto</th><th>Zapłacono</th><th>Pozostało</th><th>Termin</th><th>Status</th></tr></thead>
+                <tbody>
+                @foreach (var i in Model.Overview.Invoices)
+                {
+                    <tr>
+                        <td>@i.InvoiceNo</td>
+                        <td>@i.Supplier</td>
+                        <td>@i.CategoryCode</td>
+                        <td>@Fmt(i.GrossMinor, i.CurrencyCode)</td>
+                        <td>@Fmt(i.PaidMinor, i.CurrencyCode)</td>
+                        <td>@Fmt(i.RemainingMinor, i.CurrencyCode)</td>
+                        <td>@i.DueDate</td>
+                        <td>@i.Status</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
+    else
+    {
+        <div class="empty-note">Brak faktur gospodarstwa.</div>
+    }
+
+    @if (Model.CanManage)
+    {
+        <div class="hf-management-split">
+            <details class="hf-details-card">
+                <summary>Dodaj fakturę</summary>
+                <form asp-action="Invoice" method="post" class="form-grid">
+                    @Html.AntiForgeryToken()
+                    <label>Numer<input name="InvoiceNo" required /></label>
+                    <label>Dostawca<input name="Supplier" required /></label>
+                    <label>Kategoria<input name="CategoryCode" value="Other" /></label>
+                    <label>Od<input name="PeriodFrom" type="date" /></label>
+                    <label>Do<input name="PeriodTo" type="date" /></label>
+                    <label>Wystawiono<input name="IssuedOn" type="date" value="@DateOnly.FromDateTime(DateTime.Today).ToString("yyyy-MM-dd")" /></label>
+                    <label>Termin<input name="DueDate" type="date" value="@DateOnly.FromDateTime(DateTime.Today.AddDays(14)).ToString("yyyy-MM-dd")" /></label>
+                    <label>Netto<input name="Net" type="number" step="0.01" min="0" /></label>
+                    <label>VAT<input name="Vat" type="number" step="0.01" min="0" /></label>
+                    <label>Brutto<input name="Gross" type="number" step="0.01" min="0.01" required /></label>
+                    <label>Waluta<input name="CurrencyCode" value="PLN" maxlength="3" /></label>
+                    <button class="btn" type="submit">Dodaj fakturę</button>
+                </form>
+            </details>
+
+            @if (openInvoices.Length > 0)
+            {
+                <details class="hf-details-card">
+                    <summary>Zarejestruj płatność faktury</summary>
+                    <form asp-action="PayInvoice" method="post" class="form-grid">
+                        @Html.AntiForgeryToken()
+                        <label>Faktura<select name="InvoiceId">@foreach (var i in openInvoices){<option value="@i.Id">@i.InvoiceNo — @Fmt(i.RemainingMinor, i.CurrencyCode)</option>}</select></label>
+                        <label>Kwota<input name="Amount" type="number" step="0.01" min="0.01" required /></label>
+                        <label>Źródło<select name="SourceType"><option value="HouseholdBank">Rachunek domowy — bank</option><option value="HouseholdCash">Rachunek domowy — gotówka</option></select></label>
+                        <label>Data<input name="PaidAtUtc" type="datetime-local" value="@DateTime.Now.ToString("yyyy-MM-ddTHH:mm")" /></label>
+                        <button class="btn" type="submit">Zaksięguj płatność</button>
+                    </form>
+                </details>
+            }
+        </div>
+    }
+</section>
+
+<section class="panel hf-section" id="hf-claims">
+    <div class="hf-section-head">
+        <div>
+            <h2>Rachunki opłacone prywatnie</h2>
+            <p class="muted">Zgłoszenia prywatnych wydatków na potrzeby domu wraz z decyzją o zwrocie albo kompensacie.</p>
+        </div>
+        <div class="hf-inline-chip">@Fmt(totalClaimsMinor, "PLN") do dalszego rozliczenia</div>
+    </div>
+
+    <details class="hf-details-card" open>
         <summary>Zgłoś koszt gospodarstwa opłacony ze swoich środków</summary>
         <form asp-action="Claim" method="post" class="form-grid">
             @Html.AntiForgeryToken()
             <label>Faktura<select name="HouseholdInvoiceId"><option value="">Bez istniejącej faktury</option>@foreach (var i in Model.Overview.Invoices){<option value="@i.Id">@i.InvoiceNo — @i.Supplier</option>}</select></label>
             <label>Kwota<input name="ClaimedAmount" type="number" step="0.01" min="0.01" required /></label>
-            <label>Waluta<input name="CurrencyCode" value="PLN" /></label><label>Data<input name="PaidAtUtc" type="datetime-local" value="@DateTime.Now.ToString("yyyy-MM-ddTHH:mm")" /></label>
+            <label>Waluta<input name="CurrencyCode" value="PLN" /></label>
+            <label>Data<input name="PaidAtUtc" type="datetime-local" value="@DateTime.Now.ToString("yyyy-MM-ddTHH:mm")" /></label>
             <label>Propozycja<select name="ProposedSettlementType"><option value="Refund">Zwrot</option><option value="Compensation">Kompensata wpłaty</option></select></label>
-            <label>Opis<input name="Description" /></label><button class="btn" type="submit">Zgłoś</button>
+            <label>Opis<input name="Description" /></label>
+            <button class="btn" type="submit">Zgłoś koszt</button>
         </form>
     </details>
 
     @if (Model.Overview.Claims.Count > 0)
     {
-        <table><thead><tr><th>Osoba</th><th>Zgłoszono</th><th>Zatwierdzono</th><th>Rozliczono</th><th>Status</th><th>Powód</th></tr></thead>
-        <tbody>@foreach (var c in Model.Overview.Claims){<tr><td>@c.PersonName</td><td>@Fmt(c.ClaimedAmountMinor,c.CurrencyCode)</td><td>@(c.ApprovedAmountMinor.HasValue ? Fmt(c.ApprovedAmountMinor.Value,c.CurrencyCode) : "—")</td><td>@Fmt(c.SettledMinor,c.CurrencyCode)</td><td>@c.Status</td><td>@c.Reason</td></tr>}</tbody></table>
+        <div class="hf-obligation-grid hf-claims-grid">
+            @foreach (var c in Model.Overview.Claims)
+            {
+                <article class="hf-obligation-card hf-claim-card">
+                    <div class="hf-obligation-head">
+                        <div>
+                            <h3>@c.PersonName</h3>
+                            <p>Rozliczenie wydatku prywatnego</p>
+                        </div>
+                        <span class="@ClaimBadge(c.Status)">@c.Status</span>
+                    </div>
+                    <div class="hf-obligation-body">
+                        <div><span>Zgłoszono</span><strong>@Fmt(c.ClaimedAmountMinor, c.CurrencyCode)</strong></div>
+                        <div><span>Zatwierdzono</span><strong>@(c.ApprovedAmountMinor.HasValue ? Fmt(c.ApprovedAmountMinor.Value, c.CurrencyCode) : "—")</strong></div>
+                        <div><span>Rozliczono</span><strong>@Fmt(c.SettledMinor, c.CurrencyCode)</strong></div>
+                        <div><span>Powód / uwagi</span><strong>@(string.IsNullOrWhiteSpace(c.Reason) ? "—" : c.Reason)</strong></div>
+                    </div>
+                </article>
+            }
+        </div>
     }
 
     @if (Model.CanManage)
     {
-        var pendingClaims = Model.Overview.Claims.Where(x => x.Status == ClaimStatuses.Pending).ToArray();
-        if (pendingClaims.Length > 0)
-        {
-            <details><summary>Zatwierdź / odrzuć roszczenie</summary>
-                <form asp-action="DecideClaim" method="post" class="form-grid">@Html.AntiForgeryToken()
-                    <label>Roszczenie<select name="ClaimId">@foreach(var c in pendingClaims){<option value="@c.Id">@c.PersonName — @Fmt(c.ClaimedAmountMinor,c.CurrencyCode)</option>}</select></label>
-                    <label>Kwota zatwierdzona<input name="ApprovedAmount" type="number" step="0.01" min="0" /></label><label>Powód<input name="Reason" required /></label>
-                    <label><input name="Approve" type="checkbox" value="true" checked /> Zatwierdź</label><button class="btn" type="submit">Zapisz decyzję</button>
-                </form>
-            </details>
-        }
-        if (actionableClaims.Length > 0)
-        {
-            <details><summary>Rozlicz zatwierdzone roszczenie</summary>
-                <form asp-action="SettleClaim" method="post" class="form-grid">@Html.AntiForgeryToken()
-                    <label>Roszczenie<select name="ClaimId">@foreach(var c in actionableClaims){<option value="@c.Id">@c.PersonName — pozostało @Fmt((c.ApprovedAmountMinor ?? 0)-c.SettledMinor,c.CurrencyCode)</option>}</select></label>
-                    <label>Sposób<select name="SettlementType"><option value="Refund">Zwrot pieniędzy</option><option value="Compensation">Kompensata należności</option></select></label>
-                    <label>Kwota<input name="Amount" type="number" step="0.01" min="0.01" required /></label>
-                    <label>Należność do kompensaty<select name="TargetObligationId"><option value="">—</option>@foreach(var o in openObligations){<option value="@o.Id">@o.PersonName — @o.PeriodKey — @Fmt(o.RemainingMinor,o.CurrencyCode)</option>}</select></label>
-                    <label>Kieszeń zwrotu<select name="Pocket"><option value="Bank">Bank</option><option value="Cash">Gotówka</option></select></label>
-                    <button class="btn" type="submit">Rozlicz</button>
-                </form>
-            </details>
-        }
+        <div class="hf-management-split">
+            @if (pendingClaims.Length > 0)
+            {
+                <details class="hf-details-card">
+                    <summary>Zatwierdź / odrzuć roszczenie</summary>
+                    <form asp-action="DecideClaim" method="post" class="form-grid">
+                        @Html.AntiForgeryToken()
+                        <label>Roszczenie<select name="ClaimId">@foreach(var c in pendingClaims){<option value="@c.Id">@c.PersonName — @Fmt(c.ClaimedAmountMinor,c.CurrencyCode)</option>}</select></label>
+                        <label>Kwota zatwierdzona<input name="ApprovedAmount" type="number" step="0.01" min="0" /></label>
+                        <label>Powód<input name="Reason" required /></label>
+                        <label><input name="Approve" type="checkbox" value="true" checked /> Zatwierdź</label>
+                        <button class="btn" type="submit">Zapisz decyzję</button>
+                    </form>
+                </details>
+            }
+
+            @if (actionableClaims.Length > 0)
+            {
+                <details class="hf-details-card">
+                    <summary>Rozlicz zatwierdzone roszczenie</summary>
+                    <form asp-action="SettleClaim" method="post" class="form-grid">
+                        @Html.AntiForgeryToken()
+                        <label>Roszczenie<select name="ClaimId">@foreach(var c in actionableClaims){<option value="@c.Id">@c.PersonName — pozostało @Fmt((c.ApprovedAmountMinor ?? 0)-c.SettledMinor,c.CurrencyCode)</option>}</select></label>
+                        <label>Sposób<select name="SettlementType"><option value="Refund">Zwrot pieniędzy</option><option value="Compensation">Kompensata należności</option></select></label>
+                        <label>Kwota<input name="Amount" type="number" step="0.01" min="0.01" required /></label>
+                        <label>Należność do kompensaty<select name="TargetObligationId"><option value="">—</option>@foreach(var o in openObligations){<option value="@o.Id">@o.PersonName — @o.PeriodKey — @Fmt(o.RemainingMinor,o.CurrencyCode)</option>}</select></label>
+                        <label>Kieszeń zwrotu<select name="Pocket"><option value="Bank">Bank</option><option value="Cash">Gotówka</option></select></label>
+                        <button class="btn" type="submit">Rozlicz roszczenie</button>
+                    </form>
+                </details>
+            }
+        </div>
     }
 </section>
 
 @if (Model.CanManage && openObligations.Length > 0)
 {
-    <section class="panel">
-        <h2>Korekty i jednorazowe zwolnienia</h2>
-        <p class="muted">Korekta nie nadpisuje pierwotnej należności. Kwota ujemna może zmniejszyć lub wyzerować obowiązek, ale zawsze wymaga powodu.</p>
-        <form asp-action="AdjustObligation" method="post" class="form-grid">
-            @Html.AntiForgeryToken()
-            <label>Należność<select name="ObligationId">@foreach(var o in openObligations){<option value="@o.Id">@o.PersonName — @o.PeriodKey — pozostało @Fmt(o.RemainingMinor,o.CurrencyCode)</option>}</select></label>
-            <label>Korekta<input name="AdjustmentAmount" type="number" step="0.01" required /></label>
-            <label>Powód<input name="Reason" required /></label><button class="btn" type="submit">Dodaj korektę</button>
-        </form>
+    <section class="panel hf-section">
+        <div class="hf-section-head">
+            <div>
+                <h2>Korekty i jednorazowe zwolnienia</h2>
+                <p class="muted">Korekta nie nadpisuje pierwotnej należności. Możesz nią zwiększyć, zmniejszyć albo wyzerować obowiązek — zawsze z podaniem przyczyny.</p>
+            </div>
+        </div>
+        <div class="hf-form-card">
+            <form asp-action="AdjustObligation" method="post" class="form-grid">
+                @Html.AntiForgeryToken()
+                <label>Należność<select name="ObligationId">@foreach(var o in openObligations){<option value="@o.Id">@o.PersonName — @o.PeriodKey — pozostało @Fmt(o.RemainingMinor,o.CurrencyCode)</option>}</select></label>
+                <label>Korekta<input name="AdjustmentAmount" type="number" step="0.01" required /></label>
+                <label>Powód<input name="Reason" required /></label>
+                <button class="btn" type="submit">Dodaj korektę</button>
+            </form>
+        </div>
     </section>
-}
-
-<section class="panel">
-    <h2>Zamknięcie okresu</h2>
-    <p>Operacje <strong>period.close</strong> (R4) oraz <strong>period.correct</strong> (R4+) są już chronione w RBAC. Interfejs wykonywania tych operacji zostanie udostępniony dopiero po podłączeniu silnego uwierzytelnienia/reauth; PKG-008 nie omija tego zabezpieczenia.</p>
-    @if (Model.Overview.PeriodCloses.Count > 0)
-    {
-        <table><thead><tr><th>Okres</th><th>Zamknięto</th><th>Status</th><th>Korekta</th></tr></thead><tbody>
-        @foreach(var p in Model.Overview.PeriodCloses){<tr><td>@p.PeriodKey</td><td>@p.ClosedAtUtc.ToLocalTime()</td><td>@p.Status</td><td>@p.CorrectionReason</td></tr>}
-        </tbody></table>
-    }
-</section>
-
-@if (Model.CanManage)
-{
-<section class="panel top-gap">
-    <h2>Edycja / anulowanie konfiguracji finansowej</h2>
-    <p class="muted-block">Zatwierdzonych operacji księgowych nie usuwamy. Możesz zarchiwizować regułę wpłaty albo anulować fakturę tylko wtedy, gdy nie ma jeszcze zaksięgowanych płatności.</p>
-    <div class="split-grid">
-        <form asp-action="ArchiveRecord" method="post" class="form-grid">@Html.AntiForgeryToken()<input type="hidden" name="recordType" value="ContributionRule"/><div class="field"><label>Reguła wpłaty</label><select name="recordId">@foreach(var r in Model.Overview.Rules.Where(x => x.Status == "Active")){<option value="@r.Id">@r.PersonName · @r.Method</option>}</select></div><div class="field"><label>Powód</label><input name="reason" value="Archiwizacja reguły" required/></div><div class="full"><button class="btn btn-danger" type="submit">Archiwizuj regułę</button></div></form>
-        <form asp-action="ArchiveRecord" method="post" class="form-grid">@Html.AntiForgeryToken()<input type="hidden" name="recordType" value="Invoice"/><div class="field"><label>Faktura</label><select name="recordId">@foreach(var i in Model.Overview.Invoices.Where(x => x.Status != "Paid" && x.Status != "Cancelled")){<option value="@i.Id">@i.InvoiceNo · @i.Supplier</option>}</select></div><div class="field"><label>Powód</label><input name="reason" value="Anulowanie błędnej faktury" required/></div><div class="full"><button class="btn btn-danger" type="submit">Anuluj fakturę</button></div></form>
-    </div>
-</section>
 }
