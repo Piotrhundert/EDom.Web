@@ -1,3 +1,4 @@
+using System.Globalization;
 using EDom.Application.HouseholdFinance;
 using EDom.Domain.Authorization;
 using EDom.Web.Authorization;
@@ -7,7 +8,6 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace EDom.Web.Controllers;
-
 [Authorize]
 [Route("HouseholdContributionPayments")]
 public sealed class HouseholdContributionPaymentsController(
@@ -19,24 +19,20 @@ public sealed class HouseholdContributionPaymentsController(
     {
         var current = await access.GetCurrentAsync(cancellationToken);
         if (current is null) return Forbid();
-
         var canSubmit = await CanSubmitAsync(current.HouseholdId, current.PersonId, cancellationToken);
         var canApprove = await CanApproveAsync(current.HouseholdId, cancellationToken);
         if (!canSubmit && !canApprove) return Forbid();
-
         // Naprawia również zatwierdzone wpłaty z wersji sprzed PKG-015h-FIX-02:
         // po wejściu Domownika do historii wpłat brakujące obciążenie prywatnego konta
         // zostanie utworzone idempotentnie.
         if (canSubmit)
             await householdFinance.ReconcilePrivateContributionDebitsAsync(current.HouseholdId, current.PersonId, cancellationToken);
-
         var overview = await householdFinance.GetOverviewAsync(current.HouseholdId, current.PersonId, canApprove, cancellationToken);
         var mySubmissions = overview.PaymentSubmissions.Where(x => x.PersonId == current.PersonId).ToArray();
         var pendingKeys = mySubmissions
             .Where(x => string.Equals(x.Status, "Pending", StringComparison.OrdinalIgnoreCase))
             .Select(x => x.PeriodKey)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
         var model = new HouseholdContributionPaymentsViewModel
         {
             CanSubmit = canSubmit,
@@ -58,7 +54,6 @@ public sealed class HouseholdContributionPaymentsController(
                     .ToArray()
                 : Array.Empty<ContributionSubmissionVm>()
         };
-
         return View(model);
     }
 
@@ -73,22 +68,18 @@ public sealed class HouseholdContributionPaymentsController(
     {
         var current = await access.GetCurrentAsync(cancellationToken);
         if (current is null || !await CanSubmitAsync(current.HouseholdId, current.PersonId, cancellationToken)) return Forbid();
-
         try
         {
             var amountMinor = ToMinor(amount);
             if (amountMinor <= 0) throw new InvalidOperationException("Kwota wpłaty musi być większa od 0.");
-
             var overview = await householdFinance.GetOverviewAsync(current.HouseholdId, current.PersonId, false, cancellationToken);
             var obligation = overview.Obligations.SingleOrDefault(x => x.Id == obligationId && x.PersonId == current.PersonId)
                 ?? throw new InvalidOperationException("Nie znaleziono Twojej należności do wpłaty.");
             if (obligation.RemainingMinor <= 0) throw new InvalidOperationException("Ta należność jest już rozliczona.");
-
             var hasPending = overview.PaymentSubmissions.Any(x =>
                 x.PersonId == current.PersonId && x.PeriodKey == obligation.PeriodKey &&
                 string.Equals(x.Status, "Pending", StringComparison.OrdinalIgnoreCase));
             if (hasPending) throw new InvalidOperationException("Dla tego okresu istnieje już zgłoszenie oczekujące na zatwierdzenie.");
-
             var paidAtUtc = paidAtLocal.Kind == DateTimeKind.Utc
                 ? paidAtLocal
                 : DateTime.SpecifyKind(paidAtLocal, DateTimeKind.Local).ToUniversalTime();
@@ -96,7 +87,6 @@ public sealed class HouseholdContributionPaymentsController(
             var proofFingerprint = string.IsNullOrWhiteSpace(transferReference)
                 ? null
                 : Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(transferReference.Trim())));
-
             await householdFinance.SubmitContributionPaymentAsync(new SubmitContributionPaymentRequest(
                 current.HouseholdId,
                 current.PersonId,
@@ -106,7 +96,6 @@ public sealed class HouseholdContributionPaymentsController(
                 paymentMethod,
                 paidAtUtc,
                 proofFingerprint), cancellationToken);
-
             TempData["Success"] = "Wpłata została oznaczona jako wysłana. Saldo domu zmieni się dopiero po zatwierdzeniu przez administratora.";
         }
         catch (Exception ex)
@@ -118,22 +107,24 @@ public sealed class HouseholdContributionPaymentsController(
     }
 
     [HttpPost("Approve"), ValidateAntiForgeryToken]
-    public async Task<IActionResult> Approve(Guid submissionId, decimal approvedAmount, string? decisionReason, CancellationToken cancellationToken)
+    public async Task<IActionResult> Approve(Guid submissionId, string? approvedAmount, string? decisionReason, CancellationToken cancellationToken)
     {
         var current = await access.GetCurrentAsync(cancellationToken);
         if (current is null || !await CanApproveAsync(current.HouseholdId, cancellationToken)) return Forbid();
-
         try
         {
-            var approvedMinor = ToMinor(approvedAmount);
+            // PKG-015h-FIX-03:
+            // Kwota z formularza HTML type=number/hidden jest przesyłana z separatorem kropki
+            // (np. 100.00). Przy polskiej kulturze bezpośrednie bindowanie do decimal może
+            // zakończyć się wartością 0. Pobieramy więc surowy tekst i parsujemy jawnie zarówno
+            // w formacie invariant, jak i w aktualnej kulturze użytkownika.
+            var approvedMinor = ToMinorFlexible(approvedAmount);
             if (approvedMinor <= 0) throw new InvalidOperationException("Zatwierdzona kwota musi być większa od 0.");
-
             var overview = await householdFinance.GetOverviewAsync(current.HouseholdId, current.PersonId, true, cancellationToken);
             var submission = overview.PaymentSubmissions.SingleOrDefault(x => x.Id == submissionId)
                 ?? throw new InvalidOperationException("Nie znaleziono zgłoszenia wpłaty.");
             if (!string.Equals(submission.Status, "Pending", StringComparison.OrdinalIgnoreCase))
                 throw new InvalidOperationException("To zgłoszenie nie oczekuje już na decyzję.");
-
             var remaining = approvedMinor;
             var allocations = new List<PaymentAllocationInput>();
             foreach (var obligation in overview.Obligations
@@ -145,7 +136,6 @@ public sealed class HouseholdContributionPaymentsController(
                 allocations.Add(new PaymentAllocationInput(obligation.Id, allocated));
                 remaining -= allocated;
             }
-
             await householdFinance.ApproveContributionPaymentAsync(new ApproveContributionPaymentRequest(
                 submissionId,
                 approvedMinor,
@@ -153,7 +143,6 @@ public sealed class HouseholdContributionPaymentsController(
                 current.UserAccountId,
                 CorrelationIdMiddleware.Get(HttpContext),
                 decisionReason), cancellationToken);
-
             TempData["Success"] = "Wpłata została zatwierdzona i zaksięgowana w finansach domowych.";
         }
         catch (Exception ex)
@@ -169,7 +158,6 @@ public sealed class HouseholdContributionPaymentsController(
     {
         var current = await access.GetCurrentAsync(cancellationToken);
         if (current is null || !await CanApproveAsync(current.HouseholdId, cancellationToken)) return Forbid();
-
         try
         {
             await householdFinance.RejectContributionPaymentAsync(new RejectContributionPaymentRequest(
@@ -183,7 +171,6 @@ public sealed class HouseholdContributionPaymentsController(
         {
             TempData["Error"] = ex.Message;
         }
-
         return RedirectToAction(nameof(Index));
     }
 
@@ -198,7 +185,6 @@ public sealed class HouseholdContributionPaymentsController(
             ownerPersonId: personId,
             resourceType: "ContributionPaymentSubmission",
             cancellationToken: cancellationToken);
-
         if (ownAllowed) return true;
 
         return await access.CanAsync(
@@ -220,4 +206,20 @@ public sealed class HouseholdContributionPaymentsController(
 
     private static long ToMinor(decimal amount)
         => checked((long)Math.Round(amount * 100m, 0, MidpointRounding.AwayFromZero));
+
+    private static long ToMinorFlexible(string? amount)
+    {
+        if (string.IsNullOrWhiteSpace(amount))
+            return 0;
+
+        var value = amount.Trim();
+        const NumberStyles styles = NumberStyles.AllowLeadingSign | NumberStyles.AllowDecimalPoint;
+        if (!decimal.TryParse(value, styles, CultureInfo.InvariantCulture, out var parsed) &&
+            !decimal.TryParse(value, styles, CultureInfo.CurrentCulture, out parsed))
+        {
+            return 0;
+        }
+
+        return ToMinor(parsed);
+    }
 }

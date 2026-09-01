@@ -1,5 +1,6 @@
 using EDom.Application.Households;
 using EDom.Application.Administration;
+using EDom.Application.HouseholdFinance;
 using EDom.Application.PrivateFinance;
 using EDom.Domain.Authorization;
 using EDom.SharedKernel.Values;
@@ -10,12 +11,12 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace EDom.Web.Controllers;
-
 [Authorize]
 [Route("PrivateFinance")]
 public sealed class PrivateFinanceController(
     WebAccessService access,
     IPrivateFinanceService finance,
+    IHouseholdFinanceService householdFinance,
     IHouseholdFamilyService family,
     IAdministrationCrudService adminCrud) : Controller
 {
@@ -26,15 +27,46 @@ public sealed class PrivateFinanceController(
         if (current is null) return Forbid();
         if (!await CanOwnAsync("privatefinance.account.manage_own", current, cancellationToken)) return Forbid();
 
+        // Zatwierdzone wpłaty do domu są rzeczywistym wydatkiem prywatnym domownika.
+        // Rekonsyliacja jest idempotentna i uzupełnia również starsze zatwierdzone wpłaty,
+        // zanim pobierzemy saldo i listę prywatnych wydatków.
+        await householdFinance.ReconcilePrivateContributionDebitsAsync(
+            current.HouseholdId,
+            current.PersonId,
+            cancellationToken);
+
         var household = await family.GetOverviewAsync(current.HouseholdId, cancellationToken);
         var children = household.Persons.Where(x => x.IsChild).Select(x => (x.PersonId, x.DisplayName)).ToArray();
+        var contributionOverview = await householdFinance.GetOverviewAsync(
+            current.HouseholdId,
+            current.PersonId,
+            false,
+            cancellationToken);
+
+        var householdContributions = contributionOverview.PaymentSubmissions
+            .Where(x => x.PersonId == current.PersonId)
+            .OrderByDescending(x => x.PaidAtUtc)
+            .Select(x => new ContributionSubmissionVm(
+                x.Id,
+                x.PersonId,
+                x.PersonName,
+                x.PeriodKey,
+                x.AmountMinor,
+                x.CurrencyCode,
+                x.PaymentMethod,
+                x.PaidAtUtc,
+                x.Status,
+                x.ApprovedAmountMinor,
+                x.DecisionReason))
+            .ToArray();
+
         return View(new PrivateFinancePageViewModel
         {
             Overview = await finance.GetOverviewAsync(current.HouseholdId, current.PersonId, cancellationToken),
-            Children = children
+            Children = children,
+            HouseholdContributions = householdContributions
         });
     }
-
     [HttpPost("Account"), ValidateAntiForgeryToken]
     public async Task<IActionResult> Account(AddPrivateAccountViewModel model, CancellationToken cancellationToken)
     {
@@ -48,7 +80,6 @@ public sealed class PrivateFinanceController(
         TempData["Success"] = "Dodano prywatne konto finansowe. Jest widoczne wyłącznie dla właściciela, chyba że później zostanie jawnie udostępnione.";
         return RedirectToAction(nameof(Index));
     }
-
     [HttpPost("Income"), ValidateAntiForgeryToken]
     public async Task<IActionResult> Income(AddIncomeSourceViewModel model, CancellationToken cancellationToken)
     {
@@ -64,7 +95,6 @@ public sealed class PrivateFinanceController(
         TempData["Success"] = "Dodano źródło dochodu i pierwszy planowany wpływ.";
         return RedirectToAction(nameof(Index));
     }
-
     [HttpPost("ConfirmIncome"), ValidateAntiForgeryToken]
     public async Task<IActionResult> ConfirmIncome(ConfirmIncomeViewModel model, CancellationToken cancellationToken)
     {
@@ -81,7 +111,6 @@ public sealed class PrivateFinanceController(
         TempData["Success"] = "Potwierdzono rzeczywisty wpływ. Plan pozostał zachowany w historii, a aktywne reguły wpłaty domowej zostały przeliczone.";
         return RedirectToAction(nameof(Index));
     }
-
     [HttpPost("Benefit"), ValidateAntiForgeryToken]
     public async Task<IActionResult> Benefit(AddBenefitViewModel model, CancellationToken cancellationToken)
     {
@@ -96,7 +125,6 @@ public sealed class PrivateFinanceController(
         TempData["Success"] = "Dodano prywatne świadczenie dotyczące dziecka. Beneficjent i właściciel rachunku pozostają rozdzieleni.";
         return RedirectToAction(nameof(Index));
     }
-
     [HttpPost("Expense"), ValidateAntiForgeryToken]
     public async Task<IActionResult> Expense(AddPrivateExpenseViewModel model, CancellationToken cancellationToken)
     {
@@ -114,7 +142,6 @@ public sealed class PrivateFinanceController(
         TempData["Success"] = "Dodano prywatny wydatek.";
         return RedirectToAction(nameof(Index));
     }
-
     [HttpPost("Subscription"), ValidateAntiForgeryToken]
     public async Task<IActionResult> Subscription(AddSubscriptionViewModel model, CancellationToken cancellationToken)
     {
@@ -131,7 +158,6 @@ public sealed class PrivateFinanceController(
         TempData["Success"] = "Dodano subskrypcję i wygenerowano najbliższe planowane koszty bez nadpisywania historii.";
         return RedirectToAction(nameof(Index));
     }
-
     [HttpPost("UpdateRecord"), ValidateAntiForgeryToken]
     public async Task<IActionResult> UpdateRecord(UpdatePrivateRecordViewModel model, CancellationToken cancellationToken)
     {
@@ -145,7 +171,6 @@ public sealed class PrivateFinanceController(
         catch (Exception ex) { TempData["Error"] = ex.Message; }
         return RedirectToAction(nameof(Index));
     }
-
     [HttpPost("ArchiveRecord"), ValidateAntiForgeryToken]
     public async Task<IActionResult> ArchiveRecord(string recordType, Guid recordId, CancellationToken cancellationToken)
     {
@@ -159,7 +184,6 @@ public sealed class PrivateFinanceController(
         catch (Exception ex) { TempData["Error"] = ex.Message; }
         return RedirectToAction(nameof(Index));
     }
-
     private Task<bool> CanPrivateRecordAsync(string recordType, WebUserContext current, CancellationToken cancellationToken)
     {
         var permission = recordType switch
@@ -171,15 +195,12 @@ public sealed class PrivateFinanceController(
         };
         return CanOwnAsync(permission, current, cancellationToken);
     }
-
     private Task<bool> CanOwnAsync(string permissionCode, WebUserContext current, CancellationToken cancellationToken)
         => access.CanAsync(permissionCode, ResourceScopeTypes.Own, current.PersonId.ToString("D"),
             ownerPersonId: current.PersonId, resourceType: "PrivateFinance", resourceId: current.PersonId.ToString("D"), cancellationToken: cancellationToken);
-
     private Task<bool> CanGuardianAsync(Guid childPersonId, WebUserContext current, CancellationToken cancellationToken)
         => access.CanAsync("privatefinance.child_record.manage_guardian", ResourceScopeTypes.Guardian, childPersonId.ToString("D"),
             ownerPersonId: current.PersonId, childPersonId: childPersonId, resourceType: "PrivateFinanceChild", resourceId: childPersonId.ToString("D"), cancellationToken: cancellationToken);
-
     private static long ToMinor(decimal amount, string currencyCode)
         => Money.FromMajorRounded(amount, currencyCode).AmountMinor;
 }

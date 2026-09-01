@@ -6,9 +6,30 @@
         if (!minor.HasValue) return "—";
         return $"{new Money(minor.Value, currency).ToMajor():N2} {currency}";
     }
+    string ContributionStatus(string status) => status switch
+    {
+        "Pending" => "Oczekuje na zatwierdzenie",
+        "Approved" => "Zatwierdzona / zaksięgowana",
+        "Rejected" => "Odrzucona",
+        _ => status
+    };
+    string PaymentMethod(string method) => method switch
+    {
+        "Cash" => "Gotówka",
+        "Transfer" => "Przelew",
+        _ => method
+    };
+    string ContributionInfo(ContributionSubmissionVm item) => item.Status switch
+    {
+        "Pending" => "Oczekuje na decyzję administratora. Saldo prywatne nie jest jeszcze pomniejszone.",
+        "Approved" => "Wpłata została zaksięgowana jako wydatek z prywatnych finansów domownika.",
+        "Rejected" => string.IsNullOrWhiteSpace(item.DecisionReason)
+            ? "Wpłata została odrzucona. Saldo prywatne nie zostało pomniejszone."
+            : $"Odrzucona: {item.DecisionReason}",
+        _ => item.DecisionReason ?? "—"
+    };
     var accounts = Model.Overview.Accounts;
 }
-
 <section class="hero">
     <div>
         <div class="eyebrow">Prywatny obszar właściciela</div>
@@ -17,7 +38,6 @@
     </div>
     <div class="status-pill">PKG-007</div>
 </section>
-
 @if (TempData["Success"] is string success)
 {
     <div class="info-box">@success</div>
@@ -26,7 +46,6 @@
 {
     <div class="error-box">@error</div>
 }
-
 <section class="panel">
     <h2>Konta prywatne</h2>
     @if (accounts.Count == 0)
@@ -58,7 +77,6 @@
         </form>
     </details>
 </section>
-
 <section class="panel">
     <h2>Dochody</h2>
     @if (Model.Overview.PlannedIncomes.Count > 0)
@@ -119,13 +137,11 @@
         }
     </details>
 </section>
-
 <section class="panel">
     <h2>Edycja źródeł dochodu</h2>
     @if (Model.Overview.IncomeSources.Count == 0) { <p class="muted">Brak źródeł dochodu.</p> }
     else { <div class="data-list">@foreach(var src in Model.Overview.IncomeSources){<div class="data-row data-row-stack"><div class="row-main"><span><strong>@src.Name</strong><small>@src.Frequency · @FmtMoney(src.PlannedAmountMinor,src.CurrencyCode) · @src.Status</small></span></div><details class="crud-details"><summary>Edytuj</summary><form asp-action="UpdateRecord" method="post" class="mini-form">@Html.AntiForgeryToken()<input type="hidden" name="RecordType" value="Income"/><input type="hidden" name="RecordId" value="@src.Id"/><input type="hidden" name="CurrencyCode" value="@src.CurrencyCode"/><input name="Name" value="@src.Name"/><input name="PlannedAmount" type="number" step="0.01" value="@(src.PlannedAmountMinor.HasValue ? new Money(src.PlannedAmountMinor.Value,src.CurrencyCode).ToMajor() : 0)"/><input name="DateValue" type="date" value="@(src.ValidTo?.ToString("yyyy-MM-dd"))"/><select name="Status"><option>@src.Status</option><option>Active</option><option>Inactive</option><option>Archived</option></select><button class="btn btn-secondary" type="submit">Zapisz</button></form><form asp-action="ArchiveRecord" method="post" class="inline-form">@Html.AntiForgeryToken()<input type="hidden" name="recordType" value="Income"/><input type="hidden" name="recordId" value="@src.Id"/><button class="btn btn-danger" type="submit">Archiwizuj</button></form></details></div>}</div> }
 </section>
-
 <section class="panel">
     <h2>Świadczenia i wydatki dziecka</h2>
     @if (Model.Overview.Benefits.Count > 0)
@@ -155,7 +171,44 @@
         </details>
     }
 </section>
-
+<section class="panel">
+    <h2>Wpłaty do domu — wydatki z mojego konta</h2>
+    <p class="muted">Każde zgłoszenie wpłaty do wspólnego rachunku pozostaje tutaj w historii. Dopiero zatwierdzona wpłata jest rzeczywistym wydatkiem i pomniejsza prywatne saldo.</p>
+    @if (Model.HouseholdContributions.Count == 0)
+    {
+        <p class="muted">Nie masz jeszcze żadnych wpłat do domu.</p>
+    }
+    else
+    {
+        <table>
+            <thead>
+                <tr>
+                    <th>Data</th>
+                    <th>Okres</th>
+                    <th>Kwota wpłaty</th>
+                    <th>Zaksięgowano</th>
+                    <th>Forma</th>
+                    <th>Status</th>
+                    <th>Informacja</th>
+                </tr>
+            </thead>
+            <tbody>
+            @foreach (var item in Model.HouseholdContributions)
+            {
+                <tr>
+                    <td>@item.PaidAtUtc.ToLocalTime().ToString("dd.MM.yyyy HH:mm")</td>
+                    <td>@item.PeriodKey</td>
+                    <td><strong>@FmtMoney(item.AmountMinor, item.CurrencyCode)</strong></td>
+                    <td>@FmtMoney(item.ApprovedAmountMinor, item.CurrencyCode)</td>
+                    <td>@PaymentMethod(item.PaymentMethod)</td>
+                    <td><strong>@ContributionStatus(item.Status)</strong></td>
+                    <td>@ContributionInfo(item)</td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    }
+</section>
 <section class="panel">
     <h2>Wydatki prywatne</h2>
     @if (Model.Overview.Expenses.Count > 0)
@@ -180,7 +233,6 @@
         </form>
     </details>
 </section>
-
 <section class="panel">
     <h2>Subskrypcje</h2>
     @if (Model.Overview.Subscriptions.Count > 0)

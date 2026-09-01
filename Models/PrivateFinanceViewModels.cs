@@ -7,8 +7,8 @@ public sealed class PrivateFinancePageViewModel
 {
     public required PrivateFinanceOverview Overview { get; init; }
     public IReadOnlyList<(Guid Id, string Name)> Children { get; init; } = [];
+    public IReadOnlyList<ContributionSubmissionVm> HouseholdContributions { get; init; } = Array.Empty<ContributionSubmissionVm>();
 }
-
 public sealed class AddPrivateAccountViewModel
 {
     [Required, StringLength(160)] public string Name { get; set; } = string.Empty;
@@ -17,7 +17,6 @@ public sealed class AddPrivateAccountViewModel
     [Required, StringLength(3)] public string CurrencyCode { get; set; } = "PLN";
     [Range(-90000000000000d, 90000000000000d)] public decimal OpeningBalance { get; set; }
 }
-
 public sealed class AddIncomeSourceViewModel
 {
     public Guid FinancialAccountId { get; set; }
@@ -31,14 +30,12 @@ public sealed class AddIncomeSourceViewModel
     public DateOnly? ValidTo { get; set; }
     public bool IsVariable { get; set; }
 }
-
 public sealed class ConfirmIncomeViewModel
 {
     public Guid PlannedIncomeId { get; set; }
     public DateOnly ActualReceivedOn { get; set; } = DateOnly.FromDateTime(DateTime.Today);
     [Range(0, 90000000000000d)] public decimal ActualAmount { get; set; }
 }
-
 public sealed class AddBenefitViewModel
 {
     public Guid BeneficiaryPersonId { get; set; }
@@ -53,7 +50,6 @@ public sealed class AddBenefitViewModel
     [StringLength(200)] public string? Institution { get; set; }
     [StringLength(200)] public string? DecisionReference { get; set; }
 }
-
 public sealed class AddPrivateExpenseViewModel
 {
     public Guid? FinancialAccountId { get; set; }
@@ -65,7 +61,6 @@ public sealed class AddPrivateExpenseViewModel
     public Guid? ChildPersonId { get; set; }
     [Range(0, 90000000000000d)] public decimal? ChildAmount { get; set; }
 }
-
 public sealed class AddSubscriptionViewModel
 {
     public Guid? FinancialAccountId { get; set; }
@@ -82,7 +77,6 @@ public sealed class AddSubscriptionViewModel
     [RegularExpression("^[0-9]{4}$", ErrorMessage = "Podaj wyłącznie 4 ostatnie cyfry.")] public string? PaymentMethodLast4 { get; set; }
     [Range(0,365)] public int ReminderDays { get; set; } = 7;
 }
-
 public sealed class UpdatePrivateRecordViewModel
 {
     public string RecordType { get; set; } = string.Empty;
