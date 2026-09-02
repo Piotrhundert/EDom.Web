@@ -1,0 +1,271 @@
+@model EDom.Web.Models.UtilityOperatorInvoicePageViewModel
+@{
+    ViewData["Title"] = "Rozliczenie faktury prądu";
+    var today = DateOnly.FromDateTime(DateTime.Today);
+}
+<link rel="stylesheet" href="~/css/utility-operator-invoice.css" asp-append-version="true" />
+
+<div class="uoi-page">
+    <section class="uoi-hero">
+        <div>
+            <div class="uoi-eyebrow">Media i liczniki · licznik główny</div>
+            <h1>Rozliczenie faktury prądu</h1>
+            <p>Wprowadź dane z faktury operatora. e-dom obliczy zużycie w strefach, składniki netto, VAT i kwotę brutto oraz zarejestruje fakturę w module mediów.</p>
+        </div>
+        <a class="uoi-back" asp-controller="Utilities" asp-action="Index">← Media i liczniki</a>
+    </section>
+
+    @if (TempData["Success"] is string success)
+    {
+        <div class="success-box">@success</div>
+    }
+    @if (TempData["Error"] is string error)
+    {
+        <div class="error-box">@error</div>
+    }
+
+    @if (Model.ElectricityMeters.Count == 0 || Model.ElectricityContracts.Count == 0)
+    {
+        <section class="uoi-empty">
+            <strong>Brakuje danych podstawowych</strong>
+            <p>
+                Do rozliczenia potrzebujesz co najmniej jednego głównego licznika prądu w kWh
+                oraz aktywnej umowy operatora energii.
+            </p>
+            <a class="btn btn-primary" asp-controller="Utilities" asp-action="Index">Przejdź do konfiguracji mediów</a>
+        </section>
+    }
+    else
+    {
+        <form asp-action="Create" method="post" class="uoi-form" id="operatorInvoiceForm">
+            @Html.AntiForgeryToken()
+
+            <section class="uoi-card">
+                <div class="uoi-card-head">
+                    <div><span>1</span><h2>Dane faktury i licznika</h2></div>
+                    <small>Wybierz główny licznik i umowę operatora.</small>
+                </div>
+                <div class="uoi-grid">
+                    <div class="field">
+                        <label>Licznik główny</label>
+                        <select name="MeterId" required>
+                            @foreach (var item in Model.ElectricityMeters)
+                            {
+                                <option value="@item.Id">@item.Label</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label>Umowa operatora</label>
+                        <select name="ContractId" required>
+                            @foreach (var item in Model.ElectricityContracts)
+                            {
+                                <option value="@item.Id">@item.Label</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="field"><label>Numer faktury</label><input name="InvoiceNo" required /></div>
+                    <div class="field">
+                        <label>Taryfa</label>
+                        <select name="TariffCode" id="tariffCode">
+                            <option value="G12" selected>G12 — dzień / noc</option>
+                            <option value="G11">G11 — jedna strefa</option>
+                        </select>
+                    </div>
+                    <div class="field"><label>Numer licznika</label><input name="MeterSerialNo" placeholder="np. numer z sekcji Odczyty" /></div>
+                    <div class="field"><label>PPE</label><input name="Ppe" placeholder="Punkt poboru energii" /></div>
+                    <div class="field"><label>Okres od</label><input name="PeriodFrom" type="date" value="@today.AddMonths(-2).ToString("yyyy-MM-dd")" required /></div>
+                    <div class="field"><label>Okres do</label><input name="PeriodTo" type="date" value="@today.ToString("yyyy-MM-dd")" required /></div>
+                    <div class="field"><label>Data wystawienia</label><input name="IssuedOn" type="date" value="@today.ToString("yyyy-MM-dd")" required /></div>
+                    <div class="field"><label>Termin płatności</label><input name="DueDate" type="date" value="@today.AddDays(14).ToString("yyyy-MM-dd")" required /></div>
+                    <div class="field"><label>Waluta</label><input name="CurrencyCode" value="PLN" maxlength="3" /></div>
+                    <div class="field"><label>Liczba miesięcy opłat stałych</label><input name="BillingMonths" type="number" step="0.01" min="0" value="2" data-calc /></div>
+                </div>
+            </section>
+
+            <section class="uoi-card">
+                <div class="uoi-card-head">
+                    <div><span>2</span><h2>Odczyty z faktury</h2></div>
+                    <small>Zużycie jest liczone jako stan obecny minus poprzedni.</small>
+                </div>
+
+                <div class="uoi-reading-grid">
+                    <div class="uoi-zone">
+                        <div class="uoi-zone-title"><strong id="dayZoneTitle">Strefa dzienna</strong><span>kWh</span></div>
+                        <div class="uoi-grid uoi-grid-2">
+                            <div class="field"><label>Stan poprzedni</label><input name="PreviousDay" type="number" step="0.001" min="0" required data-calc /></div>
+                            <div class="field"><label>Stan obecny</label><input name="CurrentDay" type="number" step="0.001" min="0" required data-calc /></div>
+                        </div>
+                        <div class="uoi-consumption">Zużycie: <strong id="dayConsumption">0 kWh</strong></div>
+                    </div>
+
+                    <div class="uoi-zone" id="nightZone">
+                        <div class="uoi-zone-title"><strong>Strefa nocna</strong><span>kWh</span></div>
+                        <div class="uoi-grid uoi-grid-2">
+                            <div class="field"><label>Stan poprzedni</label><input name="PreviousNight" type="number" step="0.001" min="0" value="0" data-calc /></div>
+                            <div class="field"><label>Stan obecny</label><input name="CurrentNight" type="number" step="0.001" min="0" value="0" data-calc /></div>
+                        </div>
+                        <div class="uoi-consumption">Zużycie: <strong id="nightConsumption">0 kWh</strong></div>
+                    </div>
+                </div>
+
+                <div class="uoi-total-consumption">Łączne zużycie z faktury: <strong id="totalConsumption">0 kWh</strong></div>
+            </section>
+
+            <section class="uoi-card">
+                <div class="uoi-card-head">
+                    <div><span>3</span><h2>Sprzedaż i dystrybucja — stawki netto</h2></div>
+                    <small>Wpisuj stawki netto dokładnie tak, jak pokazuje je faktura operatora.</small>
+                </div>
+
+                <div class="uoi-rates">
+                    <div class="uoi-rate-group">
+                        <h3>Energia czynna</h3>
+                        <div class="uoi-grid uoi-grid-2">
+                            <div class="field"><label id="energyDayLabel">Dzienna zł/kWh</label><input name="EnergyDayRate" type="number" step="0.000001" min="0" value="0" data-calc /></div>
+                            <div class="field g12-only"><label>Nocna zł/kWh</label><input name="EnergyNightRate" type="number" step="0.000001" min="0" value="0" data-calc /></div>
+                        </div>
+                    </div>
+
+                    <div class="uoi-rate-group">
+                        <h3>Dystrybucja zmienna</h3>
+                        <div class="uoi-grid uoi-grid-2">
+                            <div class="field"><label id="networkDayLabel">Sieciowa dzienna zł/kWh</label><input name="VariableNetworkDayRate" type="number" step="0.000001" min="0" value="0" data-calc /></div>
+                            <div class="field g12-only"><label>Sieciowa nocna zł/kWh</label><input name="VariableNetworkNightRate" type="number" step="0.000001" min="0" value="0" data-calc /></div>
+                            <div class="field"><label>Jakościowa zł/kWh</label><input name="QualityRate" type="number" step="0.000001" min="0" value="0" data-calc /></div>
+                            <div class="field"><label>OZE zł/kWh</label><input name="OzeRate" type="number" step="0.000001" min="0" value="0" data-calc /></div>
+                            <div class="field"><label>Kogeneracyjna zł/kWh</label><input name="CogenerationRate" type="number" step="0.000001" min="0" value="0" data-calc /></div>
+                        </div>
+                    </div>
+
+                    <div class="uoi-rate-group">
+                        <h3>Opłaty stałe</h3>
+                        <div class="uoi-grid uoi-grid-3">
+                            <div class="field"><label>Stała sieciowa zł/mies.</label><input name="FixedNetworkMonthlyRate" type="number" step="0.000001" min="0" value="0" data-calc /></div>
+                            <div class="field"><label>Abonamentowa zł/mies.</label><input name="SubscriptionMonthlyRate" type="number" step="0.000001" min="0" value="0" data-calc /></div>
+                            <div class="field"><label>Mocowa zł/mies.</label><input name="CapacityMonthlyRate" type="number" step="0.000001" min="0" value="0" data-calc /></div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="uoi-card">
+                <div class="uoi-card-head">
+                    <div><span>4</span><h2>Podsumowanie faktury</h2></div>
+                    <small>Podgląd wyliczenia przed zapisaniem danych.</small>
+                </div>
+
+                <div class="uoi-summary-layout">
+                    <div class="uoi-component-preview">
+                        <table>
+                            <thead><tr><th>Składnik</th><th>Strefa</th><th>Ilość</th><th>Stawka netto</th><th>Netto</th></tr></thead>
+                            <tbody id="componentPreview">
+                                <tr><td colspan="5">Wprowadź odczyty i stawki.</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="uoi-totals">
+                        <div><span>Netto</span><strong id="netTotal">0,00 PLN</strong></div>
+                        <div class="uoi-inline-field">
+                            <label>VAT %</label>
+                            <input name="VatRate" type="number" step="0.01" min="0" max="100" value="23" data-calc />
+                        </div>
+                        <div><span>VAT</span><strong id="vatTotal">0,00 PLN</strong></div>
+                        <div class="uoi-grand-total"><span>Brutto wyliczone</span><strong id="grossTotal">0,00 PLN</strong></div>
+                    </div>
+                </div>
+
+                <div class="uoi-grid uoi-grid-3 uoi-extra-fields">
+                    <div class="field">
+                        <label>Kwota brutto z faktury — opcjonalne nadpisanie</label>
+                        <input name="GrossAmountOverride" type="number" step="0.01" min="0" placeholder="Zostaw puste, aby użyć wyliczenia" />
+                    </div>
+                    <div class="field">
+                        <label>Akcyza — informacyjnie</label>
+                        <input name="ExciseAmount" type="number" step="0.01" min="0" placeholder="np. wartość podana na fakturze" />
+                    </div>
+                    <div class="field uoi-checkbox-field">
+                        <label><input name="SubmitCurrentReading" type="checkbox" value="true" checked /> Zgłoś bieżący odczyt z faktury</label>
+                        <label><input name="SaveTariffRates" type="checkbox" value="true" checked /> Zapisz stawki jako snapshot taryfy</label>
+                    </div>
+                </div>
+
+                <div class="uoi-note">
+                    Odczyt z faktury trafia do standardowego procesu zatwierdzania. Poprzednie wskazania pozostają w szczegółowym snapshotcie tego rozliczenia; system nie tworzy sztucznego historycznego odczytu, jeśli taki odczyt nie istniał wcześniej.
+                </div>
+
+                <div class="uoi-actions">
+                    <button class="btn btn-primary" type="submit">Zapisz pełne rozliczenie faktury</button>
+                </div>
+            </section>
+        </form>
+    }
+
+    <section class="uoi-card">
+        <div class="uoi-card-head">
+            <div><span>5</span><h2>Historia rozliczeń operatora</h2></div>
+            <small>Pełny snapshot danych wpisanych z faktur.</small>
+        </div>
+
+        @if (Model.History.Count == 0)
+        {
+            <div class="uoi-history-empty">Nie zapisano jeszcze żadnego pełnego rozliczenia faktury prądu.</div>
+        }
+        else
+        {
+            <div class="uoi-history-list">
+                @foreach (var item in Model.History)
+                {
+                    <details class="uoi-history-item">
+                        <summary>
+                            <span>
+                                <strong>@item.InvoiceNo · @item.TariffCode</strong>
+                                <small>@item.MeterName · @item.PeriodFrom.ToString("dd.MM.yyyy") – @item.PeriodTo.ToString("dd.MM.yyyy")</small>
+                            </span>
+                            <span>
+                                <strong>@item.GrossAmount.ToString("N2") @item.CurrencyCode</strong>
+                                <small>@((item.ConsumptionDay + item.ConsumptionNight).ToString("N0")) kWh</small>
+                            </span>
+                        </summary>
+                        <div class="uoi-history-body">
+                            <div class="uoi-history-kpis">
+                                <div><span>Dzień / ALL</span><strong>@item.ConsumptionDay.ToString("N3") kWh</strong></div>
+                                <div><span>Noc</span><strong>@item.ConsumptionNight.ToString("N3") kWh</strong></div>
+                                <div><span>Netto</span><strong>@item.NetAmount.ToString("N2") @item.CurrencyCode</strong></div>
+                                <div><span>VAT @item.VatRate.ToString("N0")%</span><strong>@item.VatAmount.ToString("N2") @item.CurrencyCode</strong></div>
+                            </div>
+
+                            <div class="uoi-history-meta">
+                                <span>Nr licznika: <strong>@(item.MeterSerialNo ?? "—")</strong></span>
+                                <span>PPE: <strong>@(item.Ppe ?? "—")</strong></span>
+                                <span>Odczyt: <strong>@(item.ReadingSubmitted ? "zgłoszony" : "nie zgłaszano")</strong></span>
+                                <span>Taryfa: <strong>@(item.TariffSnapshotSaved ? "snapshot zapisany" : "bez snapshotu")</strong></span>
+                            </div>
+
+                            <div class="uoi-component-preview">
+                                <table>
+                                    <thead><tr><th>Składnik</th><th>Strefa</th><th>Ilość</th><th>Stawka netto</th><th>Netto</th></tr></thead>
+                                    <tbody>
+                                        @foreach (var line in item.Lines)
+                                        {
+                                            <tr>
+                                                <td>@line.Label</td>
+                                                <td>@line.ZoneCode</td>
+                                                <td>@line.Quantity.ToString("N3") @line.UnitCode</td>
+                                                <td>@line.RateNet.ToString("N6")</td>
+                                                <td>@line.AmountNet.ToString("N2") @item.CurrencyCode</td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </details>
+                }
+            </div>
+        }
+    </section>
+</div>
+
+<script src="~/js/utility-operator-invoice.js" asp-append-version="true"></script>

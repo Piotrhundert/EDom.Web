@@ -125,6 +125,13 @@
                     </a>
                 }
 
+                @if (module.Key == "utilities")
+                {
+                    <div class="nav-submenu">
+                        <a class="nav-subitem @(pathMatchesPrefix(currentPath, "/Utilities/OperatorInvoice") ? "active" : string.Empty)" asp-controller="UtilityOperatorInvoice" asp-action="Index">Rozliczenie faktury prądu</a>
+                    </div>
+                }
+
                 @if (module.Key == "rental")
                 {
                     <div class="nav-submenu">

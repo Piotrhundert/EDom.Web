@@ -6,271 +6,1275 @@
     var canAssets = ViewData["CanAssets"] as bool? == true;
     var canMeters = ViewData["CanMeters"] as bool? == true;
     var success = TempData["Success"] as string;
-    var buildingParcel = Model.Buildings.ToDictionary(x => x.Id, x => x.ParcelId);
-    var roomBuilding = Model.Rooms.ToDictionary(x => x.Id, x => x.BuildingId);
+    var error = TempData["Error"] as string;
+
+    var parcelCount = Model.Parcels.Count;
+    var buildingCount = Model.Buildings.Count;
+    var roomCount = Model.Rooms.Count;
+    var assetCount = Model.Assets.Count;
+    var meterCount = Model.Meters.Count;
+    var rentableCount = Model.Rooms.Count(x => x.IsRentable);
+    var commonCount = Model.Rooms.Count(x => x.IsCommonArea);
 }
+<link rel="stylesheet" href="~/css/property-ui.css" asp-append-version="true" />
+<link rel="stylesheet" href="~/css/property-details-ui.css" asp-append-version="true" />
+
 @if (!string.IsNullOrWhiteSpace(success))
 {
-    <div class="success-box">@success</div>
+    <div class="success-box property-message">@success</div>
 }
-<section class="hero compact-hero">
-    <div>
-        <div class="eyebrow">Property & Equipment Base · PKG-010</div>
-        <h1>Nieruchomości i wyposażenie</h1>
-        <p>Działki, budynki, pokoje i części wspólne, podstawowe wyposażenie oraz hierarchia liczników głównych i podliczników.</p>
-    </div>
-    <div class="status-pill">Schema 8</div>
-</section>
+@if (!string.IsNullOrWhiteSpace(error))
+{
+    <div class="alert alert-danger property-message">@error</div>
+}
 
-<section class="panel top-gap">
-    <h2>Struktura nieruchomości</h2>
-    @if (Model.Parcels.Count == 0)
-    {
-        <p class="muted-block">Brak działek w dostępnym zakresie.</p>
-    }
-    else
-    {
-        <div class="data-list">
-        @foreach (var parcel in Model.Parcels)
-        {
-            <div class="data-row stacked-row">
-                <span>
-                    <strong>@parcel.Name</strong>
-                    <small>@(parcel.AddressText ?? "brak adresu") · status: @parcel.Status</small>
-                </span>
-                <span>@Model.Buildings.Count(x => x.ParcelId == parcel.Id) bud.</span>
+<form id="property-details-token" hidden>
+    @Html.AntiForgeryToken()
+</form>
+
+<div class="property-page">
+    <section class="property-hero">
+        <div class="property-hero-head">
+            <div>
+                <div class="property-eyebrow">Nieruchomości · Property &amp; Equipment</div>
+                <h1>Nieruchomości i wyposażenie</h1>
+                <p>Jedno miejsce do zarządzania działkami, budynkami, pomieszczeniami, wyposażeniem oraz licznikami.</p>
             </div>
-            @foreach (var building in Model.Buildings.Where(x => x.ParcelId == parcel.Id))
-            {
-                <div class="data-row stacked-row" style="margin-left:1.25rem">
-                    <span><strong>↳ @building.Name</strong><small>@building.BuildingType · @building.FunctionType · @building.Status</small></span>
-                    <span>@Model.Rooms.Count(x => x.BuildingId == building.Id) pom.</span>
-                </div>
-                @foreach (var room in Model.Rooms.Where(x => x.BuildingId == building.Id))
-                {
-                    <div class="data-row" style="margin-left:2.5rem">
-                        <span><strong>↳ @room.Name</strong><small>@room.RoomType @(room.IsCommonArea ? "· część wspólna" : "") @(room.IsRentable ? "· do wynajmu" : "")</small></span>
-                        <span>@room.Status</span>
-                    </div>
-                }
-            }
-        }
+            <span class="property-schema-badge">Schema 8</span>
         </div>
-    }
-</section>
 
-<section class="split-grid top-gap">
-@if (canCreateParcel)
-{
-    <div class="panel">
-        <h2>Dodaj działkę</h2>
-        <form asp-action="Parcel" method="post" class="form-grid">
-            @Html.AntiForgeryToken()
-            <div class="field"><label>Nazwa</label><input name="Name" required /></div>
-            <div class="field"><label>Adres / lokalizacja</label><input name="AddressText" /></div>
-            <div class="field"><label>Nr ewidencyjny</label><input name="RegistryNo" /></div>
-            <div class="field"><label>Powierzchnia m²</label><input name="Area" type="number" step="0.01" min="0" /></div>
-            <div class="field"><label>Rodzaj własności</label><input name="OwnershipType" value="Owned" /></div>
-            <div class="field"><label>Data nabycia</label><input name="AcquiredOn" type="date" /></div>
-            <div class="full"><button class="btn btn-primary" type="submit">Dodaj działkę</button></div>
-        </form>
-    </div>
-}
-@if (Model.Parcels.Count > 0)
-{
-    <div class="panel">
-        <h2>Dodaj budynek</h2>
-        <form asp-action="Building" method="post" class="form-grid">
-            @Html.AntiForgeryToken()
-            <div class="field"><label>Działka</label><select name="ParcelId">@foreach(var p in Model.Parcels){<option value="@p.Id">@p.Name</option>}</select></div>
-            <div class="field"><label>Nazwa</label><input name="Name" required /></div>
-            <div class="field"><label>Typ</label><select name="BuildingType"><option>Residential</option><option>Rental</option><option>Mixed</option><option>Utility</option><option>Other</option></select></div>
-            <div class="field"><label>Funkcja</label><select name="FunctionType"><option>FamilyHome</option><option>RentalHouse</option><option>Mixed</option><option>Utility</option><option>Other</option></select></div>
-            <div class="field"><label>Powierzchnia użytkowa m²</label><input name="UsableArea" type="number" step="0.01" min="0" /></div>
-            <div class="field"><label>Kondygnacje</label><input name="Floors" type="number" min="0" /></div>
-            <div class="field"><label>Rok budowy</label><input name="BuildYear" type="number" min="1000" max="2200" /></div>
-            <div class="full"><button class="btn btn-secondary" type="submit">Dodaj budynek</button></div>
-        </form>
-    </div>
-}
-</section>
+        <div class="property-summary">
+            <article>
+                <span>Działki</span>
+                <strong>@parcelCount</strong>
+                <small>główne lokalizacje</small>
+            </article>
+            <article>
+                <span>Budynki</span>
+                <strong>@buildingCount</strong>
+                <small>w całym gospodarstwie</small>
+            </article>
+            <article>
+                <span>Pomieszczenia</span>
+                <strong>@roomCount</strong>
+                <small>@rentableCount do wynajmu · @commonCount wspólnych</small>
+            </article>
+            <article>
+                <span>Wyposażenie</span>
+                <strong>@assetCount</strong>
+                <small>zarejestrowanych elementów</small>
+            </article>
+            <article>
+                <span>Liczniki</span>
+                <strong>@meterCount</strong>
+                <small>główne i podliczniki</small>
+            </article>
+        </div>
 
-@if (Model.Buildings.Count > 0)
-{
-<section class="split-grid top-gap">
-    <div class="panel">
-        <h2>Dodaj pomieszczenie</h2>
-        <form asp-action="Room" method="post" class="form-grid">
-            @Html.AntiForgeryToken()
-            <div class="field"><label>Budynek</label><select name="BuildingId">@foreach(var b in Model.Buildings){<option value="@b.Id">@b.Name</option>}</select></div>
-            <div class="field"><label>Nazwa / numer</label><input name="Name" required /></div>
-            <div class="field"><label>Rodzaj</label><select name="RoomType"><option>Room</option><option>Bathroom</option><option>Kitchen</option><option>Corridor</option><option>Laundry</option><option>Basement</option><option>Technical</option><option>Garage</option><option>Other</option></select></div>
-            <div class="field"><label>Piętro</label><input name="FloorNo" type="number" /></div>
-            <div class="field"><label>Powierzchnia m²</label><input name="Area" type="number" step="0.01" min="0" /></div>
-            <div class="field"><label>Maks. osób</label><input name="Capacity" type="number" min="0" value="1" /></div>
-            <div class="field checkbox-field"><label><input name="IsRentable" type="checkbox" value="true" /> Do wynajmu</label></div>
-            <div class="field checkbox-field"><label><input name="IsCommonArea" type="checkbox" value="true" /> Część wspólna</label></div>
-            <div class="full"><button class="btn btn-primary" type="submit">Dodaj pomieszczenie</button></div>
-        </form>
-    </div>
-    <div class="panel">
-        <h2>Zmień status</h2>
-        <form asp-action="Status" method="post" class="form-grid">
-            @Html.AntiForgeryToken()
-            <div class="field"><label>Typ obiektu</label><select name="ObjectType"><option>Parcel</option><option>Building</option><option selected>Room</option></select></div>
-            <div class="field"><label>Id obiektu</label><select name="Id">
-                <optgroup label="Działki">@foreach(var p in Model.Parcels){<option value="@p.Id">@p.Name</option>}</optgroup>
-                <optgroup label="Budynki">@foreach(var b in Model.Buildings){<option value="@b.Id">@b.Name</option>}</optgroup>
-                <optgroup label="Pomieszczenia">@foreach(var r in Model.Rooms){<option value="@r.Id">@r.Name</option>}</optgroup>
-            </select></div>
-            <div class="field"><label>Nowy status</label><select name="NewStatus"><option>Active</option><option>Inactive</option><option>Available</option><option>Reserved</option><option>Rented</option><option>Renovation</option><option>OutOfService</option><option>Archived</option></select></div>
-            <div class="field"><label>Powód</label><input name="Reason" required /></div>
-            <div class="full info-box">Zmiana statusu tworzy osobny wpis historii. Poprzednia wartość nie jest tracona.</div>
-            <div class="full"><button class="btn btn-secondary" type="submit">Zmień status</button></div>
-        </form>
-    </div>
-</section>
-}
+        <nav class="property-section-nav" aria-label="Sekcje nieruchomości">
+            <a href="#property-structure">Struktura</a>
+            @if (canAssets)
+            {
+                <a href="#property-assets">Wyposażenie</a>
+            }
+            @if (canMeters)
+            {
+                <a href="#property-meters">Liczniki</a>
+            }
+            <a href="#property-manage">Edycja i archiwizacja</a>
+        </nav>
+    </section>
 
-@if (canAssets && Model.Rooms.Count > 0)
-{
-<section class="split-grid top-gap">
-    <div class="panel">
-        <h2>Wyposażenie</h2>
-        @if (Model.Assets.Count == 0) { <p class="muted-block">Brak wyposażenia w dostępnym zakresie.</p> }
+    <section class="property-section" id="property-structure">
+        <div class="property-section-head">
+            <div>
+                <div class="property-section-kicker">Hierarchia nieruchomości</div>
+                <h2>Struktura</h2>
+                <p>Działki są poziomem głównym. W każdej działce widzisz przypisane budynki, a następnie ich pomieszczenia.</p>
+            </div>
+            <span class="property-count-badge">@parcelCount działek · @buildingCount budynków · @roomCount pomieszczeń</span>
+        </div>
+
+        @if (Model.Parcels.Count == 0)
+        {
+            <div class="property-empty-state">
+                <strong>Brak działek w dostępnym zakresie</strong>
+                <p>Dodaj pierwszą działkę, aby rozpocząć budowanie struktury nieruchomości.</p>
+            </div>
+        }
         else
         {
-            <div class="data-list">
-            @foreach (var asset in Model.Assets)
-            {
-                var current = Model.AssetAssignments.Where(x => x.AssetId == asset.Id && x.ValidTo == null).OrderByDescending(x => x.ValidFrom).FirstOrDefault();
-                var targetName = current == null ? "bez aktywnego przypisania" : Model.Rooms.FirstOrDefault(x => x.Id == current.TargetId)?.Name ?? current.TargetType;
-                <div class="data-row"><span><strong>@asset.Name</strong><small>@asset.CategoryCode · @asset.Status</small></span><span>@targetName</span></div>
-            }
+            <div class="property-tree">
+                @foreach (var parcel in Model.Parcels)
+                {
+                    var parcelBuildings = Model.Buildings.Where(x => x.ParcelId == parcel.Id).ToList();
+                    var parcelRooms = Model.Rooms.Count(x => parcelBuildings.Any(b => b.Id == x.BuildingId));
+                    var parcelMeters = Model.Meters
+                        .Where(x => x.LocationType == "Parcel" && x.LocationId == parcel.Id)
+                        .ToList();
+
+                    <article class="property-parcel-card" data-property-details-type="Parcel" data-property-id="@parcel.Id">
+                        <div class="property-parcel-head">
+                            <div class="property-object-icon property-object-icon-parcel">
+                                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V8l8-5 8 5v12M8 20v-7h8v7M2 20h20" /></svg>
+                            </div>
+                            <div class="property-object-title">
+                                <span class="property-object-type">Działka</span>
+                                <h3>@parcel.Name</h3>
+                                <p>@(parcel.AddressText ?? "Brak adresu / lokalizacji")</p>
+                            </div>
+                            <div class="property-object-meta">
+                                <span class="property-status-pill">@parcel.Status</span>
+                                <small>@parcelBuildings.Count bud. · @parcelRooms pom.</small>
+                                <button type="button"
+                                        class="property-details-edit-button"
+                                        data-property-details-edit="Parcel"
+                                        data-property-details-id="@parcel.Id">
+                                    Edytuj dane
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="property-details-summary"
+                             data-property-details-summary="Parcel"
+                             data-property-details-id="@parcel.Id"></div>
+                        <div class="property-details-editor"
+                             data-property-details-editor="Parcel"
+                             data-property-details-id="@parcel.Id"
+                             hidden></div>
+
+                        @if (parcelMeters.Count > 0)
+                        {
+                            <div class="property-attached-meters">
+                                @foreach (var meter in parcelMeters)
+                                {
+                                    <span class="property-attached-meter">
+                                        <b>@meter.Name</b>
+                                        <small>@(meter.MeterType == MeterTypes.Sub ? "Podlicznik · rozliczenia lokatorów" : "Licznik główny") · @meter.Medium · @meter.UnitCode</small>
+                                    </span>
+                                }
+                            </div>
+                        }
+
+                        @if (parcelBuildings.Count == 0)
+                        {
+                            <div class="property-no-children">Ta działka nie ma jeszcze żadnego budynku.</div>
+                        }
+                        else
+                        {
+                            <div class="property-buildings">
+                                @foreach (var building in parcelBuildings)
+                                {
+                                    var buildingRooms = Model.Rooms.Where(x => x.BuildingId == building.Id).ToList();
+                                    var buildingMeters = Model.Meters
+                                        .Where(x => x.LocationType == "Building" && x.LocationId == building.Id)
+                                        .ToList();
+
+                                    <section class="property-building-card" data-property-details-type="Building" data-property-id="@building.Id">
+                                        <div class="property-building-head">
+                                            <div class="property-object-icon property-object-icon-building">
+                                                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 21V5h10v16M14 9h6v12M7 9h3M7 13h3M7 17h3M17 13h1M17 17h1M2 21h20" /></svg>
+                                            </div>
+                                            <div class="property-object-title">
+                                                <span class="property-object-type">Budynek</span>
+                                                <h4>@building.Name</h4>
+                                                <p>@building.BuildingType · @building.FunctionType</p>
+                                            </div>
+                                            <div class="property-object-meta">
+                                                <span class="property-status-pill">@building.Status</span>
+                                                <small>@buildingRooms.Count pomieszczeń</small>
+                                                <button type="button"
+                                                        class="property-details-edit-button"
+                                                        data-property-details-edit="Building"
+                                                        data-property-details-id="@building.Id">
+                                                    Edytuj dane
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        <div class="property-details-summary property-details-summary-building"
+                                             data-property-details-summary="Building"
+                                             data-property-details-id="@building.Id"></div>
+                                        <div class="property-details-editor"
+                                             data-property-details-editor="Building"
+                                             data-property-details-id="@building.Id"
+                                             hidden></div>
+
+                                        @if (buildingMeters.Count > 0)
+                                        {
+                                            <div class="property-attached-meters property-attached-meters-building">
+                                                @foreach (var meter in buildingMeters)
+                                                {
+                                                    <span class="property-attached-meter">
+                                                        <b>@meter.Name</b>
+                                                        <small>@(meter.MeterType == MeterTypes.Sub ? "Podlicznik · rozliczenia lokatorów" : "Licznik główny") · @meter.Medium · @meter.UnitCode</small>
+                                                    </span>
+                                                }
+                                            </div>
+                                        }
+
+                                        @if (buildingRooms.Count == 0)
+                                        {
+                                            <div class="property-no-rooms">Brak pomieszczeń.</div>
+                                        }
+                                        else
+                                        {
+                                            <div class="property-room-grid">
+                                                @foreach (var room in buildingRooms)
+                                                {
+                                                    var roomMeters = Model.Meters
+                                                        .Where(x => x.LocationType == "Room" && x.LocationId == room.Id)
+                                                        .ToList();
+
+                                                    <article class="property-room-card">
+                                                        <div class="property-room-main">
+                                                            <span class="property-room-icon">
+                                                                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h16v16H4zM8 20V8h8v12M12 14h.01" /></svg>
+                                                            </span>
+                                                            <span>
+                                                                <strong>@room.Name</strong>
+                                                                <small>@room.RoomType</small>
+                                                            </span>
+                                                        </div>
+                                                        <div class="property-room-tags">
+                                                            @if (room.IsRentable)
+                                                            {
+                                                                <span class="property-tag property-tag-accent">Do wynajmu</span>
+                                                            }
+                                                            @if (room.IsCommonArea)
+                                                            {
+                                                                <span class="property-tag">Część wspólna</span>
+                                                            }
+                                                            <span class="property-tag property-tag-status">@room.Status</span>
+                                                        </div>
+
+                                                        @if (roomMeters.Count > 0)
+                                                        {
+                                                            <div class="property-room-meters">
+                                                                @foreach (var meter in roomMeters)
+                                                                {
+                                                                    <span class="property-room-meter">
+                                                                        <strong>@meter.Name</strong>
+                                                                        <small>@(meter.MeterType == MeterTypes.Sub ? "Podlicznik · rozliczenia lokatora" : "Licznik") · @meter.Medium · @meter.UnitCode</small>
+                                                                    </span>
+                                                                }
+                                                            </div>
+                                                        }
+                                                    </article>
+                                                }
+                                            </div>
+                                        }
+                                    </section>
+                                }
+                            </div>
+                        }
+                    </article>
+                }
             </div>
         }
-        <form asp-action="Asset" method="post" class="form-grid top-gap-small">
-            @Html.AntiForgeryToken()
-            <div class="field"><label>Nazwa</label><input name="Name" required /></div>
-            <div class="field"><label>Kategoria</label><input name="CategoryCode" value="Equipment" /></div>
-            <div class="field"><label>Producent</label><input name="Manufacturer" /></div>
-            <div class="field"><label>Model</label><input name="Model" /></div>
-            <div class="field"><label>Nr seryjny</label><input name="SerialNo" /></div>
-            <div class="field"><label>Pierwsze przypisanie</label><select name="RoomId">@foreach(var r in Model.Rooms){<option value="@r.Id">@r.Name</option>}</select></div>
-            <div class="full"><button class="btn btn-primary" type="submit">Dodaj wyposażenie</button></div>
-        </form>
-    </div>
-    <div class="panel">
-        <h2>Przenieś / wycofaj</h2>
-        @if (Model.Assets.Count > 0)
-        {
-            <form asp-action="AssetAssignment" method="post" class="form-grid">
-                @Html.AntiForgeryToken()
-                <div class="field"><label>Wyposażenie</label><select name="AssetId">@foreach(var a in Model.Assets.Where(x => x.Status == AssetStatuses.Active)){<option value="@a.Id">@a.Name</option>}</select></div>
-                <div class="field"><label>Nowe pomieszczenie</label><select name="RoomId">@foreach(var r in Model.Rooms){<option value="@r.Id">@r.Name</option>}</select></div>
-                <div class="field"><label>Od</label><input name="ValidFrom" type="date" value="@DateOnly.FromDateTime(DateTime.Today).ToString("yyyy-MM-dd")" /></div>
-                <div class="field"><label>Stan przy przekazaniu</label><input name="ConditionAtStart" value="Good" /></div>
-                <div class="full"><button class="btn btn-secondary" type="submit">Przenieś</button></div>
-            </form>
-            <form asp-action="AssetWithdraw" method="post" class="form-grid top-gap-small">
-                @Html.AntiForgeryToken()
-                <div class="field"><label>Wyposażenie</label><select name="AssetId">@foreach(var a in Model.Assets.Where(x => x.Status == AssetStatuses.Active)){<option value="@a.Id">@a.Name</option>}</select></div>
-                <div class="field"><label>Data wycofania</label><input name="EndedOn" type="date" value="@DateOnly.FromDateTime(DateTime.Today).ToString("yyyy-MM-dd")" /></div>
-                <div class="field"><label>Stan końcowy</label><input name="ConditionAtEnd" /></div>
-                <div class="full"><button class="btn btn-secondary" type="submit">Wycofaj</button></div>
-            </form>
-        }
-    </div>
-</section>
-}
 
-@if (canMeters && Model.Parcels.Count > 0)
-{
-<section class="panel top-gap">
-    <h2>Liczniki i podliczniki</h2>
-    @if (Model.Meters.Count == 0) { <p class="muted-block">Brak liczników.</p> }
-    else
-    {
-        <div class="data-list">
-        @foreach (var meter in Model.Meters)
-        {
-            var parent = meter.ParentMeterId.HasValue ? Model.Meters.FirstOrDefault(x => x.Id == meter.ParentMeterId.Value)?.Name : null;
-            <div class="data-row"><span><strong>@meter.Name</strong><small>@meter.Medium · @meter.MeterType · @meter.UnitCode</small></span><span>@(parent == null ? meter.LocationType : $"↳ {parent}")</span></div>
-        }
+        <div class="property-actions-grid">
+            @if (canCreateParcel)
+            {
+                <details class="property-action-card">
+                    <summary>
+                        <span class="property-action-icon">＋</span>
+                        <span><strong>Dodaj działkę</strong><small>Nowa lokalizacja główna</small></span>
+                        <b>Rozwiń</b>
+                    </summary>
+                    <div class="property-action-body">
+                        <form asp-action="Parcel" method="post" class="property-form-grid">
+                            @Html.AntiForgeryToken()
+                            <div class="field"><label>Nazwa</label><input name="Name" required /></div>
+                            <div class="field"><label>Adres / lokalizacja</label><input name="AddressText" /></div>
+                            <div class="field"><label>Nr ewidencyjny</label><input name="RegistryNo" /></div>
+                            <div class="field"><label>Powierzchnia m²</label><input name="Area" type="number" step="0.01" min="0" /></div>
+                            <div class="field"><label>Rodzaj własności</label><input name="OwnershipType" value="Owned" /></div>
+                            <div class="field"><label>Data nabycia</label><input name="AcquiredOn" type="date" /></div>
+                            <div class="full property-form-actions"><button class="btn btn-primary" type="submit">Dodaj działkę</button></div>
+                        </form>
+                    </div>
+                </details>
+            }
+
+            @if (Model.Parcels.Count > 0)
+            {
+                <details class="property-action-card">
+                    <summary>
+                        <span class="property-action-icon">＋</span>
+                        <span><strong>Dodaj budynek</strong><small>Przypisz do istniejącej działki</small></span>
+                        <b>Rozwiń</b>
+                    </summary>
+                    <div class="property-action-body">
+                        <form asp-action="Building" method="post" class="property-form-grid">
+                            @Html.AntiForgeryToken()
+                            <div class="field">
+                                <label>Działka</label>
+                                <select name="ParcelId">
+                                    @foreach (var p in Model.Parcels)
+                                    {
+                                        <option value="@p.Id">@p.Name</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="field"><label>Nazwa</label><input name="Name" required /></div>
+                            <div class="field">
+                                <label>Typ</label>
+                                <select name="BuildingType">
+                                    <option>Residential</option>
+                                    <option>Rental</option>
+                                    <option>Mixed</option>
+                                    <option>Utility</option>
+                                    <option>Other</option>
+                                </select>
+                            </div>
+                            <div class="field">
+                                <label>Funkcja</label>
+                                <select name="FunctionType">
+                                    <option>FamilyHome</option>
+                                    <option>RentalHouse</option>
+                                    <option>Mixed</option>
+                                    <option>Utility</option>
+                                    <option>Other</option>
+                                </select>
+                            </div>
+                            <div class="field"><label>Powierzchnia użytkowa m²</label><input name="UsableArea" type="number" step="0.01" min="0" /></div>
+                            <div class="field"><label>Kondygnacje</label><input name="Floors" type="number" min="0" /></div>
+                            <div class="field"><label>Rok budowy</label><input name="BuildYear" type="number" min="1000" max="2200" /></div>
+                            <div class="full property-form-actions"><button class="btn btn-secondary" type="submit">Dodaj budynek</button></div>
+                        </form>
+                    </div>
+                </details>
+            }
+
+            @if (Model.Buildings.Count > 0)
+            {
+                <details class="property-action-card">
+                    <summary>
+                        <span class="property-action-icon">＋</span>
+                        <span><strong>Dodaj pomieszczenie</strong><small>Pokój lub część wspólna budynku</small></span>
+                        <b>Rozwiń</b>
+                    </summary>
+                    <div class="property-action-body">
+                        <form asp-action="Room" method="post" class="property-form-grid">
+                            @Html.AntiForgeryToken()
+                            <div class="field">
+                                <label>Budynek</label>
+                                <select name="BuildingId">
+                                    @foreach (var b in Model.Buildings)
+                                    {
+                                        <option value="@b.Id">@b.Name</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="field"><label>Nazwa / numer</label><input name="Name" required /></div>
+                            <div class="field">
+                                <label>Rodzaj</label>
+                                <select name="RoomType">
+                                    <option>Room</option>
+                                    <option>Bathroom</option>
+                                    <option>Kitchen</option>
+                                    <option>Corridor</option>
+                                    <option>Laundry</option>
+                                    <option>Basement</option>
+                                    <option>Technical</option>
+                                    <option>Garage</option>
+                                    <option>Other</option>
+                                </select>
+                            </div>
+                            <div class="field"><label>Piętro</label><input name="FloorNo" type="number" /></div>
+                            <div class="field"><label>Powierzchnia m²</label><input name="Area" type="number" step="0.01" min="0" /></div>
+                            <div class="field"><label>Maks. osób</label><input name="Capacity" type="number" min="0" value="1" /></div>
+                            <div class="field property-checkbox"><label><input name="IsRentable" type="checkbox" value="true" /> Do wynajmu</label></div>
+                            <div class="field property-checkbox"><label><input name="IsCommonArea" type="checkbox" value="true" /> Część wspólna</label></div>
+                            <div class="full property-form-actions"><button class="btn btn-primary" type="submit">Dodaj pomieszczenie</button></div>
+                        </form>
+                    </div>
+                </details>
+
+                <details class="property-action-card">
+                    <summary>
+                        <span class="property-action-icon">↻</span>
+                        <span><strong>Zmień status</strong><small>Działka, budynek lub pomieszczenie</small></span>
+                        <b>Rozwiń</b>
+                    </summary>
+                    <div class="property-action-body">
+                        <form asp-action="Status" method="post" class="property-form-grid">
+                            @Html.AntiForgeryToken()
+                            <div class="field">
+                                <label>Typ obiektu</label>
+                                <select name="ObjectType">
+                                    <option>Parcel</option>
+                                    <option>Building</option>
+                                    <option selected>Room</option>
+                                </select>
+                            </div>
+                            <div class="field">
+                                <label>Obiekt</label>
+                                <select name="Id">
+                                    <optgroup label="Działki">
+                                        @foreach (var p in Model.Parcels)
+                                        {
+                                            <option value="@p.Id">@p.Name</option>
+                                        }
+                                    </optgroup>
+                                    <optgroup label="Budynki">
+                                        @foreach (var b in Model.Buildings)
+                                        {
+                                            <option value="@b.Id">@b.Name</option>
+                                        }
+                                    </optgroup>
+                                    <optgroup label="Pomieszczenia">
+                                        @foreach (var r in Model.Rooms)
+                                        {
+                                            <option value="@r.Id">@r.Name</option>
+                                        }
+                                    </optgroup>
+                                </select>
+                            </div>
+                            <div class="field">
+                                <label>Nowy status</label>
+                                <select name="NewStatus">
+                                    <option>Active</option>
+                                    <option>Inactive</option>
+                                    <option>Available</option>
+                                    <option>Reserved</option>
+                                    <option>Rented</option>
+                                    <option>Renovation</option>
+                                    <option>OutOfService</option>
+                                    <option>Archived</option>
+                                </select>
+                            </div>
+                            <div class="field"><label>Powód</label><input name="Reason" required /></div>
+                            <div class="full property-info-note">Zmiana statusu tworzy osobny wpis historii. Poprzednia wartość nie jest tracona.</div>
+                            <div class="full property-form-actions"><button class="btn btn-secondary" type="submit">Zmień status</button></div>
+                        </form>
+                    </div>
+                </details>
+            }
         </div>
-    }
-    <form asp-action="Meter" method="post" class="form-grid top-gap-small" id="meter-form">
-        @Html.AntiForgeryToken()
-        <div class="field"><label>Nazwa</label><input name="Name" required /></div>
-        <div class="field"><label>Medium</label><select name="Medium"><option value="Electricity">Prąd</option><option value="Water">Woda</option><option value="Gas">Gaz</option><option value="Heating">Ogrzewanie</option><option value="Other">Inne</option></select></div>
-        <div class="field"><label>Typ</label><select name="MeterType"><option value="Main">Główny</option><option value="Sub">Podlicznik</option></select></div>
-        <div class="field"><label>Jednostka</label><input name="UnitCode" value="kWh" /></div>
-        <div class="field"><label>Lokalizacja</label><select id="meter-location-select">
-            @foreach(var p in Model.Parcels){<option data-type="Parcel" value="@p.Id">Działka: @p.Name</option>}
-            @foreach(var b in Model.Buildings){<option data-type="Building" value="@b.Id">Budynek: @b.Name</option>}
-            @foreach(var r in Model.Rooms){<option data-type="Room" value="@r.Id">Pomieszczenie: @r.Name</option>}
-        </select><input type="hidden" name="LocationType" id="meter-location-type" /><input type="hidden" name="LocationId" id="meter-location-id" /></div>
-        <div class="field"><label>Licznik nadrzędny (dla podlicznika)</label><select name="ParentMeterId"><option value="">— brak —</option>@foreach(var m in Model.Meters.Where(x => x.MeterType == MeterTypes.Main && x.Status == MeterStatuses.Active)){<option value="@m.Id">@m.Name</option>}</select></div>
-        <div class="field"><label>Nr seryjny</label><input name="SerialNo" /></div>
-        <div class="field"><label>Data montażu</label><input name="InstalledOn" type="date" /></div>
-        <div class="full"><button class="btn btn-primary" type="submit">Dodaj licznik</button></div>
-    </form>
-</section>
-<script>
-(() => {
-    const select = document.getElementById('meter-location-select');
-    const type = document.getElementById('meter-location-type');
-    const id = document.getElementById('meter-location-id');
-    const sync = () => { const option = select.options[select.selectedIndex]; type.value = option.dataset.type; id.value = option.value; };
-    select.addEventListener('change', sync); sync();
-})();
-</script>
-}
+    </section>
 
-<section class="panel top-gap">
-    <h2>Edycja i archiwizacja</h2>
-    <p class="muted-block">Zmiana danych zachowuje historię statusów. „Usuń” dla obiektów użytych w systemie oznacza archiwizację.</p>
-    <div class="split-grid">
-        <form asp-action="UpdateRecord" method="post" class="form-grid" id="property-edit-form">
-            @Html.AntiForgeryToken()
-            <div class="field full"><label>Obiekt</label><select id="property-edit-object" required>
-                @foreach(var x in Model.Parcels){<option data-type="Parcel" value="@x.Id">Działka: @x.Name</option>}
-                @foreach(var x in Model.Buildings){<option data-type="Building" value="@x.Id">Budynek: @x.Name</option>}
-                @foreach(var x in Model.Rooms){<option data-type="Room" value="@x.Id">Pomieszczenie: @x.Name</option>}
-                @foreach(var x in Model.Assets){<option data-type="Asset" value="@x.Id">Wyposażenie: @x.Name</option>}
-                @foreach(var x in Model.Meters){<option data-type="Meter" value="@x.Id">Licznik: @x.Name</option>}
-            </select><input type="hidden" name="RecordType" id="property-edit-type" /><input type="hidden" name="RecordId" id="property-edit-id" /></div>
-            <div class="field"><label>Nowa nazwa</label><input name="Name" required /></div>
-            <div class="field"><label>Typ / adres / kategoria / nr seryjny</label><input name="SecondaryText" /></div>
-            <div class="field"><label>Powierzchnia m²</label><input name="Area" type="number" step="0.01" /></div>
-            <div class="field"><label>Liczba (np. piętra / pojemność)</label><input name="NumberValue" type="number" /></div>
-            <div class="full"><button class="btn btn-primary" type="submit">Zapisz edycję</button></div>
-        </form>
-        <form asp-action="ArchiveRecord" method="post" class="form-grid" id="property-archive-form">
-            @Html.AntiForgeryToken()
-            <div class="field full"><label>Obiekt</label><select id="property-archive-object" required>
-                @foreach(var x in Model.Parcels){<option data-type="Parcel" value="@x.Id">Działka: @x.Name</option>}
-                @foreach(var x in Model.Buildings){<option data-type="Building" value="@x.Id">Budynek: @x.Name</option>}
-                @foreach(var x in Model.Rooms){<option data-type="Room" value="@x.Id">Pomieszczenie: @x.Name</option>}
-                @foreach(var x in Model.Assets){<option data-type="Asset" value="@x.Id">Wyposażenie: @x.Name</option>}
-                @foreach(var x in Model.Meters){<option data-type="Meter" value="@x.Id">Licznik: @x.Name</option>}
-            </select><input type="hidden" name="recordType" id="property-archive-type" /><input type="hidden" name="recordId" id="property-archive-id" /></div>
-            <div class="field full"><label>Powód</label><input name="reason" value="Archiwizacja / usunięcie logiczne" required /></div>
-            <div class="full"><button class="btn btn-danger" type="submit">Usuń / archiwizuj</button></div>
-        </form>
-    </div>
-</section>
+    @if (canAssets && Model.Rooms.Count > 0)
+    {
+        <section class="property-section" id="property-assets">
+            <div class="property-section-head">
+                <div>
+                    <div class="property-section-kicker">Majątek gospodarstwa</div>
+                    <h2>Wyposażenie</h2>
+                    <p>Lista wyposażenia wraz z aktualnym przypisaniem do pomieszczenia.</p>
+                </div>
+                <span class="property-count-badge">@assetCount elementów</span>
+            </div>
+
+            <article class="property-content-card">
+                @if (Model.Assets.Count == 0)
+                {
+                    <div class="property-empty-state property-empty-compact">
+                        <strong>Brak wyposażenia</strong>
+                        <p>Dodaj pierwszy element wyposażenia i przypisz go do pomieszczenia.</p>
+                    </div>
+                }
+                else
+                {
+                    <div class="property-table-wrap">
+                        <table class="property-table">
+                            <thead>
+                                <tr>
+                                    <th>Wyposażenie</th>
+                                    <th>Kategoria</th>
+                                    <th>Status</th>
+                                    <th>Aktualna lokalizacja</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var asset in Model.Assets)
+                                {
+                                    var current = Model.AssetAssignments
+                                        .Where(x => x.AssetId == asset.Id && x.ValidTo == null)
+                                        .OrderByDescending(x => x.ValidFrom)
+                                        .FirstOrDefault();
+                                    var targetName = current == null
+                                        ? "Bez aktywnego przypisania"
+                                        : Model.Rooms.FirstOrDefault(x => x.Id == current.TargetId)?.Name ?? current.TargetType;
+
+                                    <tr>
+                                        <td><strong>@asset.Name</strong></td>
+                                        <td>@asset.CategoryCode</td>
+                                        <td><span class="property-status-pill">@asset.Status</span></td>
+                                        <td>@targetName</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </article>
+
+            <div class="property-actions-grid property-actions-grid-three">
+                <details class="property-action-card">
+                    <summary>
+                        <span class="property-action-icon">＋</span>
+                        <span><strong>Dodaj wyposażenie</strong><small>Nowy sprzęt lub element wyposażenia</small></span>
+                        <b>Rozwiń</b>
+                    </summary>
+                    <div class="property-action-body">
+                        <form asp-action="Asset" method="post" class="property-form-grid">
+                            @Html.AntiForgeryToken()
+                            <div class="field"><label>Nazwa</label><input name="Name" required /></div>
+                            <div class="field"><label>Kategoria</label><input name="CategoryCode" value="Equipment" /></div>
+                            <div class="field"><label>Producent</label><input name="Manufacturer" /></div>
+                            <div class="field"><label>Model</label><input name="Model" /></div>
+                            <div class="field"><label>Nr seryjny</label><input name="SerialNo" /></div>
+                            <div class="field">
+                                <label>Pierwsze przypisanie</label>
+                                <select name="RoomId">
+                                    @foreach (var r in Model.Rooms)
+                                    {
+                                        <option value="@r.Id">@r.Name</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="full property-form-actions"><button class="btn btn-primary" type="submit">Dodaj wyposażenie</button></div>
+                        </form>
+                    </div>
+                </details>
+
+                @if (Model.Assets.Count > 0)
+                {
+                    <details class="property-action-card">
+                        <summary>
+                            <span class="property-action-icon">→</span>
+                            <span><strong>Przenieś</strong><small>Zmień przypisanie do pomieszczenia</small></span>
+                            <b>Rozwiń</b>
+                        </summary>
+                        <div class="property-action-body">
+                            <form asp-action="AssetAssignment" method="post" class="property-form-grid">
+                                @Html.AntiForgeryToken()
+                                <div class="field">
+                                    <label>Wyposażenie</label>
+                                    <select name="AssetId">
+                                        @foreach (var a in Model.Assets.Where(x => x.Status == AssetStatuses.Active))
+                                        {
+                                            <option value="@a.Id">@a.Name</option>
+                                        }
+                                    </select>
+                                </div>
+                                <div class="field">
+                                    <label>Nowe pomieszczenie</label>
+                                    <select name="RoomId">
+                                        @foreach (var r in Model.Rooms)
+                                        {
+                                            <option value="@r.Id">@r.Name</option>
+                                        }
+                                    </select>
+                                </div>
+                                <div class="field"><label>Od</label><input name="ValidFrom" type="date" value="@DateOnly.FromDateTime(DateTime.Today).ToString("yyyy-MM-dd")" /></div>
+                                <div class="field"><label>Stan przy przekazaniu</label><input name="ConditionAtStart" value="Good" /></div>
+                                <div class="full property-form-actions"><button class="btn btn-secondary" type="submit">Przenieś wyposażenie</button></div>
+                            </form>
+                        </div>
+                    </details>
+
+                    <details class="property-action-card">
+                        <summary>
+                            <span class="property-action-icon">×</span>
+                            <span><strong>Wycofaj</strong><small>Zakończ aktywne użytkowanie</small></span>
+                            <b>Rozwiń</b>
+                        </summary>
+                        <div class="property-action-body">
+                            <form asp-action="AssetWithdraw" method="post" class="property-form-grid">
+                                @Html.AntiForgeryToken()
+                                <div class="field">
+                                    <label>Wyposażenie</label>
+                                    <select name="AssetId">
+                                        @foreach (var a in Model.Assets.Where(x => x.Status == AssetStatuses.Active))
+                                        {
+                                            <option value="@a.Id">@a.Name</option>
+                                        }
+                                    </select>
+                                </div>
+                                <div class="field"><label>Data wycofania</label><input name="EndedOn" type="date" value="@DateOnly.FromDateTime(DateTime.Today).ToString("yyyy-MM-dd")" /></div>
+                                <div class="field full"><label>Stan końcowy</label><input name="ConditionAtEnd" /></div>
+                                <div class="full property-form-actions"><button class="btn btn-secondary" type="submit">Wycofaj</button></div>
+                            </form>
+                        </div>
+                    </details>
+                }
+            </div>
+        </section>
+    }
+
+    @if (canMeters && Model.Parcels.Count > 0)
+    {
+        <section class="property-section" id="property-meters">
+            <div class="property-section-head">
+                <div>
+                    <div class="property-section-kicker">Media i pomiary</div>
+                    <h2>Liczniki i podliczniki</h2>
+                    <p>Liczniki główne przypisujesz do działki lub domu. Podliczniki są wyłącznie do rozliczeń lokatorów i przypisujesz je do konkretnego pokoju/lokalu do wynajmu.</p>
+                </div>
+                <span class="property-count-badge">@meterCount liczników</span>
+            </div>
+
+            <article class="property-content-card">
+                @if (Model.Meters.Count == 0)
+                {
+                    <div class="property-empty-state property-empty-compact">
+                        <strong>Brak liczników</strong>
+                        <p>Dodaj pierwszy licznik główny, a później możesz tworzyć podliczniki.</p>
+                    </div>
+                }
+                else
+                {
+                    <div class="property-meter-list">
+                        @foreach (var meter in Model.Meters)
+                        {
+                            var parent = meter.ParentMeterId.HasValue
+                                ? Model.Meters.FirstOrDefault(x => x.Id == meter.ParentMeterId.GetValueOrDefault())?.Name
+                                : null;
+                            var mediumLabel = meter.Medium switch
+                            {
+                                "Electricity" => "Prąd",
+                                "Water" => "Woda",
+                                "Gas" => "Gaz",
+                                "Heating" => "Ogrzewanie",
+                                _ => "Inne"
+                            };
+                            var typeLabel = meter.MeterType == MeterTypes.Sub ? "Podlicznik" : "Główny";
+                            var unitLabel = meter.UnitCode switch
+                            {
+                                "m3" => "m³",
+                                "szt" => "szt.",
+                                "unit" => "jednostka",
+                                _ => meter.UnitCode
+                            };
+
+                            <div class="property-meter-item">
+                                <div class="property-meter-row">
+                                    <span class="property-meter-icon">
+                                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V8a8 8 0 0 1 16 0v12M8 16a4 4 0 1 1 8 0M12 12v4l3 1" /></svg>
+                                    </span>
+                                    <span class="property-meter-copy">
+                                        <strong>@meter.Name</strong>
+                                        <small>@mediumLabel · @typeLabel · @unitLabel</small>
+                                    </span>
+                                    @{
+                                        var meterParcel = meter.LocationType == "Parcel"
+                                            ? Model.Parcels.FirstOrDefault(x => x.Id == meter.LocationId)
+                                            : null;
+                                        var meterRoom = meter.LocationType == "Room"
+                                            ? Model.Rooms.FirstOrDefault(x => x.Id == meter.LocationId)
+                                            : null;
+                                        var meterBuilding = meter.LocationType == "Building"
+                                            ? Model.Buildings.FirstOrDefault(x => x.Id == meter.LocationId)
+                                            : meterRoom is not null
+                                                ? Model.Buildings.FirstOrDefault(x => x.Id == meterRoom.BuildingId)
+                                                : null;
+                                        var meterPath = meter.LocationType switch
+                                        {
+                                            "Parcel" => meterParcel?.Name ?? "Działka",
+                                            "Building" => meterBuilding?.Name ?? "Budynek",
+                                            "Room" => $"{meterBuilding?.Name ?? "Dom"} → {meterRoom?.Name ?? "Pokój"}",
+                                            _ => meter.LocationType
+                                        };
+                                    }
+                                    <span class="property-meter-location">
+                                        <strong>@meterPath</strong>
+                                        <small>
+                                            @(meter.MeterType == MeterTypes.Sub
+                                                ? $"Rozliczenia lokatorów · nadrzędny: {parent ?? "brak"}"
+                                                : "Licznik główny")
+                                        </small>
+                                    </span>
+                                    <button type="button"
+                                            class="property-meter-edit-button"
+                                            data-meter-edit-toggle="@meter.Id"
+                                            aria-expanded="false">
+                                        Edytuj
+                                    </button>
+                                </div>
+
+                                <div class="property-meter-edit-panel" id="meter-edit-@meter.Id" hidden>
+                                    <div class="property-meter-edit-head">
+                                        <div>
+                                            <strong>Edycja licznika: @meter.Name</strong>
+                                            <small>Jednostka jest ograniczona do wartości zgodnych z wybranym medium.</small>
+                                        </div>
+                                        <button type="button" data-meter-edit-close="@meter.Id">Zamknij ×</button>
+                                    </div>
+
+                                    <form asp-controller="PropertyMeterConfiguration"
+                                          asp-action="Edit"
+                                          method="post"
+                                          class="property-form-grid property-meter-config-form"
+                                          data-meter-config-form>
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="meterId" value="@meter.Id" />
+
+                                        <div class="field">
+                                            <label>Nazwa</label>
+                                            <input name="name" value="@meter.Name" required />
+                                        </div>
+
+                                        <div class="field">
+                                            <label>Medium</label>
+                                            <select name="medium"
+                                                    data-meter-medium
+                                                    data-current-value="@meter.Medium">
+                                                <option value="Electricity">Prąd</option>
+                                                <option value="Water">Woda</option>
+                                                <option value="Gas">Gaz</option>
+                                                <option value="Heating">Ogrzewanie</option>
+                                                <option value="Other">Inne</option>
+                                            </select>
+                                        </div>
+
+                                        <div class="field">
+                                            <label>Typ licznika</label>
+                                            <select name="meterType"
+                                                    data-meter-type
+                                                    data-current-value="@meter.MeterType">
+                                                <option value="Main">Główny</option>
+                                                <option value="Sub">Podlicznik</option>
+                                            </select>
+                                        </div>
+
+                                        <div class="field">
+                                            <label>Jednostka</label>
+                                            <select name="unitCode"
+                                                    data-meter-unit
+                                                    data-current-unit="@meter.UnitCode"></select>
+                                        </div>
+
+                                        <div class="field full">
+                                            <label>Lokalizacja licznika</label>
+                                            <select data-meter-location
+                                                    data-current-location-type="@meter.LocationType"
+                                                    data-current-location-id="@meter.LocationId">
+                                                <optgroup label="Działki — dla liczników głównych">
+                                                    @foreach (var p in Model.Parcels)
+                                                    {
+                                                        <option value="@p.Id"
+                                                                data-location-type="Parcel"
+                                                                data-parcel-id="@p.Id"
+                                                                data-allowed-type="Main">
+                                                            Działka: @p.Name
+                                                        </option>
+                                                    }
+                                                </optgroup>
+                                                <optgroup label="Domy / budynki — dla liczników głównych">
+                                                    @foreach (var b in Model.Buildings)
+                                                    {
+                                                        <option value="@b.Id"
+                                                                data-location-type="Building"
+                                                                data-building-id="@b.Id"
+                                                                data-parcel-id="@b.ParcelId"
+                                                                data-allowed-type="Main">
+                                                            Dom: @b.Name
+                                                        </option>
+                                                    }
+                                                </optgroup>
+                                                <optgroup label="Pokoje/lokale do wynajmu — tylko podliczniki">
+                                                    @foreach (var r in Model.Rooms.Where(x => x.IsRentable))
+                                                    {
+                                                        var rb = Model.Buildings.FirstOrDefault(x => x.Id == r.BuildingId);
+                                                        <option value="@r.Id"
+                                                                data-location-type="Room"
+                                                                data-building-id="@r.BuildingId"
+                                                                data-parcel-id="@rb?.ParcelId"
+                                                                data-allowed-type="Sub">
+                                                            @(rb?.Name ?? "Dom") → @r.Name
+                                                        </option>
+                                                    }
+                                                </optgroup>
+                                            </select>
+                                            <input type="hidden" name="locationType" data-meter-location-type />
+                                            <input type="hidden" name="locationId" data-meter-location-id />
+                                            <small class="property-field-help">
+                                                Podlicznik jest przeznaczony wyłącznie do rozliczeń lokatora i musi wskazywać pomieszczenie oznaczone „Do wynajmu”.
+                                            </small>
+                                        </div>
+
+                                        <div class="field full">
+                                            <label>Licznik nadrzędny</label>
+                                            <select name="parentMeterId"
+                                                    data-meter-parent
+                                                    data-current-parent="@(meter.ParentMeterId?.ToString("D") ?? "")">
+                                                <option value="">— brak —</option>
+                                                @foreach (var main in Model.Meters.Where(x => x.MeterType == MeterTypes.Main && x.Status == MeterStatuses.Active))
+                                                {
+                                                    <option value="@main.Id"
+                                                            data-medium="@main.Medium"
+                                                            data-location-type="@main.LocationType"
+                                                            data-location-id="@main.LocationId">
+                                                        @main.Name · @main.Medium
+                                                    </option>
+                                                }
+                                            </select>
+                                            <small class="property-field-help">Dla licznika głównego pole jest automatycznie wyłączone. Podlicznik może wskazać tylko licznik główny tego samego medium.</small>
+                                        </div>
+
+                                        <div class="full property-meter-unit-warning">
+                                            Zmiana jednostki dotyczy bieżącej konfiguracji licznika i przyszłych odczytów. Historyczne odczyty zachowują własną jednostkę; po zmianie sprawdź także stawki/taryfy powiązane z tym licznikiem.
+                                        </div>
+
+                                        <div class="full property-form-actions">
+                                            <button class="btn btn-primary" type="submit">Zapisz licznik</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+            </article>
+
+            <details class="property-action-card property-action-wide">
+                <summary>
+                    <span class="property-action-icon">＋</span>
+                    <span><strong>Dodaj licznik lub podlicznik</strong><small>Wybierz medium, lokalizację i ewentualny licznik nadrzędny</small></span>
+                    <b>Rozwiń</b>
+                </summary>
+                <div class="property-action-body">
+                    <div class="property-meter-rule-note">
+                        <strong>Zasada e-dom:</strong>
+                        licznik główny może obejmować całą działkę albo konkretny dom.
+                        Podliczniki są tylko do rozliczeń lokatorów i muszą być przypisane do pokoju/lokalu oznaczonego „Do wynajmu”.
+                    </div>
+                    <form asp-action="Meter" method="post" class="property-form-grid property-form-grid-four" id="meter-form">
+                        @Html.AntiForgeryToken()
+                        <div class="field"><label>Nazwa</label><input name="Name" required /></div>
+                        <div class="field">
+                            <label>Medium</label>
+                            <select name="Medium" data-meter-medium data-current-value="Electricity">
+                                <option value="Electricity">Prąd</option>
+                                <option value="Water">Woda</option>
+                                <option value="Gas">Gaz</option>
+                                <option value="Heating">Ogrzewanie</option>
+                                <option value="Other">Inne</option>
+                            </select>
+                        </div>
+                        <div class="field">
+                            <label>Typ</label>
+                            <select name="MeterType" data-meter-type data-current-value="Main">
+                                <option value="Main">Główny</option>
+                                <option value="Sub">Podlicznik</option>
+                            </select>
+                        </div>
+                        <div class="field">
+                            <label>Jednostka</label>
+                            <select name="UnitCode" data-meter-unit data-current-unit="kWh"></select>
+                        </div>
+                        <div class="field">
+                            <label>Lokalizacja</label>
+                            <select data-meter-location>
+                                <optgroup label="Działki — dla liczników głównych">
+                                    @foreach (var p in Model.Parcels)
+                                    {
+                                        <option value="@p.Id"
+                                                data-location-type="Parcel"
+                                                data-parcel-id="@p.Id"
+                                                data-allowed-type="Main">
+                                            Działka: @p.Name
+                                        </option>
+                                    }
+                                </optgroup>
+                                <optgroup label="Domy / budynki — dla liczników głównych">
+                                    @foreach (var b in Model.Buildings)
+                                    {
+                                        <option value="@b.Id"
+                                                data-location-type="Building"
+                                                data-building-id="@b.Id"
+                                                data-parcel-id="@b.ParcelId"
+                                                data-allowed-type="Main">
+                                            Dom: @b.Name
+                                        </option>
+                                    }
+                                </optgroup>
+                                <optgroup label="Pokoje/lokale do wynajmu — tylko podliczniki">
+                                    @foreach (var r in Model.Rooms.Where(x => x.IsRentable))
+                                    {
+                                        var rb = Model.Buildings.FirstOrDefault(x => x.Id == r.BuildingId);
+                                        <option value="@r.Id"
+                                                data-location-type="Room"
+                                                data-building-id="@r.BuildingId"
+                                                data-parcel-id="@rb?.ParcelId"
+                                                data-allowed-type="Sub">
+                                            @(rb?.Name ?? "Dom") → @r.Name
+                                        </option>
+                                    }
+                                </optgroup>
+                            </select>
+                            <input type="hidden" name="LocationType" data-meter-location-type />
+                            <input type="hidden" name="LocationId" data-meter-location-id />
+                            <small class="property-field-help">
+                                Główny: działka lub dom. Podlicznik: wyłącznie pokój/lokal do wynajmu.
+                            </small>
+                        </div>
+                        <div class="field">
+                            <label>Licznik nadrzędny (dla podlicznika)</label>
+                            <select name="ParentMeterId" data-meter-parent>
+                                <option value="">— brak —</option>
+                                @foreach (var m in Model.Meters.Where(x => x.MeterType == MeterTypes.Main && x.Status == MeterStatuses.Active))
+                                {
+                                    <option value="@m.Id"
+                                            data-medium="@m.Medium"
+                                            data-location-type="@m.LocationType"
+                                            data-location-id="@m.LocationId">
+                                        @m.Name · @m.Medium
+                                    </option>
+                                }
+                            </select>
+                        </div>
+                        <div class="field"><label>Nr seryjny</label><input name="SerialNo" /></div>
+                        <div class="field"><label>Data montażu</label><input name="InstalledOn" type="date" /></div>
+                        <div class="full property-form-actions"><button class="btn btn-primary" type="submit">Dodaj licznik</button></div>
+                    </form>
+                </div>
+            </details>
+        </section>
+    }
+
+    <section class="property-section" id="property-manage">
+        <div class="property-section-head">
+            <div>
+                <div class="property-section-kicker">Administracja danymi</div>
+                <h2>Edycja i archiwizacja</h2>
+                <p>Zmiana danych zachowuje historię statusów. „Usuń” dla obiektów użytych w systemie oznacza archiwizację.</p>
+            </div>
+        </div>
+
+        <div class="property-actions-grid">
+            <details class="property-action-card">
+                <summary>
+                    <span class="property-action-icon">✎</span>
+                    <span><strong>Edytuj obiekt</strong><small>Zmień nazwę i podstawowe dane</small></span>
+                    <b>Rozwiń</b>
+                </summary>
+                <div class="property-action-body">
+                    <form asp-action="UpdateRecord" method="post" class="property-form-grid" id="property-edit-form">
+                        @Html.AntiForgeryToken()
+                        <div class="field full">
+                            <label>Obiekt</label>
+                            <small class="property-field-help">Liczniki edytujesz bezpośrednio w sekcji „Liczniki i podliczniki”.</small>
+                            <select id="property-edit-object" required>
+                                @foreach (var x in Model.Parcels)
+                                {
+                                    <option data-type="Parcel" value="@x.Id">Działka: @x.Name</option>
+                                }
+                                @foreach (var x in Model.Buildings)
+                                {
+                                    <option data-type="Building" value="@x.Id">Budynek: @x.Name</option>
+                                }
+                                @foreach (var x in Model.Rooms)
+                                {
+                                    <option data-type="Room" value="@x.Id">Pomieszczenie: @x.Name</option>
+                                }
+                                @foreach (var x in Model.Assets)
+                                {
+                                    <option data-type="Asset" value="@x.Id">Wyposażenie: @x.Name</option>
+                                }
+                            </select>
+                            <input type="hidden" name="RecordType" id="property-edit-type" />
+                            <input type="hidden" name="RecordId" id="property-edit-id" />
+                        </div>
+                        <div class="field"><label>Nowa nazwa</label><input name="Name" required /></div>
+                        <div class="field"><label>Typ / adres / kategoria / nr seryjny</label><input name="SecondaryText" /></div>
+                        <div class="field"><label>Powierzchnia m²</label><input name="Area" type="number" step="0.01" /></div>
+                        <div class="field"><label>Liczba (np. piętra / pojemność)</label><input name="NumberValue" type="number" /></div>
+                        <div class="full property-form-actions"><button class="btn btn-primary" type="submit">Zapisz edycję</button></div>
+                    </form>
+                </div>
+            </details>
+
+            <details class="property-action-card property-action-danger">
+                <summary>
+                    <span class="property-action-icon">×</span>
+                    <span><strong>Usuń / archiwizuj</strong><small>Bezpieczne wycofanie obiektu z aktywnego użycia</small></span>
+                    <b>Rozwiń</b>
+                </summary>
+                <div class="property-action-body">
+                    <form asp-action="ArchiveRecord" method="post" class="property-form-grid" id="property-archive-form">
+                        @Html.AntiForgeryToken()
+                        <div class="field full">
+                            <label>Obiekt</label>
+                            <select id="property-archive-object" required>
+                                @foreach (var x in Model.Parcels)
+                                {
+                                    <option data-type="Parcel" value="@x.Id">Działka: @x.Name</option>
+                                }
+                                @foreach (var x in Model.Buildings)
+                                {
+                                    <option data-type="Building" value="@x.Id">Budynek: @x.Name</option>
+                                }
+                                @foreach (var x in Model.Rooms)
+                                {
+                                    <option data-type="Room" value="@x.Id">Pomieszczenie: @x.Name</option>
+                                }
+                                @foreach (var x in Model.Assets)
+                                {
+                                    <option data-type="Asset" value="@x.Id">Wyposażenie: @x.Name</option>
+                                }
+                                @foreach (var x in Model.Meters)
+                                {
+                                    <option data-type="Meter" value="@x.Id">Licznik: @x.Name</option>
+                                }
+                            </select>
+                            <input type="hidden" name="recordType" id="property-archive-type" />
+                            <input type="hidden" name="recordId" id="property-archive-id" />
+                        </div>
+                        <div class="field full"><label>Powód</label><input name="reason" value="Archiwizacja / usunięcie logiczne" required /></div>
+                        <div class="full property-info-note property-info-warning">Archiwizacja zachowuje historię obiektu i jego wcześniejsze powiązania.</div>
+                        <div class="full property-form-actions"><button class="btn btn-danger" type="submit">Usuń / archiwizuj</button></div>
+                    </form>
+                </div>
+            </details>
+        </div>
+    </section>
+</div>
+
 <script>
 (() => {
-    const bind = (selectId, typeId, idId) => {
+    const bindRecordSelect = (selectId, typeId, idId) => {
         const select = document.getElementById(selectId);
         const type = document.getElementById(typeId);
         const id = document.getElementById(idId);
+
         if (!select || !type || !id || select.options.length === 0) return;
-        const sync = () => { const option = select.options[select.selectedIndex]; type.value = option.dataset.type; id.value = option.value; };
-        select.addEventListener('change', sync); sync();
+
+        const sync = () => {
+            const option = select.options[select.selectedIndex];
+            type.value = option.dataset.type || '';
+            id.value = option.value || '';
+        };
+
+        select.addEventListener('change', sync);
+        sync();
     };
-    bind('property-edit-object', 'property-edit-type', 'property-edit-id');
-    bind('property-archive-object', 'property-archive-type', 'property-archive-id');
+
+    bindRecordSelect('property-edit-object', 'property-edit-type', 'property-edit-id');
+    bindRecordSelect('property-archive-object', 'property-archive-type', 'property-archive-id');
+
+    const meterUnits = {
+        Electricity: [
+            { value: 'kWh', label: 'kWh' },
+            { value: 'MWh', label: 'MWh' },
+            { value: 'Wh', label: 'Wh' }
+        ],
+        Water: [
+            { value: 'm3', label: 'm³' },
+            { value: 'l', label: 'l' }
+        ],
+        Gas: [
+            { value: 'm3', label: 'm³' },
+            { value: 'kWh', label: 'kWh' }
+        ],
+        Heating: [
+            { value: 'kWh', label: 'kWh' },
+            { value: 'MWh', label: 'MWh' },
+            { value: 'GJ', label: 'GJ' }
+        ],
+        Other: [
+            { value: 'unit', label: 'jednostka' },
+            { value: 'szt', label: 'szt.' },
+            { value: 'm3', label: 'm³' },
+            { value: 'l', label: 'l' },
+            { value: 'kWh', label: 'kWh' }
+        ]
+    };
+
+    const normalizeUnit = value => {
+        if (value === 'm³' || value === 'M3') return 'm3';
+        if (value === 'L') return 'l';
+        if (value === 'szt.') return 'szt';
+        return value || '';
+    };
+
+    const bindMeterConfig = form => {
+        const medium = form.querySelector('[data-meter-medium]');
+        const type = form.querySelector('[data-meter-type]');
+        const unit = form.querySelector('[data-meter-unit]');
+        const parent = form.querySelector('[data-meter-parent]');
+        const location = form.querySelector('[data-meter-location]');
+        const locationType = form.querySelector('[data-meter-location-type]');
+        const locationId = form.querySelector('[data-meter-location-id]');
+        if (!medium || !type || !unit || !parent || !location || !locationType || !locationId) return;
+
+        if (medium.dataset.currentValue) medium.value = medium.dataset.currentValue;
+        if (type.dataset.currentValue) type.value = type.dataset.currentValue;
+
+        const desiredUnit = normalizeUnit(unit.dataset.currentUnit || unit.value || '');
+        const desiredParent = parent.dataset.currentParent || parent.value || '';
+        const desiredLocationType = location.dataset.currentLocationType || '';
+        const desiredLocationId = location.dataset.currentLocationId || '';
+
+        const currentLocationOption = () =>
+            location.options[location.selectedIndex] || null;
+
+        const syncLocationHidden = () => {
+            const option = currentLocationOption();
+            locationType.value = option?.dataset.locationType || '';
+            locationId.value = option?.value || '';
+        };
+
+        const refreshUnits = preserve => {
+            const options = meterUnits[medium.value] || meterUnits.Other;
+            const previous = preserve ? normalizeUnit(unit.value) : desiredUnit;
+            unit.innerHTML = '';
+
+            options.forEach(item => {
+                const option = document.createElement('option');
+                option.value = item.value;
+                option.textContent = item.label;
+                unit.appendChild(option);
+            });
+
+            const allowed = options.some(item => item.value === previous);
+            unit.value = allowed ? previous : options[0].value;
+        };
+
+        const refreshLocations = preserve => {
+            const wantedType = type.value === 'Sub' ? 'Sub' : 'Main';
+            const previousValue = preserve ? location.value : desiredLocationId;
+            const previousType = preserve
+                ? currentLocationOption()?.dataset.locationType || ''
+                : desiredLocationType;
+
+            let firstVisible = null;
+            let selected = null;
+
+            Array.from(location.options).forEach(option => {
+                const visible = option.dataset.allowedType === wantedType;
+                option.hidden = !visible;
+                option.disabled = !visible;
+
+                if (visible && !firstVisible) firstVisible = option;
+                if (visible
+                    && option.value === previousValue
+                    && (!previousType || option.dataset.locationType === previousType)) {
+                    selected = option;
+                }
+            });
+
+            const target = selected || firstVisible;
+            if (target) {
+                location.value = target.value;
+                target.selected = true;
+            }
+
+            syncLocationHidden();
+        };
+
+        const parentCoversLocation = (parentOption, locationOption) => {
+            if (!parentOption?.value || !locationOption) return false;
+
+            if (parentOption.dataset.locationType === 'Parcel') {
+                return parentOption.dataset.locationId === locationOption.dataset.parcelId;
+            }
+
+            if (parentOption.dataset.locationType === 'Building') {
+                return parentOption.dataset.locationId === locationOption.dataset.buildingId;
+            }
+
+            return false;
+        };
+
+        const refreshParent = preserve => {
+            const isSub = type.value === 'Sub';
+            parent.disabled = !isSub;
+
+            const locationOption = currentLocationOption();
+            let firstVisible = null;
+
+            Array.from(parent.options).forEach(option => {
+                if (!option.value) {
+                    option.hidden = false;
+                    option.disabled = !isSub;
+                    return;
+                }
+
+                const visible = isSub
+                    && option.dataset.medium === medium.value
+                    && parentCoversLocation(option, locationOption);
+
+                option.hidden = !visible;
+                option.disabled = !visible;
+                if (visible && !firstVisible) firstVisible = option;
+            });
+
+            if (!isSub) {
+                parent.value = '';
+                return;
+            }
+
+            const wanted = preserve ? parent.value : desiredParent;
+            const wantedOption = Array.from(parent.options).find(option =>
+                option.value === wanted && !option.hidden && !option.disabled);
+
+            parent.value = wantedOption
+                ? wanted
+                : firstVisible?.value || '';
+        };
+
+        medium.addEventListener('change', () => {
+            refreshUnits(true);
+            refreshParent(true);
+        });
+
+        type.addEventListener('change', () => {
+            refreshLocations(true);
+            refreshParent(false);
+        });
+
+        location.addEventListener('change', () => {
+            syncLocationHidden();
+            refreshParent(true);
+        });
+
+        refreshUnits(false);
+        refreshLocations(false);
+        refreshParent(false);
+    };
+
+    document.querySelectorAll('[data-meter-config-form], #meter-form').forEach(bindMeterConfig);
+
+    const setMeterEditor = (id, open) => {
+        const panel = document.getElementById('meter-edit-' + id);
+        const toggle = document.querySelector('[data-meter-edit-toggle="' + id + '"]');
+        if (!panel) return;
+
+        panel.hidden = !open;
+        toggle?.setAttribute('aria-expanded', open ? 'true' : 'false');
+        toggle?.classList.toggle('is-open', open);
+    };
+
+    document.querySelectorAll('[data-meter-edit-toggle]').forEach(button => {
+        button.addEventListener('click', () => {
+            const id = button.dataset.meterEditToggle;
+            const panel = document.getElementById('meter-edit-' + id);
+            if (!panel) return;
+
+            const open = panel.hidden;
+
+            document.querySelectorAll('.property-meter-edit-panel:not([hidden])').forEach(other => {
+                if (other !== panel) {
+                    other.hidden = true;
+                    const otherId = other.id.replace('meter-edit-', '');
+                    const otherToggle = document.querySelector('[data-meter-edit-toggle="' + otherId + '"]');
+                    otherToggle?.setAttribute('aria-expanded', 'false');
+                    otherToggle?.classList.remove('is-open');
+                }
+            });
+
+            setMeterEditor(id, open);
+        });
+    });
+
+    document.querySelectorAll('[data-meter-edit-close]').forEach(button => {
+        button.addEventListener('click', () => setMeterEditor(button.dataset.meterEditClose, false));
+    });
 })();
 </script>
+
+<script src="~/js/property-details-ui.js" asp-append-version="true"></script>

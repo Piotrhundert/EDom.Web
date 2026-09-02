@@ -1,0 +1,17 @@
+[
+  {
+    "versionId": "d5a6eaa8-4bbb-4145-ad12-d1a256745f04",
+    "householdId": "95fe82d1-5e7e-41da-abcb-801cffdc3fff",
+    "objectType": "Parcel",
+    "objectId": "abf8e8c7-fafe-449f-a707-a7a9d282f92d",
+    "addressText": "ul. \u015Acinawska 26",
+    "landRegisterNumber": null,
+    "cadastralDistrict": null,
+    "primaryOwnerPersonId": "3cf0a540-7ad0-4c64-9047-25f7b32b009c",
+    "coOwnerPersonIds": [],
+    "ownershipShare": null,
+    "notes": null,
+    "updatedAtUtc": "2026-09-02T10:47:35.0782731Z",
+    "updatedByUserAccountId": "3b460853-d5a8-4928-9fb8-3c88f6462e61"
+  }
+]
