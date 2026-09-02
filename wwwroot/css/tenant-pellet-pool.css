@@ -1,0 +1,268 @@
+/* PKG-015m-FEAT-03 — sezonowa pula pelletu dla lokatorów */
+.tenant-pellet-module {
+    margin: 0 0 24px;
+    padding: 16px;
+    border: 1px solid #d5e3ee;
+    border-radius: 15px;
+    background: #fff;
+    box-shadow: 0 8px 24px rgba(30, 65, 100, .045);
+}
+
+.tenant-pellet-module-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 18px;
+    align-items: flex-start;
+}
+
+.tenant-pellet-eyebrow {
+    color: #8a6530;
+    font-size: .67rem;
+    font-weight: 900;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+}
+
+.tenant-pellet-module h2 {
+    margin: 4px 0 0;
+    color: #1c3349;
+    font-size: 1.1rem;
+}
+
+.tenant-pellet-module-head p {
+    max-width: 880px;
+    margin: 6px 0 0;
+    color: #687d90;
+    font-size: .72rem;
+    line-height: 1.5;
+}
+
+.tenant-pellet-create {
+    margin-top: 13px;
+    padding: 12px;
+    border: 1px solid #e0d4bd;
+    border-radius: 11px;
+    background: #fffaf2;
+}
+
+.tenant-pellet-create[hidden] {
+    display: none !important;
+}
+
+.tenant-pellet-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 9px;
+}
+
+.tenant-pellet-grid label {
+    display: grid;
+    gap: 5px;
+    color: #5f6f7e;
+    font-size: .66rem;
+    font-weight: 800;
+}
+
+.tenant-pellet-grid input,
+.tenant-pellet-grid select,
+.tenant-pellet-grid textarea {
+    width: 100%;
+    min-height: 38px;
+    padding: 7px 8px;
+    border: 1px solid #d3d9dd;
+    border-radius: 8px;
+    background: #fff;
+    color: #1f3448;
+    font: inherit;
+}
+
+.tenant-pellet-grid textarea {
+    resize: vertical;
+}
+
+.tenant-pellet-full {
+    grid-column: 1 / -1;
+}
+
+.tenant-pellet-form-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 10px;
+}
+
+.tenant-pellet-pools {
+    display: grid;
+    gap: 9px;
+    margin-top: 13px;
+}
+
+.tenant-pellet-pool-card {
+    padding: 12px;
+    border: 1px solid #dce6ee;
+    border-radius: 11px;
+    background: #fbfdff;
+}
+
+.tenant-pellet-pool-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: flex-start;
+}
+
+.tenant-pellet-pool-head span,
+.tenant-pellet-pool-head strong,
+.tenant-pellet-pool-head small {
+    display: block;
+}
+
+.tenant-pellet-pool-head span {
+    color: #735c3d;
+    font-size: .68rem;
+    font-weight: 850;
+}
+
+.tenant-pellet-pool-head strong {
+    margin-top: 2px;
+    color: #273d51;
+    font-size: 1rem;
+}
+
+.tenant-pellet-pool-head small {
+    margin-top: 2px;
+    color: #768797;
+    font-size: .63rem;
+}
+
+.tenant-pellet-pool-head b {
+    padding: 4px 8px;
+    border-radius: 999px;
+    background: #eef6ed;
+    color: #4e7950;
+    font-size: .62rem;
+}
+
+.tenant-pellet-kpis {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 7px;
+    margin-top: 10px;
+}
+
+.tenant-pellet-kpis > div {
+    padding: 8px 9px;
+    border: 1px solid #e1e9ef;
+    border-radius: 8px;
+    background: #fff;
+}
+
+.tenant-pellet-kpis span,
+.tenant-pellet-kpis strong {
+    display: block;
+}
+
+.tenant-pellet-kpis span {
+    color: #738495;
+    font-size: .61rem;
+}
+
+.tenant-pellet-kpis strong {
+    margin-top: 2px;
+    color: #304b63;
+    font-size: .75rem;
+}
+
+.tenant-pellet-current {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 9px;
+}
+
+.tenant-pellet-current > span {
+    padding: 5px 7px;
+    border-radius: 7px;
+    background: #f2f6f9;
+    color: #64798c;
+    font-size: .63rem;
+}
+
+.tenant-pellet-current strong {
+    color: #345b7e;
+}
+
+.tenant-pellet-history {
+    margin-top: 9px;
+    border-top: 1px solid #e3eaf0;
+    padding-top: 8px;
+}
+
+.tenant-pellet-history > summary {
+    color: #476987;
+    font-size: .68rem;
+    font-weight: 850;
+    cursor: pointer;
+}
+
+.tenant-pellet-history > div {
+    display: grid;
+    gap: 5px;
+    margin-top: 7px;
+}
+
+.tenant-pellet-plan {
+    display: grid;
+    grid-template-columns: 170px 180px 1fr;
+    gap: 7px;
+    align-items: center;
+    padding: 7px 8px;
+    border: 1px solid #e0e8ee;
+    border-radius: 8px;
+    background: #fff;
+    color: #607487;
+    font-size: .62rem;
+}
+
+.tenant-pellet-plan small {
+    grid-column: 1 / -1;
+    color: #718495;
+}
+
+.tenant-pellet-no-plan,
+.tenant-pellet-empty {
+    padding: 12px;
+    border: 1px dashed #d4dee6;
+    border-radius: 9px;
+    background: #fafcfd;
+    color: #748595;
+    font-size: .7rem;
+    text-align: center;
+}
+
+@media (max-width: 1000px) {
+    .tenant-pellet-grid,
+    .tenant-pellet-kpis {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .tenant-pellet-plan {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+@media (max-width: 620px) {
+    .tenant-pellet-module-head {
+        flex-direction: column;
+    }
+
+    .tenant-pellet-grid,
+    .tenant-pellet-kpis,
+    .tenant-pellet-plan {
+        grid-template-columns: 1fr;
+    }
+
+    .tenant-pellet-full,
+    .tenant-pellet-plan small {
+        grid-column: auto;
+    }
+}

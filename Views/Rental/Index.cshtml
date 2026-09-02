@@ -3,50 +3,449 @@
 @{
     ViewData["Title"] = "Najem";
     var today = DateOnly.FromDateTime(DateTime.Today);
+    var signedCount = Model.Contracts.Count(x => x.Status == LeaseStatuses.Signed);
+    var preparedCount = Model.Contracts.Count(x => x.Status == LeaseStatuses.Prepared);
 }
-<div class="d-flex justify-content-between align-items-center mb-3"><div><h1 class="h3 mb-1">Najem</h1><div class="text-muted">Lokatorzy, umowy, kaucje, aneksy i protokoły.</div></div><div class="d-flex gap-2"><a class="btn btn-outline-primary" asp-controller="LeaseClosing" asp-action="Index">Zamknięcie najmu</a><a class="btn btn-primary" asp-controller="TenantSettlements" asp-action="Index">Rozliczenia lokatorów</a></div></div>
-@if (TempData["Success"] is string success) { <div class="alert alert-success">@success</div> }
-@if (TempData["Error"] is string error) { <div class="alert alert-danger">@error</div> }
+<link rel="stylesheet" href="~/css/rental-ui.css" asp-append-version="true" />
 
-@if (Model.CanManage)
-{
-<div class="card mb-4"><div class="card-header"><strong>Nowy lokator i umowa</strong></div><div class="card-body">
-<form asp-action="Create" method="post" class="row g-3">
-@Html.AntiForgeryToken()
-<div class="col-md-4"><label class="form-label">Pokój</label><select name="roomId" class="form-select" required><option value="">-- wybierz --</option>@foreach(var r in Model.RentableRooms){<option value="@r.RoomId">@r.Label (@r.Status)</option>}</select></div>
-<div class="col-md-4"><label class="form-label">Szablon</label><select name="templateId" class="form-select"><option value="">Domyślny</option>@foreach(var t in Model.Templates){<option value="@t.TemplateId">@t.Name v@t.VersionNumber</option>}</select></div>
-<div class="col-md-4"><label class="form-label">Wynajmujący</label><select name="landlordPersonId" class="form-select">@foreach(var l in Model.Landlords){<option value="@l.PersonId">@l.DisplayName</option>}</select></div>
-<div class="col-md-3"><label class="form-label">Imię lokatora</label><input name="firstName" class="form-control" required /></div>
-<div class="col-md-3"><label class="form-label">Nazwisko</label><input name="lastName" class="form-control" required /></div>
-<div class="col-md-3"><label class="form-label">Data urodzenia</label><input name="birthDate" type="date" class="form-control" /></div>
-<div class="col-md-3"><label class="form-label">E-mail</label><input name="email" type="email" class="form-control" /></div>
-<div class="col-md-3"><label class="form-label">Telefon</label><input name="phone" class="form-control" /></div>
-<div class="col-md-3"><label class="form-label">Login</label><input name="login" class="form-control" required /></div>
-<div class="col-md-3"><label class="form-label">Hasło tymczasowe</label><input name="temporaryPassword" type="password" class="form-control" required /></div>
-<div class="col-md-3 d-flex align-items-end"><div class="form-check mb-2"><input name="mustChangePassword" value="true" type="checkbox" class="form-check-input" checked /><label class="form-check-label">Wymuś zmianę hasła</label></div></div>
-<div class="col-md-3"><label class="form-label">Od</label><input name="leaseFrom" type="date" value="@today.ToString("yyyy-MM-dd")" class="form-control" required /></div>
-<div class="col-md-3"><label class="form-label">Do</label><input name="leaseTo" type="date" class="form-control" /></div>
-<div class="col-md-2"><label class="form-label">Czynsz</label><input name="rentAmount" type="number" step="0.01" min="0" class="form-control" required /></div>
-<div class="col-md-1"><label class="form-label">Waluta</label><input name="currencyCode" value="PLN" maxlength="3" class="form-control" /></div>
-<div class="col-md-1"><label class="form-label">Termin</label><input name="dueDay" type="number" min="1" max="31" value="10" class="form-control" /></div>
-<div class="col-md-2"><label class="form-label">Zaliczka</label><input name="advanceAmount" type="number" step="0.01" min="0" value="0" class="form-control" /></div>
-<div class="col-md-2"><label class="form-label">Kaucja</label><input name="depositAmount" type="number" step="0.01" min="0" value="0" class="form-control" /></div>
-<div class="col-12"><label class="form-label">Zasady mediów</label><input name="utilitiesRulesText" class="form-control" value="Media rozliczane zgodnie z zasadami e-dom." /></div>
-<div class="col-12"><button class="btn btn-primary">Przygotuj umowę i konto lokatora</button></div>
-</form></div></div>
-}
+<form id="rental-workspace-token" hidden>
+    @Html.AntiForgeryToken()
+</form>
 
-<div class="card"><div class="card-header"><strong>Umowy</strong></div><div class="card-body p-0"><div class="table-responsive"><table class="table table-hover mb-0"><thead><tr><th>Lokator</th><th>Pokój</th><th>Okres</th><th>Czynsz</th><th>Status</th><th>Dokumenty / działania</th></tr></thead><tbody>
-@if(Model.Contracts.Count==0){<tr><td colspan="6" class="text-muted p-3">Brak umów.</td></tr>}
-@foreach(var c in Model.Contracts){<tr><td>@c.TenantName<br/><small>@c.TenantLogin</small></td><td>@c.RoomName</td><td>@c.LeaseFrom.ToString("yyyy-MM-dd") – @(c.LeaseTo?.ToString("yyyy-MM-dd") ?? "bezterminowo")</td><td>@((c.RentAmountMinor/100m).ToString("0.00")) @c.CurrencyCode</td><td><strong>@c.Status</strong></td><td>
-@if(c.DocumentItemId.HasValue){<a class="btn btn-sm btn-outline-primary mb-1" asp-action="Document" asp-route-documentId="@c.DocumentItemId">Umowa PDF</a>}
-@if(Model.CanManage){
-@if(c.Status==LeaseStatuses.Prepared){<form asp-action="Activate" method="post" class="d-inline">@Html.AntiForgeryToken()<input type="hidden" name="contractId" value="@c.ContractId"/><input type="hidden" name="signedOn" value="@today.ToString("yyyy-MM-dd")"/><input type="hidden" name="signatureMethod" value="Paper"/><button class="btn btn-sm btn-success mb-1">Potwierdź podpisanie</button></form>}
-@if(c.Status==LeaseStatuses.Signed){<form asp-action="End" method="post" class="d-inline">@Html.AntiForgeryToken()<input type="hidden" name="contractId" value="@c.ContractId"/><input type="hidden" name="endedOn" value="@today.ToString("yyyy-MM-dd")"/><input type="hidden" name="reason" value="Zakończenie ręczne"/><button class="btn btn-sm btn-outline-danger mb-1">Rozpocznij zamknięcie</button></form>}
-<details class="mt-2"><summary>Więcej</summary><div class="mt-2 d-grid gap-2">
-<form asp-action="Amend" method="post" class="row g-1">@Html.AntiForgeryToken()<input type="hidden" name="contractId" value="@c.ContractId"/><div class="col"><input name="effectiveOn" type="date" value="@today.ToString("yyyy-MM-dd")" class="form-control form-control-sm"/></div><div class="col"><input name="newRentAmount" type="number" step="0.01" placeholder="Nowy czynsz" class="form-control form-control-sm"/></div><div class="col"><button class="btn btn-sm btn-outline-secondary">Aneks</button></div></form>
-@if(c.Deposit is not null && c.Deposit.RequiredAmountMinor>c.Deposit.PaidAmountMinor){<form asp-action="Deposit" method="post" class="row g-1">@Html.AntiForgeryToken()<input type="hidden" name="contractId" value="@c.ContractId"/><div class="col"><input name="amount" type="number" step="0.01" placeholder="Wpłata kaucji" class="form-control form-control-sm" required/></div><input type="hidden" name="paidOn" value="@today.ToString("yyyy-MM-dd")"/><div class="col"><button class="btn btn-sm btn-outline-secondary">Zapisz kaucję</button></div></form>}
-<form asp-action="Protocol" method="post" class="row g-1">@Html.AntiForgeryToken()<input type="hidden" name="contractId" value="@c.ContractId"/><input type="hidden" name="protocolDate" value="@today.ToString("yyyy-MM-dd")"/><div class="col"><select name="protocolType" class="form-select form-select-sm"><option value="Handover">Przekazanie</option><option value="Return">Odbiór</option></select></div><div class="col"><input name="notes" class="form-control form-control-sm" placeholder="Uwagi"/></div><div class="col"><button class="btn btn-sm btn-outline-secondary">Protokół PDF</button></div></form>
-</div></details>}
-</td></tr>}
-</tbody></table></div></div></div>
+<div class="rental-page">
+    <section class="rental-hero">
+        <div class="rental-hero-head">
+            <div>
+                <div class="rental-eyebrow">Najem i lokatorzy</div>
+                <h1>Umowy najmu</h1>
+                <p>Podgląd umów, lokatorów, kaucji i dokumentów. Zmiany podpisanej umowy zapisuj jako aneksy — bez nadpisywania pierwotnych warunków.</p>
+            </div>
+            <div class="rental-hero-actions">
+                <a asp-controller="TenantSettlements" asp-action="Index">Rozliczenia lokatorów</a>
+                <a asp-controller="LeaseClosing" asp-action="Index">Zamknięcie najmu</a>
+            </div>
+        </div>
+
+        <div class="rental-stats">
+            <article><span>Umowy</span><strong>@Model.Contracts.Count</strong><small>łącznie</small></article>
+            <article><span>Aktywne</span><strong>@signedCount</strong><small>podpisane</small></article>
+            <article><span>Do podpisania</span><strong>@preparedCount</strong><small>przygotowane</small></article>
+            <article><span>Wolne pokoje</span><strong>@Model.RentableRooms.Count(x => x.Status != "Rented")</strong><small>dostępne do najmu</small></article>
+        </div>
+    </section>
+
+    @if (TempData["Success"] is string success)
+    {
+        <div class="alert alert-success">@success</div>
+    }
+    @if (TempData["Error"] is string error)
+    {
+        <div class="alert alert-danger">@error</div>
+    }
+
+    @if (Model.CanManage)
+    {
+        <section class="rental-admin-actions">
+            <details class="rental-action-card">
+                <summary>
+                    <span class="rental-action-icon">＋</span>
+                    <span><strong>Nowy lokator i umowa</strong><small>Utwórz konto lokatora i przygotuj umowę</small></span>
+                    <b>Rozwiń</b>
+                </summary>
+                <div class="rental-action-body">
+                    <form asp-action="Create" method="post" class="rental-form-grid">
+                        @Html.AntiForgeryToken()
+
+                        <div class="rental-form-section">
+                            <h3>Nieruchomość i strony</h3>
+                            <div class="rental-grid">
+                                <label>Pokój
+                                    <select name="roomId" required>
+                                        <option value="">— wybierz —</option>
+                                        @foreach (var r in Model.RentableRooms)
+                                        {
+                                            <option value="@r.RoomId">@r.Label (@r.Status)</option>
+                                        }
+                                    </select>
+                                </label>
+                                <label>Szablon umowy
+                                    <select name="templateId">
+                                        <option value="">Domyślny</option>
+                                        @foreach (var t in Model.Templates)
+                                        {
+                                            <option value="@t.TemplateId">@t.Name v@t.VersionNumber</option>
+                                        }
+                                    </select>
+                                </label>
+                                <label>Wynajmujący
+                                    <select name="landlordPersonId">
+                                        @foreach (var l in Model.Landlords)
+                                        {
+                                            <option value="@l.PersonId">@l.DisplayName</option>
+                                        }
+                                    </select>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="rental-form-section">
+                            <h3>Lokator</h3>
+                            <div class="rental-grid rental-grid-4">
+                                <label>Imię<input name="firstName" required /></label>
+                                <label>Nazwisko<input name="lastName" required /></label>
+                                <label>Data urodzenia<input name="birthDate" type="date" /></label>
+                                <label>E-mail<input name="email" type="email" /></label>
+                                <label>Telefon<input name="phone" /></label>
+                                <label>Login<input name="login" required /></label>
+                                <label>Hasło tymczasowe<input name="temporaryPassword" type="password" required /></label>
+                                <label class="rental-check">
+                                    <input name="mustChangePassword" value="true" type="checkbox" checked />
+                                    <span>Wymuś zmianę hasła</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="rental-form-section">
+                            <h3>Warunki najmu</h3>
+                            <div class="rental-grid rental-grid-4">
+                                <label>Od<input name="leaseFrom" type="date" value="@today.ToString("yyyy-MM-dd")" required /></label>
+                                <label>Do<input name="leaseTo" type="date" /></label>
+                                <label>Czynsz<input name="rentAmount" type="number" step="0.01" min="0" required /></label>
+                                <label>Waluta<input name="currencyCode" value="PLN" maxlength="3" /></label>
+                                <label>Termin płatności — dzień miesiąca<input name="dueDay" type="number" min="1" max="31" value="10" /></label>
+                                <label>Zaliczka<input name="advanceAmount" type="number" step="0.01" min="0" value="0" /></label>
+                                <label>Kaucja<input name="depositAmount" type="number" step="0.01" min="0" value="0" /></label>
+                                <label class="rental-full">Zasady mediów<input name="utilitiesRulesText" value="Media rozliczane zgodnie z zasadami e-dom." /></label>
+                            </div>
+                        </div>
+
+                        <div class="rental-form-actions">
+                            <button class="btn btn-primary" type="submit">Przygotuj umowę i konto lokatora</button>
+                        </div>
+                    </form>
+                </div>
+            </details>
+
+            <details class="rental-action-card">
+                <summary>
+                    <span class="rental-action-icon">≡</span>
+                    <span><strong>Nowy szablon umowy</strong><small>Wersjonowany tekst używany przy nowych umowach</small></span>
+                    <b>Rozwiń</b>
+                </summary>
+                <div class="rental-action-body">
+                    <form asp-action="Template" method="post" class="rental-grid">
+                        @Html.AntiForgeryToken()
+                        <label>Nazwa<input name="name" required placeholder="np. Umowa najmu pokoju" /></label>
+                        <label>Typ najmu<input name="leaseType" value="Room" required /></label>
+                        <label>Obowiązuje od<input name="effectiveFrom" type="date" value="@today.ToString("yyyy-MM-dd")" required /></label>
+                        <label class="rental-full">Treść szablonu
+                            <textarea name="bodyTemplate" rows="8" required placeholder="Treść umowy…"></textarea>
+                        </label>
+                        <div class="rental-full rental-form-actions">
+                            <button class="btn btn-secondary" type="submit">Zapisz nową wersję szablonu</button>
+                        </div>
+                    </form>
+                </div>
+            </details>
+        </section>
+    }
+
+    <section class="rental-contracts-section">
+        <div class="rental-section-head">
+            <div>
+                <div class="rental-eyebrow">Lista umów</div>
+                <h2>Umowy i lokatorzy</h2>
+                <p>Każda umowa ma osobny podgląd, aneksy i działania administracyjne.</p>
+            </div>
+            <span>@Model.Contracts.Count umów</span>
+        </div>
+
+        @if (Model.Contracts.Count == 0)
+        {
+            <div class="rental-empty">Brak umów najmu.</div>
+        }
+        else
+        {
+            <div class="rental-contract-list">
+                @foreach (var c in Model.Contracts)
+                {
+                    var rent = c.RentAmountMinor / 100m;
+                    var depositRequired = c.Deposit?.RequiredAmountMinor ?? 0;
+                    var depositPaid = c.Deposit?.PaidAmountMinor ?? 0;
+
+                    <article class="rental-contract"
+                             data-rental-contract="@c.ContractId"
+                             data-current-rent="@rent.ToString(System.Globalization.CultureInfo.InvariantCulture)"
+                             data-current-lease-to="@(c.LeaseTo?.ToString("yyyy-MM-dd") ?? "")">
+
+                        <div class="rental-contract-main">
+                            <div class="rental-tenant">
+                                <span class="rental-avatar">@string.Join("", c.TenantName.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(x => x[..1].ToUpperInvariant()))</span>
+                                <span>
+                                    <strong>@c.TenantName</strong>
+                                    <small>@c.TenantLogin</small>
+                                </span>
+                            </div>
+
+                            <div class="rental-contract-data">
+                                <span>Pokój</span>
+                                <strong>@c.RoomName</strong>
+                            </div>
+
+                            <div class="rental-contract-data">
+                                <span>Okres</span>
+                                <strong>@c.LeaseFrom.ToString("dd.MM.yyyy") – @(c.LeaseTo?.ToString("dd.MM.yyyy") ?? "bezterminowo")</strong>
+                            </div>
+
+                            <div class="rental-contract-data">
+                                <span>Czynsz</span>
+                                <strong>@rent.ToString("N2") @c.CurrencyCode</strong>
+                            </div>
+
+                            <div class="rental-contract-data">
+                                <span>Kaucja</span>
+                                <strong>@((depositPaid / 100m).ToString("N2")) / @((depositRequired / 100m).ToString("N2")) @c.CurrencyCode</strong>
+                            </div>
+
+                            <div class="rental-contract-status">
+                                <span class="rental-status rental-status-@c.Status.ToLowerInvariant()">@c.Status</span>
+                            </div>
+
+                            <div class="rental-contract-buttons">
+                                <button type="button" data-rental-preview="@c.ContractId">Podgląd</button>
+                                @if (Model.CanManage)
+                                {
+                                    <button type="button" data-rental-annex="@c.ContractId">Edytuj / aneks</button>
+                                    <button type="button" data-rental-actions="@c.ContractId">Działania</button>
+                                }
+                            </div>
+                        </div>
+
+                        <div class="rental-contract-panel"
+                             data-rental-preview-panel="@c.ContractId"
+                             hidden>
+                            <div class="rental-panel-head">
+                                <div>
+                                    <strong>Podgląd umowy</strong>
+                                    <small>@c.TenantName · @c.RoomName</small>
+                                </div>
+                                <button type="button" data-rental-close>×</button>
+                            </div>
+
+                            <div class="rental-preview-grid">
+                                <div class="rental-preview-info">
+                                    <div><span>Lokator</span><strong>@c.TenantName</strong></div>
+                                    <div><span>Login</span><strong>@c.TenantLogin</strong></div>
+                                    <div><span>Pokój</span><strong>@c.RoomName</strong></div>
+                                    <div><span>Okres</span><strong>@c.LeaseFrom.ToString("dd.MM.yyyy") – @(c.LeaseTo?.ToString("dd.MM.yyyy") ?? "bezterminowo")</strong></div>
+                                    <div><span>Czynsz</span><strong>@rent.ToString("N2") @c.CurrencyCode</strong></div>
+                                    <div><span>Status</span><strong>@c.Status</strong></div>
+                                </div>
+
+                                @if (c.DocumentItemId.HasValue)
+                                {
+                                    <div class="rental-document-preview">
+                                        <iframe title="Podgląd umowy @c.TenantName"
+                                                loading="lazy"
+                                                src="@Url.Action("Document", "Rental", new { documentId = c.DocumentItemId })"></iframe>
+                                        <a class="btn btn-secondary"
+                                           asp-action="Document"
+                                           asp-route-documentId="@c.DocumentItemId">
+                                            Otwórz / pobierz umowę PDF
+                                        </a>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <div class="rental-no-document">
+                                        Dokument PDF nie jest jeszcze dostępny.
+                                    </div>
+                                }
+                            </div>
+
+                            <div class="rental-annex-history"
+                                 data-rental-annex-history="@c.ContractId"></div>
+                        </div>
+
+                        @if (Model.CanManage)
+                        {
+                            <div class="rental-contract-panel"
+                                 data-rental-annex-panel="@c.ContractId"
+                                 hidden>
+                                <div class="rental-panel-head">
+                                    <div>
+                                        <strong>Zmiana umowy → nowy aneks</strong>
+                                        <small>Oryginalna umowa nie zostanie nadpisana.</small>
+                                    </div>
+                                    <button type="button" data-rental-close>×</button>
+                                </div>
+
+                                <form data-rental-annex-form="@c.ContractId"
+                                      class="rental-annex-form">
+                                    <input type="hidden" name="contractId" value="@c.ContractId" />
+
+                                    <div class="rental-annex-warning">
+                                        Każda zapisana zmiana tworzy kolejny aneks. Użyj tego również wtedy, gdy chcesz tylko dopisać nowe postanowienie bez zmiany czynszu.
+                                    </div>
+
+                                    <div class="rental-form-section">
+                                        <h3>Zmiana istniejących warunków</h3>
+                                        <div class="rental-grid rental-grid-3">
+                                            <label>Obowiązuje od
+                                                <input name="effectiveOn" type="date" value="@today.ToString("yyyy-MM-dd")" required />
+                                            </label>
+                                            <label>Nowy czynsz
+                                                <input name="newRentAmount"
+                                                       type="number"
+                                                       step="0.01"
+                                                       min="0"
+                                                       placeholder="Obecnie @rent.ToString("N2") @c.CurrencyCode" />
+                                            </label>
+                                            <label>Nowa data końca umowy
+                                                <input name="newLeaseTo" type="date" />
+                                            </label>
+                                        </div>
+                                    </div>
+
+                                    <div class="rental-form-section">
+                                        <h3>Dodaj nowe postanowienie</h3>
+                                        <div class="rental-grid">
+                                            <label>Tytuł / temat
+                                                <input name="clauseTitle"
+                                                       placeholder="np. Miejsce parkingowe, zwierzęta, internet, zasady mediów" />
+                                            </label>
+                                            <label class="rental-full">Treść nowego postanowienia
+                                                <textarea name="clauseText"
+                                                          rows="4"
+                                                          placeholder="Opisz nowe ustalenie, które ma zostać dopisane do umowy jako aneks."></textarea>
+                                            </label>
+                                        </div>
+                                    </div>
+
+                                    <div class="rental-form-section">
+                                        <h3>Uzasadnienie / uwagi</h3>
+                                        <label class="rental-full">Powód zmiany
+                                            <textarea name="reason"
+                                                      rows="3"
+                                                      placeholder="np. uzgodnienie stron z dnia…"></textarea>
+                                        </label>
+                                    </div>
+
+                                    <div class="rental-form-actions">
+                                        <button class="btn btn-primary" type="submit">Utwórz i zapisz aneks</button>
+                                    </div>
+                                </form>
+                            </div>
+
+                            <div class="rental-contract-panel"
+                                 data-rental-actions-panel="@c.ContractId"
+                                 hidden>
+                                <div class="rental-panel-head">
+                                    <div>
+                                        <strong>Działania administracyjne</strong>
+                                        <small>Podpisanie, kaucja, protokoły i zamknięcie najmu.</small>
+                                    </div>
+                                    <button type="button" data-rental-close>×</button>
+                                </div>
+
+                                <div class="rental-admin-grid">
+                                    @if (c.Status == LeaseStatuses.Prepared)
+                                    {
+                                        <section>
+                                            <h3>Podpisanie umowy</h3>
+                                            <form asp-action="Activate" method="post" class="rental-grid">
+                                                @Html.AntiForgeryToken()
+                                                <input type="hidden" name="contractId" value="@c.ContractId" />
+                                                <label>Data podpisania
+                                                    <input name="signedOn" type="date" value="@today.ToString("yyyy-MM-dd")" />
+                                                </label>
+                                                <label>Metoda podpisu
+                                                    <select name="signatureMethod">
+                                                        <option value="Paper">Papier</option>
+                                                        <option value="Electronic">Elektronicznie</option>
+                                                        <option value="Other">Inna</option>
+                                                    </select>
+                                                </label>
+                                                <label class="rental-full">Komentarz
+                                                    <input name="comment" />
+                                                </label>
+                                                <div class="rental-full rental-form-actions">
+                                                    <button class="btn btn-success" type="submit">Potwierdź podpisanie</button>
+                                                </div>
+                                            </form>
+                                        </section>
+                                    }
+
+                                    @if (c.Deposit is not null && c.Deposit.RequiredAmountMinor > c.Deposit.PaidAmountMinor)
+                                    {
+                                        <section>
+                                            <h3>Wpłata kaucji</h3>
+                                            <form asp-action="Deposit" method="post" class="rental-grid">
+                                                @Html.AntiForgeryToken()
+                                                <input type="hidden" name="contractId" value="@c.ContractId" />
+                                                <label>Kwota
+                                                    <input name="amount" type="number" step="0.01" min="0" required />
+                                                </label>
+                                                <label>Data wpłaty
+                                                    <input name="paidOn" type="date" value="@today.ToString("yyyy-MM-dd")" />
+                                                </label>
+                                                <div class="rental-full rental-form-actions">
+                                                    <button class="btn btn-secondary" type="submit">Zapisz wpłatę kaucji</button>
+                                                </div>
+                                            </form>
+                                        </section>
+                                    }
+
+                                    <section>
+                                        <h3>Protokół</h3>
+                                        <form asp-action="Protocol" method="post" class="rental-grid">
+                                            @Html.AntiForgeryToken()
+                                            <input type="hidden" name="contractId" value="@c.ContractId" />
+                                            <label>Typ
+                                                <select name="protocolType">
+                                                    <option value="Handover">Przekazanie</option>
+                                                    <option value="Return">Odbiór</option>
+                                                </select>
+                                            </label>
+                                            <label>Data
+                                                <input name="protocolDate" type="date" value="@today.ToString("yyyy-MM-dd")" />
+                                            </label>
+                                            <label class="rental-full">Uwagi
+                                                <textarea name="notes" rows="3"></textarea>
+                                            </label>
+                                            <div class="rental-full rental-form-actions">
+                                                <button class="btn btn-secondary" type="submit">Utwórz protokół PDF</button>
+                                            </div>
+                                        </form>
+                                    </section>
+
+                                    @if (c.Status == LeaseStatuses.Signed)
+                                    {
+                                        <section class="rental-danger-section">
+                                            <h3>Zamknięcie najmu</h3>
+                                            <form asp-action="End" method="post" class="rental-grid">
+                                                @Html.AntiForgeryToken()
+                                                <input type="hidden" name="contractId" value="@c.ContractId" />
+                                                <label>Data zakończenia
+                                                    <input name="endedOn" type="date" value="@today.ToString("yyyy-MM-dd")" />
+                                                </label>
+                                                <label class="rental-full">Powód
+                                                    <input name="reason" value="Zakończenie ręczne" required />
+                                                </label>
+                                                <div class="rental-full rental-form-actions">
+                                                    <button class="btn btn-danger" type="submit">Rozpocznij zamknięcie najmu</button>
+                                                </div>
+                                            </form>
+                                        </section>
+                                    }
+                                </div>
+                            </div>
+                        }
+                    </article>
+                }
+            </div>
+        }
+    </section>
+</div>
+
+<script src="~/js/rental-ui.js" asp-append-version="true"></script>

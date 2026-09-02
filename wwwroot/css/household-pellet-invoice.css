@@ -1,0 +1,42 @@
+/* PKG-015m-FEAT-04 — faktura pelletu -> automatyczna pula lokatorów */
+.hf-pellet-invoice-extra {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 9px;
+    padding: 11px;
+    border: 1px solid #d8c9aa;
+    border-radius: 10px;
+    background: #fffaf1;
+}
+.hf-pellet-invoice-extra[hidden] { display: none !important; }
+.hf-pellet-invoice-extra label {
+    display: grid;
+    gap: 5px;
+}
+.hf-pellet-invoice-extra input,
+.hf-pellet-invoice-extra select {
+    width: 100%;
+}
+.hf-pellet-invoice-note {
+    grid-column: 1 / -1;
+    display: grid;
+    gap: 3px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #eadfc9;
+}
+.hf-pellet-invoice-note strong {
+    color: #75572b;
+    font-size: .76rem;
+}
+.hf-pellet-invoice-note span {
+    color: #766a58;
+    font-size: .68rem;
+    line-height: 1.45;
+}
+.hf-pellet-full { grid-column: 1 / -1; }
+@media (max-width: 720px) {
+    .hf-pellet-invoice-extra { grid-template-columns: 1fr; }
+    .hf-pellet-invoice-note,
+    .hf-pellet-full { grid-column: auto; }
+}

@@ -1,0 +1,21 @@
+[
+  {
+    "id": "02e20939-a9c0-4d03-a799-e96089c75193",
+    "householdId": "95fe82d1-5e7e-41da-abcb-801cffdc3fff",
+    "leaseContractId": "6139531c-2b2b-4a2d-8e7b-88416de54bf9",
+    "sourceSettlementId": "925ae9af-0e65-4a54-b04d-601afe07e10d",
+    "sourcePeriodKey": "2026-09",
+    "payerPersonId": "b8f23244-e4f2-43e2-ab6c-64b2c3cf675f",
+    "tenantName": "lokator lok",
+    "roomName": "Scinawska / Pok\u00F3j 1",
+    "amountMinor": 45000,
+    "currencyCode": "PLN",
+    "decision": "Refunded",
+    "createdAtUtc": "2026-09-02T11:53:42.7352281Z",
+    "createdByUserAccountId": "3b460853-d5a8-4928-9fb8-3c88f6462e61",
+    "refundedOn": "2026-09-02",
+    "refundMethod": "Cash",
+    "note": null,
+    "applications": []
+  }
+]

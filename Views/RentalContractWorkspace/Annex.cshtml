@@ -1,0 +1,84 @@
+@model EDom.Web.Models.RentalAnnexPreviewViewModel
+@{
+    ViewData["Title"] = $"Aneks nr {Model.Annex.AnnexNumber}";
+    var a = Model.Annex;
+}
+
+<link rel="stylesheet" href="~/css/rental-ui.css" asp-append-version="true" />
+
+<div class="rental-annex-document-page">
+    <div class="rental-annex-document">
+        <div class="rental-annex-doc-header">
+            <div>
+                <small>@Model.HouseholdName</small>
+                <h1>Aneks nr @a.AnnexNumber</h1>
+                <p>do umowy najmu · @a.TenantName · @a.RoomName</p>
+            </div>
+            <span>Obowiązuje od @a.EffectiveOn.ToString("dd.MM.yyyy")</span>
+        </div>
+
+        <section>
+            <h2>Strony i przedmiot najmu</h2>
+            <dl>
+                <dt>Lokator</dt><dd>@a.TenantName</dd>
+                <dt>Pomieszczenie</dt><dd>@a.RoomName</dd>
+            </dl>
+        </section>
+
+        @if (a.NewRentAmountMinor.HasValue)
+        {
+            <section>
+                <h2>Zmiana czynszu</h2>
+                <p>
+                    Dotychczasowy czynsz:
+                    <strong>@((a.OldRentAmountMinor / 100m).ToString("N2")) @a.CurrencyCode</strong>.
+                    Nowy czynsz od dnia @a.EffectiveOn.ToString("dd.MM.yyyy"):
+                    <strong>@((a.NewRentAmountMinor.GetValueOrDefault() / 100m).ToString("N2")) @a.CurrencyCode</strong>.
+                </p>
+            </section>
+        }
+
+        @if (a.NewLeaseTo.HasValue)
+        {
+            <section>
+                <h2>Zmiana okresu najmu</h2>
+                <p>
+                    Dotychczasowa data końca:
+                    <strong>@(a.OldLeaseTo?.ToString("dd.MM.yyyy") ?? "bezterminowo")</strong>.
+                    Nowa data końca:
+                    <strong>@a.NewLeaseTo.GetValueOrDefault().ToString("dd.MM.yyyy")</strong>.
+                </p>
+            </section>
+        }
+
+        @if (!string.IsNullOrWhiteSpace(a.ClauseTitle) || !string.IsNullOrWhiteSpace(a.ClauseText))
+        {
+            <section>
+                <h2>@(a.ClauseTitle ?? "Dodatkowe postanowienie")</h2>
+                <p class="rental-annex-clause">@a.ClauseText</p>
+            </section>
+        }
+
+        @if (!string.IsNullOrWhiteSpace(a.Reason))
+        {
+            <section>
+                <h2>Uzasadnienie / uwagi</h2>
+                <p>@a.Reason</p>
+            </section>
+        }
+
+        <section class="rental-annex-final">
+            <p>Pozostałe postanowienia umowy najmu pozostają bez zmian.</p>
+        </section>
+
+        <div class="rental-annex-signatures">
+            <div><span>Wynajmujący</span><b>____________________________</b></div>
+            <div><span>Lokator</span><b>____________________________</b></div>
+        </div>
+
+        <div class="rental-annex-doc-actions">
+            <button type="button" class="btn btn-primary" onclick="window.print()">Drukuj / zapisz jako PDF</button>
+            <a class="btn btn-secondary" asp-controller="Rental" asp-action="Index">Wróć do umów</a>
+        </div>
+    </div>
+</div>

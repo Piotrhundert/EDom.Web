@@ -1,0 +1,26 @@
+{
+  "pools": [
+    {
+      "id": "4d09020b-7e6f-4e7d-bacc-5f6e265c6025",
+      "householdId": "95fe82d1-5e7e-41da-abcb-801cffdc3fff",
+      "buildingId": "da2bd16b-4214-47a6-a38f-85a653525ccf",
+      "buildingName": "Dom 2",
+      "seasonName": "2026/2027",
+      "periodFrom": "2026-09-01",
+      "periodTo": "2027-08-31",
+      "purchaseDate": "2026-09-02",
+      "totalAmountMinor": 900000,
+      "currencyCode": "PLN",
+      "palletCount": 6,
+      "weightKg": 6000,
+      "supplier": null,
+      "documentNo": null,
+      "notes": null,
+      "status": "Active",
+      "createdAtUtc": "2026-09-02T12:27:24.6782164Z",
+      "createdByUserAccountId": "3b460853-d5a8-4928-9fb8-3c88f6462e61"
+    }
+  ],
+  "plans": [],
+  "applications": []
+}

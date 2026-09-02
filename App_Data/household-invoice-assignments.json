@@ -23,5 +23,30 @@
     "status": "Approved",
     "settlementType": null,
     "note": "test"
+  },
+  {
+    "id": "2a7a9b9b-27c8-4ed3-adc4-d18dea0ea55c",
+    "householdId": "95fe82d1-5e7e-41da-abcb-801cffdc3fff",
+    "invoiceId": "a12bcf9b-c341-4966-b81f-928b851b7bdd",
+    "invoiceNo": "PELLET-20260902",
+    "supplier": "tesowy",
+    "amountMinor": 200000,
+    "currencyCode": "PLN",
+    "dueDate": "2026-09-02",
+    "assigneePersonId": "3cf0a540-7ad0-4c64-9047-25f7b32b009c",
+    "assigneeName": "Piotr Hundert",
+    "assignedByUserAccountId": "3b460853-d5a8-4928-9fb8-3c88f6462e61",
+    "assignedAtUtc": "2026-09-02T12:42:47.0703077Z",
+    "submittedAtUtc": "2026-09-02T12:43:28.1475192Z",
+    "approvedAtUtc": "2026-09-02T12:44:04.0746562Z",
+    "approvedByUserAccountId": "3b460853-d5a8-4928-9fb8-3c88f6462e61",
+    "approvedAmountMinor": 200000,
+    "invoicePaymentBookedAtUtc": "2026-09-02T12:44:04.0746575Z",
+    "invoicePaymentBookedAmountMinor": 200000,
+    "claimId": "058969b8-d500-447f-8e7f-60be3124ca0c",
+    "closedAtUtc": "2026-09-02T12:44:04.0746562Z",
+    "status": "Approved",
+    "settlementType": "Compensation",
+    "note": null
   }
 ]
