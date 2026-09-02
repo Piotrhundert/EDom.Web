@@ -1,0 +1,228 @@
+.hf-assignment-section {
+    scroll-margin-top: 24px;
+}
+
+.hf-assign-message {
+    margin: 0 0 16px;
+    padding: 12px 14px;
+    border: 1px solid #b9ddc7;
+    border-radius: 12px;
+    background: #eefaf2;
+    color: #17643a;
+    font-weight: 700;
+}
+
+.hf-assign-message.is-error {
+    border-color: #f0b9b9;
+    background: #fff2f2;
+    color: #9d2525;
+}
+
+.hf-assignment-admin-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.35fr) minmax(280px, .65fr);
+    gap: 16px;
+    margin-top: 16px;
+}
+
+.hf-assignment-card,
+.hf-assigned-invoice-card {
+    border: 1px solid #d6e2ef;
+    border-radius: 18px;
+    background: #fff;
+    padding: 18px;
+    box-shadow: 0 7px 18px rgba(33, 78, 121, .05);
+}
+
+.hf-assignment-card h3,
+.hf-assignment-history h3 {
+    margin: 0 0 14px;
+}
+
+.hf-assignment-form {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.hf-assignment-form label,
+.hf-assigned-invoice-action label {
+    display: grid;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 700;
+    color: #274766;
+}
+
+.hf-assignment-form input,
+.hf-assignment-form select,
+.hf-assigned-invoice-action select {
+    width: 100%;
+    min-height: 44px;
+    padding: 9px 11px;
+    border: 1px solid #c8d8e8;
+    border-radius: 11px;
+    background: #fff;
+    color: #142f4b;
+}
+
+.hf-assignment-full {
+    grid-column: 1 / -1;
+}
+
+.hf-assignment-info-card {
+    background: linear-gradient(180deg, #f7fbff 0%, #f2f8ff 100%);
+}
+
+.hf-assignment-info-card ol {
+    margin: 0;
+    padding-left: 21px;
+    color: #36536f;
+    line-height: 1.65;
+}
+
+.hf-assignment-info-card p {
+    margin: 13px 0 0;
+    color: #678099;
+    font-size: 13px;
+}
+
+.hf-assignment-history {
+    margin-top: 18px;
+}
+
+.hf-assignment-table td small {
+    display: block;
+    margin-top: 3px;
+    color: #7890a7;
+}
+
+.hf-assign-status {
+    display: inline-flex;
+    align-items: center;
+    min-height: 28px;
+    padding: 4px 9px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 800;
+    white-space: nowrap;
+}
+
+.hf-assign-status-warn {
+    background: #fff5df;
+    border: 1px solid #f4d38c;
+    color: #8d5b00;
+}
+
+.hf-assign-status-info {
+    background: #eaf4ff;
+    border: 1px solid #b9d8f7;
+    color: #1e5f98;
+}
+
+.hf-assign-status-muted {
+    background: #f1f4f7;
+    border: 1px solid #d8e0e7;
+    color: #687b8d;
+}
+
+.hf-assigned-invoice-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 14px;
+}
+
+.hf-assigned-invoice-card {
+    border-color: #b9d5ef;
+    background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+}
+
+.hf-assigned-invoice-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.hf-assigned-kicker {
+    display: block;
+    margin-bottom: 5px;
+    color: #4c7dab;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+}
+
+.hf-assigned-invoice-head h3 {
+    margin: 0;
+    color: #143556;
+}
+
+.hf-assigned-invoice-values {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+    margin: 16px 0;
+}
+
+.hf-assigned-invoice-values > div {
+    padding: 12px;
+    border: 1px solid #e0e8f0;
+    border-radius: 12px;
+    background: #fff;
+}
+
+.hf-assigned-invoice-values span {
+    display: block;
+    margin-bottom: 4px;
+    color: #7990a6;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+}
+
+.hf-assigned-invoice-values strong {
+    color: #1e3f60;
+}
+
+.hf-assigned-invoice-action {
+    display: grid;
+    grid-template-columns: minmax(220px, .8fr) minmax(260px, 1.2fr);
+    gap: 12px;
+    align-items: end;
+}
+
+.hf-assigned-help {
+    margin: 10px 0 0;
+    font-size: 12px;
+}
+
+.hf-assignment-history-details {
+    margin-top: 16px;
+}
+
+@media (max-width: 900px) {
+    .hf-assignment-admin-grid,
+    .hf-assigned-invoice-action {
+        grid-template-columns: 1fr;
+    }
+
+    .hf-assigned-invoice-values {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 620px) {
+    .hf-assignment-form {
+        grid-template-columns: 1fr;
+    }
+
+    .hf-assignment-full {
+        grid-column: auto;
+    }
+
+    .hf-assigned-invoice-head {
+        flex-direction: column;
+    }
+}

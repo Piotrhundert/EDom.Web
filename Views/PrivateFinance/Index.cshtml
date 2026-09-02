@@ -29,7 +29,19 @@
         _ => item.DecisionReason ?? "—"
     };
     var accounts = Model.Overview.Accounts;
+    var activeIncomeSources = Model.Overview.IncomeSources.Where(x => x.Status != "Archived").ToArray();
+    var archivedIncomeSources = Model.Overview.IncomeSources.Where(x => x.Status == "Archived").ToArray();
+    var pendingContributionCount = Model.HouseholdContributions.Count(x => x.Status == "Pending");
 }
+<link rel="stylesheet" href="~/css/private-finance-ui.css" asp-append-version="true" />
+
+<div class="pf-ui-root"
+     data-account-count="@accounts.Count"
+     data-income-count="@activeIncomeSources.Length"
+     data-expense-count="@Model.Overview.Expenses.Count"
+     data-subscription-count="@Model.Overview.Subscriptions.Count"
+     data-contribution-count="@Model.HouseholdContributions.Count"
+     data-contribution-pending-count="@pendingContributionCount">
 <section class="hero">
     <div>
         <div class="eyebrow">Prywatny obszar właściciela</div>
@@ -46,7 +58,7 @@
 {
     <div class="error-box">@error</div>
 }
-<section class="panel">
+<section class="panel" data-pf-module="accounts">
     <h2>Konta prywatne</h2>
     @if (accounts.Count == 0)
     {
@@ -77,7 +89,7 @@
         </form>
     </details>
 </section>
-<section class="panel">
+<section class="panel" data-pf-module="income">
     <h2>Dochody</h2>
     @if (Model.Overview.PlannedIncomes.Count > 0)
     {
@@ -137,12 +149,79 @@
         }
     </details>
 </section>
-<section class="panel">
-    <h2>Edycja źródeł dochodu</h2>
-    @if (Model.Overview.IncomeSources.Count == 0) { <p class="muted">Brak źródeł dochodu.</p> }
-    else { <div class="data-list">@foreach(var src in Model.Overview.IncomeSources){<div class="data-row data-row-stack"><div class="row-main"><span><strong>@src.Name</strong><small>@src.Frequency · @FmtMoney(src.PlannedAmountMinor,src.CurrencyCode) · @src.Status</small></span></div><details class="crud-details"><summary>Edytuj</summary><form asp-action="UpdateRecord" method="post" class="mini-form">@Html.AntiForgeryToken()<input type="hidden" name="RecordType" value="Income"/><input type="hidden" name="RecordId" value="@src.Id"/><input type="hidden" name="CurrencyCode" value="@src.CurrencyCode"/><input name="Name" value="@src.Name"/><input name="PlannedAmount" type="number" step="0.01" value="@(src.PlannedAmountMinor.HasValue ? new Money(src.PlannedAmountMinor.Value,src.CurrencyCode).ToMajor() : 0)"/><input name="DateValue" type="date" value="@(src.ValidTo?.ToString("yyyy-MM-dd"))"/><select name="Status"><option>@src.Status</option><option>Active</option><option>Inactive</option><option>Archived</option></select><button class="btn btn-secondary" type="submit">Zapisz</button></form><form asp-action="ArchiveRecord" method="post" class="inline-form">@Html.AntiForgeryToken()<input type="hidden" name="recordType" value="Income"/><input type="hidden" name="recordId" value="@src.Id"/><button class="btn btn-danger" type="submit">Archiwizuj</button></form></details></div>}</div> }
+<section class="panel" data-pf-module="income">
+    <h2>Zarządzanie źródłami dochodu</h2>
+    <p class="muted">Możesz zmienić nazwę, kwotę planowaną, datę obowiązywania i status źródła. Usunięcie źródła nie kasuje wcześniejszych wpływów — historia finansowa pozostaje zachowana.</p>
+
+    @if (activeIncomeSources.Length == 0)
+    {
+        <p class="muted">Brak aktywnych źródeł dochodu.</p>
+    }
+    else
+    {
+        <div class="data-list">
+        @foreach (var src in activeIncomeSources)
+        {
+            <div class="data-row data-row-stack">
+                <div class="row-main">
+                    <span>
+                        <strong>@src.Name</strong>
+                        <small>@src.Frequency · @FmtMoney(src.PlannedAmountMinor, src.CurrencyCode) · @(src.Status == "Inactive" ? "Nieaktywne" : "Aktywne")</small>
+                    </span>
+                </div>
+                <div class="inline-form">
+                    <details class="crud-details">
+                        <summary>Edytuj źródło</summary>
+                        <form asp-action="UpdateRecord" method="post" class="mini-form">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="RecordType" value="Income" />
+                            <input type="hidden" name="RecordId" value="@src.Id" />
+                            <input type="hidden" name="CurrencyCode" value="@src.CurrencyCode" />
+                            <label>Nazwa<input name="Name" value="@src.Name" required /></label>
+                            <label>Kwota planowana<input name="PlannedAmount" type="number" step="0.01" value="@(src.PlannedAmountMinor.HasValue ? new Money(src.PlannedAmountMinor.Value, src.CurrencyCode).ToMajor() : 0)" /></label>
+                            <label>Aktywne do<input name="DateValue" type="date" value="@(src.ValidTo?.ToString("yyyy-MM-dd"))" /></label>
+                            <label>Status
+                                <select name="Status">
+                                    <option value="@src.Status">@(src.Status == "Inactive" ? "Nieaktywne" : "Aktywne")</option>
+                                    @if (src.Status != "Active") { <option value="Active">Aktywne</option> }
+                                    @if (src.Status != "Inactive") { <option value="Inactive">Nieaktywne</option> }
+                                </select>
+                            </label>
+                            <button class="btn btn-secondary" type="submit">Zapisz zmiany</button>
+                        </form>
+                    </details>
+                    <form asp-action="ArchiveRecord" method="post" class="inline-form" onsubmit="return confirm('Usunąć to źródło dochodu? Wcześniejsze wpływy pozostaną w historii.');">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="recordType" value="Income" />
+                        <input type="hidden" name="recordId" value="@src.Id" />
+                        <button class="btn btn-danger" type="submit">Usuń źródło</button>
+                    </form>
+                </div>
+            </div>
+        }
+        </div>
+    }
+
+    @if (archivedIncomeSources.Length > 0)
+    {
+        <details class="crud-details" style="margin-top:12px">
+            <summary>Usunięte źródła dochodu (@archivedIncomeSources.Length)</summary>
+            <p class="muted">Źródła są ukryte z aktywnej listy, ale pozostają zapisane dla spójności historii finansowej.</p>
+            <div class="data-list">
+            @foreach (var src in archivedIncomeSources)
+            {
+                <div class="data-row data-row-stack">
+                    <div class="row-main">
+                        <span><strong>@src.Name</strong><small>@src.Frequency · @FmtMoney(src.PlannedAmountMinor, src.CurrencyCode) · Usunięte</small></span>
+                    </div>
+                    <span class="muted">Historia źródła zachowana</span>
+                </div>
+            }
+            </div>
+        </details>
+    }
 </section>
-<section class="panel">
+<section class="panel" data-pf-module="benefits">
     <h2>Świadczenia i wydatki dziecka</h2>
     @if (Model.Overview.Benefits.Count > 0)
     {
@@ -171,7 +250,7 @@
         </details>
     }
 </section>
-<section class="panel">
+<section class="panel" data-pf-module="contributions">
     <h2>Wpłaty do domu — wydatki z mojego konta</h2>
     <p class="muted">Każde zgłoszenie wpłaty do wspólnego rachunku pozostaje tutaj w historii. Dopiero zatwierdzona wpłata jest rzeczywistym wydatkiem i pomniejsza prywatne saldo.</p>
     @if (Model.HouseholdContributions.Count == 0)
@@ -209,7 +288,7 @@
         </table>
     }
 </section>
-<section class="panel">
+<section class="panel" data-pf-module="expenses">
     <h2>Wydatki prywatne</h2>
     @if (Model.Overview.Expenses.Count > 0)
     {
@@ -233,7 +312,7 @@
         </form>
     </details>
 </section>
-<section class="panel">
+<section class="panel" data-pf-module="subscriptions">
     <h2>Subskrypcje</h2>
     @if (Model.Overview.Subscriptions.Count > 0)
     {
@@ -261,3 +340,8 @@
         </form>
     </details>
 </section>
+</div>
+
+@section Scripts {
+    <script src="~/js/private-finance-ui.js" asp-append-version="true"></script>
+}

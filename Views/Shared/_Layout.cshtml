@@ -13,6 +13,7 @@
     <meta name="theme-color" content="#102a43" />
     <title>@pageTitle - e-dom</title>
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/household-invoice-assignments.css" asp-append-version="true" />
 </head>
 <body class="@(isAuthenticated ? "app-authenticated" : "app-public")">
     <div class="shell-backdrop" aria-hidden="true"></div>
@@ -34,7 +35,6 @@
                             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 5 7.5 12l7 7" /></svg>
                         </button>
                     </div>
-
                     <div class="sidebar-context">
                         <span class="sidebar-caption">Aktywne gospodarstwo</span>
                         <strong>@(string.IsNullOrWhiteSpace(householdName) ? "e-dom" : householdName)</strong>
@@ -43,7 +43,6 @@
                 </div>
 
                 <vc:main-navigation></vc:main-navigation>
-
                 <div class="sidebar-footer">
                     <span class="sidebar-footer-dot" aria-hidden="true"></span>
                     <span class="sidebar-footer-copy">
@@ -53,7 +52,6 @@
                 </div>
             </aside>
         }
-
         <div class="page-shell @(isAuthenticated ? "with-sidebar" : "standalone")">
             @if (isAuthenticated)
             {
@@ -89,7 +87,6 @@
                     </div>
                 </header>
             }
-
             <main class="content" id="mainContent">
                 @if (isAuthenticated)
                 {
@@ -106,12 +103,14 @@
             </main>
         </div>
     </div>
-
     <button class="scroll-top" type="button" data-scroll-top aria-label="Wróć na górę" title="Wróć na górę">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 15 6-6 6 6" /></svg>
     </button>
 
     <script src="~/js/site.js" asp-append-version="true"></script>
+    <script src="~/js/private-finance-tile-fix.js" asp-append-version="true"></script>
+    <script src="~/js/household-finance-recipient-column.js" asp-append-version="true"></script>
+    <script src="~/js/household-invoice-assignments.js" asp-append-version="true"></script>
     @RenderSection("Scripts", required: false)
 </body>
 </html>

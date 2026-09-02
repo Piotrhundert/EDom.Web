@@ -1,0 +1,298 @@
+/* PKG-015h-UI-01 — uporządkowany moduł Moje finanse */
+.private-finance-bank-view.pf-ui-v2 .pf-ui-root > .hero {
+    display: none;
+}
+
+.pf-ui-root {
+    display: grid;
+    gap: 16px;
+}
+
+.pf-ui-overview {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(130px, 1fr));
+    gap: 10px;
+    margin: 0 0 16px;
+}
+
+.pf-ui-stat {
+    min-width: 0;
+    display: grid;
+    grid-template-columns: 38px minmax(0, 1fr);
+    gap: 10px;
+    align-items: center;
+    padding: 13px 14px;
+    border: 1px solid var(--line);
+    border-radius: 15px;
+    background: #fff;
+    box-shadow: 0 4px 16px rgba(30,64,95,.045);
+}
+
+.pf-ui-stat-icon {
+    width: 38px;
+    height: 38px;
+    display: grid;
+    place-items: center;
+    border-radius: 12px;
+    background: #eef5fc;
+    color: #315f8b;
+    font-size: 18px;
+    font-weight: 900;
+}
+
+.pf-ui-stat-copy { min-width: 0; display: grid; gap: 1px; }
+.pf-ui-stat-copy strong { color: var(--brand-900); font-size: 20px; line-height: 1.1; }
+.pf-ui-stat-copy span { color: var(--muted); font-size: 11.5px; line-height: 1.25; }
+
+.pf-ui-switcher {
+    position: sticky;
+    top: 88px;
+    z-index: 12;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    overflow-x: auto;
+    margin: 0 0 18px;
+    padding: 9px;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    background: rgba(255,255,255,.94);
+    box-shadow: 0 8px 22px rgba(30,64,95,.07);
+    backdrop-filter: blur(12px);
+    scrollbar-width: thin;
+}
+
+.pf-ui-switcher-label {
+    flex: 0 0 auto;
+    padding: 0 7px;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 850;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+}
+
+.pf-ui-switch {
+    flex: 0 0 auto;
+    min-height: 36px;
+    padding: 7px 11px;
+    border: 1px solid transparent;
+    border-radius: 10px;
+    background: transparent;
+    color: #47627c;
+    font-weight: 750;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.pf-ui-switch:hover { background: #f1f6fb; color: #234f77; }
+.pf-ui-switch.is-active {
+    color: #fff;
+    background: #245f96;
+    border-color: #245f96;
+    box-shadow: 0 5px 13px rgba(36,95,150,.18);
+}
+
+.private-finance-bank-view.pf-ui-v2 .pf-ui-panel {
+    position: relative;
+    min-width: 0;
+    margin: 0 0 16px;
+    padding: 19px;
+    border: 1px solid #dbe5ef;
+    border-radius: 18px;
+    background: #fff;
+    box-shadow: 0 6px 20px rgba(30,64,95,.05);
+    scroll-margin-top: 150px;
+    overflow: visible;
+}
+
+.private-finance-bank-view.pf-ui-v2 .pf-ui-panel::before {
+    content: "";
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 4px;
+    border-radius: 18px 0 0 18px;
+    background: #9eb5c9;
+}
+
+.private-finance-bank-view.pf-ui-v2 .pf-ui-panel[data-pf-module="accounts"]::before { background: #4c88c7; }
+.private-finance-bank-view.pf-ui-v2 .pf-ui-panel[data-pf-module="income"]::before { background: #4d9b72; }
+.private-finance-bank-view.pf-ui-v2 .pf-ui-panel[data-pf-module="benefits"]::before { background: #7d77b8; }
+.private-finance-bank-view.pf-ui-v2 .pf-ui-panel[data-pf-module="contributions"]::before { background: #397ca9; }
+.private-finance-bank-view.pf-ui-v2 .pf-ui-panel[data-pf-module="expenses"]::before { background: #c87970; }
+.private-finance-bank-view.pf-ui-v2 .pf-ui-panel[data-pf-module="subscriptions"]::before { background: #c7994e; }
+
+.private-finance-bank-view.pf-ui-v2 .pf-ui-panel > h2 {
+    margin: 0 0 6px;
+    color: #173c62;
+    font-size: clamp(18px, 2vw, 22px);
+    letter-spacing: -.015em;
+}
+
+.private-finance-bank-view.pf-ui-v2 .pf-ui-panel > h2 + .muted {
+    margin-top: 0;
+    max-width: 920px;
+}
+
+.pf-ui-hidden { display: none !important; }
+
+.pf-ui-table-wrap {
+    width: 100%;
+    overflow: auto;
+    margin: 13px 0;
+    border: 1px solid #e0e8f0;
+    border-radius: 14px;
+    background: #fff;
+}
+
+.private-finance-bank-view.pf-ui-v2 .pf-ui-table-wrap table {
+    width: 100%;
+    min-width: 720px;
+    margin: 0;
+    border: 0;
+}
+
+.private-finance-bank-view.pf-ui-v2 .pf-ui-table-wrap thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    padding: 11px 12px;
+    color: #46617a;
+    background: #f5f8fb;
+    border-bottom: 1px solid #dfe7ef;
+    font-size: 11px;
+    font-weight: 850;
+    text-transform: uppercase;
+    letter-spacing: .035em;
+    white-space: nowrap;
+}
+
+.private-finance-bank-view.pf-ui-v2 .pf-ui-table-wrap tbody td {
+    padding: 12px;
+    vertical-align: middle;
+    border-bottom: 1px solid #edf1f5;
+}
+.private-finance-bank-view.pf-ui-v2 .pf-ui-table-wrap tbody tr:last-child td { border-bottom: 0; }
+.private-finance-bank-view.pf-ui-v2 .pf-ui-table-wrap tbody tr:hover { background: #fbfdff; }
+
+.pf-ui-status-cell { font-weight: 800; }
+.pf-ui-status-cell::before {
+    content: "";
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    margin-right: 7px;
+    border-radius: 50%;
+    vertical-align: 1px;
+    background: #8ea0b2;
+}
+.pf-ui-status-ok { color: #28734b; }
+.pf-ui-status-ok::before { background: #3f9b68; }
+.pf-ui-status-warn { color: #8a5a00; }
+.pf-ui-status-warn::before { background: #d99a2b; }
+.pf-ui-status-bad { color: #a13737; }
+.pf-ui-status-bad::before { background: #c65b5b; }
+.pf-ui-status-muted { color: #65788a; }
+.pf-ui-status-muted::before { background: #90a1b1; }
+
+.private-finance-bank-view.pf-ui-v2 .pf-ui-panel details {
+    margin-top: 12px;
+    border: 1px solid #dfe7ef;
+    border-radius: 13px;
+    background: #fbfdff;
+    overflow: hidden;
+}
+.private-finance-bank-view.pf-ui-v2 .pf-ui-panel details > summary {
+    list-style: none;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    min-height: 42px;
+    padding: 10px 13px;
+    color: #28577f;
+    font-weight: 800;
+    cursor: pointer;
+    background: #f7fafc;
+}
+.private-finance-bank-view.pf-ui-v2 .pf-ui-panel details > summary::-webkit-details-marker { display: none; }
+.private-finance-bank-view.pf-ui-v2 .pf-ui-panel details > summary::after { content: "+"; font-size: 19px; color: #6f89a1; }
+.private-finance-bank-view.pf-ui-v2 .pf-ui-panel details[open] > summary::after { content: "−"; }
+.private-finance-bank-view.pf-ui-v2 .pf-ui-panel details[open] > summary { border-bottom: 1px solid #e3eaf1; }
+
+.private-finance-bank-view.pf-ui-v2 .pf-ui-panel .form-grid,
+.private-finance-bank-view.pf-ui-v2 .pf-ui-panel .mini-form {
+    gap: 11px;
+    padding: 14px;
+}
+
+.private-finance-bank-view.pf-ui-v2 .pf-ui-panel .form-grid label,
+.private-finance-bank-view.pf-ui-v2 .pf-ui-panel .mini-form label {
+    color: #50667b;
+    font-size: 12px;
+    font-weight: 750;
+}
+.private-finance-bank-view.pf-ui-v2 .pf-ui-panel input,
+.private-finance-bank-view.pf-ui-v2 .pf-ui-panel select,
+.private-finance-bank-view.pf-ui-v2 .pf-ui-panel textarea {
+    min-height: 40px;
+    border-radius: 10px;
+}
+
+.private-finance-bank-view.pf-ui-v2 .data-list { margin-top: 12px; gap: 9px; }
+.private-finance-bank-view.pf-ui-v2 .data-row {
+    padding: 13px 14px;
+    border: 1px solid #e2e9f0;
+    background: #fff;
+}
+.private-finance-bank-view.pf-ui-v2 .data-row:hover { border-color: #c8d8e7; background: #fbfdff; }
+
+.pf-ui-empty {
+    display: grid;
+    gap: 3px;
+    padding: 18px;
+    margin: 12px 0;
+    border: 1px dashed #cedae6;
+    border-radius: 13px;
+    background: #fafcfe;
+    color: var(--muted);
+}
+.pf-ui-empty strong { color: #405b74; }
+
+.pf-ui-module-title {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 14px;
+    margin-bottom: 4px;
+}
+.pf-ui-module-title > div { min-width: 0; }
+.pf-ui-module-count {
+    flex: 0 0 auto;
+    padding: 5px 9px;
+    border-radius: 999px;
+    background: #eff5fa;
+    color: #57718a;
+    font-size: 11px;
+    font-weight: 800;
+}
+
+/* Dodatkowy kafelek „Wpłaty do domu” dopasowany do istniejącego dashboardu. */
+.pf-bank-tile-contributions .pf-bank-tile-icon { background: #edf7fb; color: #32779d; }
+
+@media (max-width: 1180px) {
+    .pf-ui-overview { grid-template-columns: repeat(3, minmax(130px, 1fr)); }
+}
+@media (max-width: 820px) {
+    .pf-ui-switcher { top: 76px; }
+    .pf-ui-overview { grid-template-columns: repeat(2, minmax(130px, 1fr)); }
+    .private-finance-bank-view.pf-ui-v2 .pf-ui-panel { padding: 15px; }
+}
+@media (max-width: 560px) {
+    .pf-ui-overview { grid-template-columns: 1fr 1fr; gap: 8px; }
+    .pf-ui-stat { grid-template-columns: 34px minmax(0,1fr); padding: 11px; }
+    .pf-ui-stat-icon { width: 34px; height: 34px; }
+    .pf-ui-switcher { position: static; margin-bottom: 14px; }
+    .private-finance-bank-view.pf-ui-v2 .pf-ui-panel { padding: 13px; border-radius: 15px; }
+    .pf-ui-module-title { flex-direction: column; gap: 6px; }
+}

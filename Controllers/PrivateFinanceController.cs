@@ -179,7 +179,12 @@ public sealed class PrivateFinanceController(
         try
         {
             await adminCrud.ArchivePrivateRecordAsync(current.HouseholdId, current.PersonId, recordType, recordId, current.UserAccountId, CorrelationIdMiddleware.Get(HttpContext), cancellationToken);
-            TempData["Success"] = recordType == "Expense" ? "Wydatek anulowano bez kasowania historii." : "Rekord został zarchiwizowany.";
+            TempData["Success"] = recordType switch
+            {
+                "Expense" => "Wydatek anulowano bez kasowania historii.",
+                "Income" => "Źródło dochodu zostało usunięte z aktywnej listy. Dotychczasowa historia wpływów została zachowana.",
+                _ => "Rekord został zarchiwizowany."
+            };
         }
         catch (Exception ex) { TempData["Error"] = ex.Message; }
         return RedirectToAction(nameof(Index));
