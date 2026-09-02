@@ -1,8 +1,13 @@
+<link rel="stylesheet" href="~/css/sidebar-simple.css" asp-append-version="true" />
 @using System.Linq
 @model IReadOnlyList<ModuleDefinition>
 @{
     var currentPath = Context.Request.Path.Value ?? string.Empty;
     var currentKey = (ViewContext.RouteData.Values["key"] as string) ?? Context.Request.Query["key"].ToString();
+
+    Func<string, string, bool> pathMatchesPrefix = (path, prefix) =>
+        string.Equals(path, prefix, StringComparison.OrdinalIgnoreCase)
+        || path.StartsWith(prefix + "/", StringComparison.OrdinalIgnoreCase);
 
     Func<string, string> iconForKey = key =>
     {
@@ -58,18 +63,17 @@
         })
         .ToList();
 }
-
-<nav class="main-nav" aria-label="Główna nawigacja">
+<nav class="main-nav sidebar-simple-nav" aria-label="Główna nawigacja">
     <div class="nav-section">
         <div class="sidebar-caption">Start</div>
-        <a class="nav-item @((currentPath == "/" || currentPath.StartsWith("/Home", StringComparison.OrdinalIgnoreCase)) ? "active" : string.Empty)" asp-controller="Home" asp-action="Index">
+        <a class="nav-item @((currentPath == "/" || pathMatchesPrefix(currentPath, "/Home")) ? "active" : string.Empty)" asp-controller="Home" asp-action="Index">
             <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 13h6V4H4zM14 20h6V11h-6zM4 20h6v-4H4zM14 8h6V4h-6z" /></svg></span>
             <span class="nav-copy">
                 <strong>Pulpit</strong>
                 <small>Podsumowanie i moduły</small>
             </span>
         </a>
-        <a class="nav-item @(currentPath.StartsWith("/UserProfile", StringComparison.OrdinalIgnoreCase) ? "active" : string.Empty)" asp-controller="UserProfile" asp-action="Index">
+        <a class="nav-item @(pathMatchesPrefix(currentPath, "/UserProfile") ? "active" : string.Empty)" asp-controller="UserProfile" asp-action="Index">
             <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M20 21a8 8 0 0 0-16 0M12 13a4 4 0 1 0 0-8 4 4 0 0 0 0 8" /></svg></span>
             <span class="nav-copy">
                 <strong>Mój profil</strong>
@@ -97,12 +101,15 @@
                     "settings" => "/Users",
                     _ => "/module/" + module.Key
                 };
+
                 var isActive = string.Equals(currentKey, module.Key, StringComparison.OrdinalIgnoreCase)
-                    || currentPath.StartsWith(routePrefix, StringComparison.OrdinalIgnoreCase)
-                    || (module.Key == "settings" && (currentPath.StartsWith("/RoleStudio", StringComparison.OrdinalIgnoreCase)
-                        || currentPath.StartsWith("/Users", StringComparison.OrdinalIgnoreCase)
-                        || currentPath.StartsWith("/PasswordPolicy", StringComparison.OrdinalIgnoreCase)));
+                    || pathMatchesPrefix(currentPath, routePrefix)
+                    || (module.Key == "settings" && (pathMatchesPrefix(currentPath, "/RoleStudio")
+                        || pathMatchesPrefix(currentPath, "/Users")
+                        || pathMatchesPrefix(currentPath, "/PasswordPolicy")));
+
                 var target = targetFor(module);
+
                 if (module.Key is "maintenance")
                 {
                     <a class="nav-item @(isActive ? "active" : string.Empty)" asp-controller="Modules" asp-action="Index" asp-route-key="@module.Key">
@@ -121,16 +128,17 @@
                 @if (module.Key == "rental")
                 {
                     <div class="nav-submenu">
-                        <a class="nav-subitem @(currentPath.StartsWith("/Rental/Settlements", StringComparison.OrdinalIgnoreCase) ? "active" : string.Empty)" asp-controller="TenantSettlements" asp-action="Index">Rozliczenia lokatorów</a>
-                        <a class="nav-subitem @(currentPath.StartsWith("/Rental/Closing", StringComparison.OrdinalIgnoreCase) ? "active" : string.Empty)" asp-controller="LeaseClosing" asp-action="Index">Zamknięcie najmu</a>
+                        <a class="nav-subitem @(pathMatchesPrefix(currentPath, "/Rental/Settlements") ? "active" : string.Empty)" asp-controller="TenantSettlements" asp-action="Index">Rozliczenia lokatorów</a>
+                        <a class="nav-subitem @(pathMatchesPrefix(currentPath, "/Rental/Closing") ? "active" : string.Empty)" asp-controller="LeaseClosing" asp-action="Index">Zamknięcie najmu</a>
                     </div>
                 }
+
                 @if (module.Key == "settings")
                 {
                     <div class="nav-submenu">
-                        <a class="nav-subitem @(currentPath.StartsWith("/Users", StringComparison.OrdinalIgnoreCase) ? "active" : string.Empty)" asp-controller="Users" asp-action="Index">Użytkownicy</a>
-                        <a class="nav-subitem @(currentPath.StartsWith("/RoleStudio", StringComparison.OrdinalIgnoreCase) ? "active" : string.Empty)" asp-controller="RoleStudio" asp-action="Index">Role i uprawnienia</a>
-                        <a class="nav-subitem @(currentPath.StartsWith("/PasswordPolicy", StringComparison.OrdinalIgnoreCase) ? "active" : string.Empty)" asp-controller="PasswordPolicy" asp-action="Index">Polityka haseł</a>
+                        <a class="nav-subitem @(pathMatchesPrefix(currentPath, "/Users") ? "active" : string.Empty)" asp-controller="Users" asp-action="Index">Użytkownicy</a>
+                        <a class="nav-subitem @(pathMatchesPrefix(currentPath, "/RoleStudio") ? "active" : string.Empty)" asp-controller="RoleStudio" asp-action="Index">Role i uprawnienia</a>
+                        <a class="nav-subitem @(pathMatchesPrefix(currentPath, "/PasswordPolicy") ? "active" : string.Empty)" asp-controller="PasswordPolicy" asp-action="Index">Polityka haseł</a>
                     </div>
                 }
             }
@@ -139,7 +147,7 @@
 
     <div class="nav-section">
         <div class="sidebar-caption">Komunikacja</div>
-        <a class="nav-item @(currentPath.StartsWith("/Notifications", StringComparison.OrdinalIgnoreCase) ? "active" : string.Empty)" asp-controller="Notifications" asp-action="Index">
+        <a class="nav-item @(pathMatchesPrefix(currentPath, "/Notifications") ? "active" : string.Empty)" asp-controller="Notifications" asp-action="Index">
             <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" /></svg></span>
             <span class="nav-copy"><strong>Powiadomienia</strong><small>Alerty, terminy i informacje systemowe</small></span>
         </a>

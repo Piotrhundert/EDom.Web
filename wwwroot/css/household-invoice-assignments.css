@@ -226,3 +226,226 @@
         flex-direction: column;
     }
 }
+
+
+/* PKG-015h-FEAT-02 — pełny status i historia powiązań faktury */
+#hf-invoices .hf-status-table {
+    min-width: 1180px;
+}
+
+.hf-invoice-responsible-cell strong,
+.hf-invoice-process-cell small,
+.hf-invoice-responsible-cell small {
+    display: block;
+}
+
+.hf-invoice-responsible-cell small,
+.hf-invoice-process-cell small {
+    margin-top: 4px;
+    color: var(--muted, #6b7f99);
+    font-size: .76rem;
+    line-height: 1.35;
+    max-width: 210px;
+}
+
+.hf-invoice-process {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border-radius: 999px;
+    font-size: .78rem;
+    font-weight: 800;
+    line-height: 1.2;
+    border: 1px solid transparent;
+    white-space: normal;
+}
+
+.hf-invoice-process-open {
+    background: #fff7e8;
+    border-color: #f5d28c;
+    color: #9b6512;
+}
+
+.hf-invoice-process-assigned {
+    background: #eef6ff;
+    border-color: #bfd8f6;
+    color: #255c95;
+}
+
+.hf-invoice-process-reported {
+    background: #eef0ff;
+    border-color: #c8cef9;
+    color: #4452a7;
+}
+
+.hf-invoice-process-partial {
+    background: #fff7e8;
+    border-color: #f1d59a;
+    color: #8d6119;
+}
+
+.hf-invoice-process-paid {
+    background: #eaf8ef;
+    border-color: #b7dfc3;
+    color: #267542;
+}
+
+.hf-invoice-links-details {
+    position: relative;
+}
+
+.hf-invoice-links-details > summary {
+    display: inline-flex;
+    align-items: center;
+    min-height: 34px;
+    padding: 6px 10px;
+    border: 1px solid #cfe0f2;
+    border-radius: 9px;
+    background: #f7fbff;
+    color: #245a90;
+    font-weight: 800;
+    cursor: pointer;
+    list-style: none;
+    white-space: nowrap;
+}
+
+.hf-invoice-links-details > summary::-webkit-details-marker {
+    display: none;
+}
+
+.hf-invoice-links-popover {
+    width: min(520px, 78vw);
+    margin-top: 10px;
+    padding: 14px;
+    border: 1px solid #d6e3f1;
+    border-radius: 14px;
+    background: #fff;
+    box-shadow: 0 16px 36px rgba(31, 60, 91, .12);
+}
+
+.hf-invoice-links-title {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #e7eef6;
+}
+
+.hf-invoice-links-title span {
+    color: var(--muted, #6b7f99);
+    text-align: right;
+}
+
+.hf-invoice-timeline {
+    position: relative;
+    margin: 14px 0 0;
+    padding: 0;
+    list-style: none;
+}
+
+.hf-invoice-event {
+    position: relative;
+    display: grid;
+    grid-template-columns: 18px 1fr;
+    gap: 10px;
+    padding: 0 0 16px;
+}
+
+.hf-invoice-event:not(:last-child)::after {
+    content: "";
+    position: absolute;
+    left: 7px;
+    top: 15px;
+    bottom: -1px;
+    width: 2px;
+    background: #dbe7f3;
+}
+
+.hf-invoice-event-dot {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    margin-top: 2px;
+    border: 4px solid #dceaf8;
+    background: #4d82b8;
+    z-index: 1;
+}
+
+.hf-invoice-event.is-important .hf-invoice-event-dot {
+    border-color: #d9dcfb;
+    background: #5967c2;
+}
+
+.hf-invoice-event.is-paid .hf-invoice-event-dot {
+    border-color: #cee9d6;
+    background: #329257;
+}
+
+.hf-invoice-event strong,
+.hf-invoice-event small {
+    display: block;
+}
+
+.hf-invoice-event small {
+    margin-top: 3px;
+    color: var(--muted, #6b7f99);
+    line-height: 1.4;
+}
+
+.hf-assignment-table {
+    min-width: 1160px;
+}
+
+@media (max-width: 900px) {
+    .hf-invoice-links-popover {
+        width: 72vw;
+    }
+}
+
+
+/* PKG-015h-FEAT-03 — podział faktury i blokady płatności */
+.hf-assignment-split-preview,
+.hf-house-share-helper {
+    padding: 10px 12px;
+    border: 1px solid #cfe0f2;
+    border-radius: 10px;
+    background: #f6faff;
+    color: #365d84;
+    font-size: .86rem;
+    line-height: 1.45;
+}
+
+.hf-assignment-split-preview.is-invalid {
+    border-color: #edb7b7;
+    background: #fff5f5;
+    color: #9c3e3e;
+}
+
+.hf-house-share-helper strong {
+    color: #173c61;
+}
+
+.hf-assignment-form input[type="number"] {
+    width: 100%;
+}
+
+
+/* PKG-015h-FEAT-04 — zatwierdzanie płatności domownika przez administratora */
+.hf-assign-status-success {
+    background: #eaf8ef;
+    border-color: #b7dfc3;
+    color: #267542;
+}
+
+.hf-assign-approved-note {
+    display: inline-block;
+    color: #267542;
+    font-size: .78rem;
+    font-weight: 800;
+    line-height: 1.35;
+}
+
+[data-approve-assignment] {
+    white-space: nowrap;
+}

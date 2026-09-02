@@ -1,0 +1,654 @@
+/* PKG-015i-UI-01 — uporządkowany moduł Gospodarstwo */
+.household-page {
+    --hh-line: #d8e4f1;
+    --hh-line-strong: #c4d7ea;
+    --hh-text: #142b43;
+    --hh-muted: #647b94;
+    --hh-accent: #2d72c7;
+    --hh-accent-soft: #edf6ff;
+    --hh-panel: #ffffff;
+    --hh-soft: #f7faff;
+    display: grid;
+    gap: 22px;
+}
+
+.household-page * {
+    box-sizing: border-box;
+}
+
+.household-dashboard,
+.household-section {
+    scroll-margin-top: 24px;
+}
+
+.household-dashboard {
+    padding: 24px;
+    border: 1px solid var(--hh-line);
+    border-radius: 22px;
+    background:
+        radial-gradient(circle at 90% 8%, rgba(85, 157, 232, .12), transparent 28%),
+        linear-gradient(135deg, #ffffff 0%, #f7fbff 100%);
+    box-shadow: 0 12px 34px rgba(32, 67, 102, .07);
+}
+
+.household-dashboard-head,
+.household-section-head,
+.household-card-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 18px;
+    align-items: flex-start;
+}
+
+.household-eyebrow,
+.household-section-kicker {
+    display: block;
+    margin-bottom: 6px;
+    color: #4c78ad;
+    font-size: .74rem;
+    font-weight: 900;
+    letter-spacing: .09em;
+    text-transform: uppercase;
+}
+
+.household-dashboard h1 {
+    margin: 0;
+    color: var(--hh-text);
+    font-size: clamp(1.8rem, 3vw, 2.55rem);
+    line-height: 1.05;
+}
+
+.household-dashboard-head p,
+.household-section-head p {
+    max-width: 780px;
+    margin: 8px 0 0;
+    color: var(--hh-muted);
+    line-height: 1.55;
+}
+
+.household-scope-badge,
+.household-count {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    min-height: 36px;
+    padding: 7px 12px;
+    border: 1px solid #c9ddf2;
+    border-radius: 999px;
+    background: rgba(255,255,255,.9);
+    color: #365f8d;
+    font-size: .78rem;
+    font-weight: 850;
+}
+
+.household-count-alert {
+    border-color: #efcf91;
+    background: #fff8e9;
+    color: #8a6118;
+}
+
+.household-kpis {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+    margin-top: 22px;
+}
+
+.household-kpi {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    min-height: 82px;
+    padding: 14px;
+    border: 1px solid var(--hh-line);
+    border-radius: 16px;
+    background: rgba(255,255,255,.92);
+}
+
+.household-kpi-icon {
+    display: grid;
+    place-items: center;
+    width: 42px;
+    height: 42px;
+    border-radius: 13px;
+    background: var(--hh-accent-soft);
+    font-size: 1.1rem;
+}
+
+.household-kpi strong,
+.household-kpi small {
+    display: block;
+}
+
+.household-kpi strong {
+    color: var(--hh-text);
+    font-size: 1.35rem;
+    line-height: 1;
+}
+
+.household-kpi small {
+    margin-top: 5px;
+    color: var(--hh-muted);
+}
+
+.household-nav-tiles {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(175px, 1fr));
+    gap: 10px;
+    margin-top: 14px;
+    overflow-x: auto;
+    padding-bottom: 2px;
+}
+
+.household-nav-tile {
+    min-width: 175px;
+    min-height: 78px;
+    display: grid;
+    grid-template-columns: 40px 1fr auto;
+    align-items: center;
+    gap: 10px;
+    padding: 12px;
+    border: 1px solid var(--hh-line);
+    border-radius: 15px;
+    background: #fff;
+    color: var(--hh-text);
+    text-decoration: none;
+    transition: transform .15s ease, border-color .15s ease, box-shadow .15s ease;
+}
+
+.household-nav-tile:hover {
+    transform: translateY(-2px);
+    border-color: #a9c9ea;
+    box-shadow: 0 10px 20px rgba(35, 83, 130, .08);
+}
+
+.household-nav-tile strong,
+.household-nav-tile small {
+    display: block;
+}
+
+.household-nav-tile small {
+    margin-top: 3px;
+    color: var(--hh-muted);
+    font-size: .76rem;
+    line-height: 1.25;
+}
+
+.household-nav-tile b {
+    color: #6489ad;
+    font-size: 1.25rem;
+}
+
+.household-nav-icon {
+    display: grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    background: var(--hh-accent-soft);
+    color: #386fa9;
+}
+
+.household-nav-icon svg {
+    width: 21px;
+    height: 21px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.household-nav-tile-alert {
+    border-color: #efd29c;
+    background: #fffaf0;
+}
+
+.household-section {
+    display: grid;
+    gap: 14px;
+}
+
+.household-section-head {
+    padding: 0 3px;
+}
+
+.household-section h2 {
+    margin: 0;
+    color: var(--hh-text);
+    font-size: 1.45rem;
+}
+
+.household-two-column {
+    display: grid;
+    grid-template-columns: minmax(0, 1.12fr) minmax(340px, .88fr);
+    gap: 16px;
+    align-items: start;
+}
+
+.household-card,
+.household-action-card {
+    border: 1px solid var(--hh-line);
+    border-radius: 18px;
+    background: var(--hh-panel);
+    box-shadow: 0 8px 24px rgba(35, 68, 101, .05);
+    overflow: hidden;
+}
+
+.household-card {
+    padding: 17px;
+}
+
+.household-card-head {
+    align-items: center;
+    margin-bottom: 13px;
+}
+
+.household-card-head h3 {
+    margin: 0;
+    color: var(--hh-text);
+    font-size: 1rem;
+}
+
+.household-card-head > span {
+    color: var(--hh-muted);
+    font-size: .78rem;
+    font-weight: 700;
+}
+
+.household-person-list,
+.household-group-list,
+.household-residence-list,
+.household-request-list {
+    display: grid;
+    gap: 8px;
+}
+
+.household-person-row,
+.household-group-row,
+.household-residence-row,
+.household-request-row {
+    display: grid;
+    align-items: center;
+    gap: 11px;
+    min-height: 62px;
+    padding: 10px 11px;
+    border: 1px solid #e3ebf4;
+    border-radius: 13px;
+    background: #fbfdff;
+}
+
+.household-person-row {
+    grid-template-columns: auto minmax(0, 1fr) auto auto;
+    color: inherit;
+    text-decoration: none;
+    transition: border-color .15s ease, background .15s ease;
+}
+
+.household-person-row:hover {
+    border-color: #bcd5ed;
+    background: #f5faff;
+}
+
+.household-avatar {
+    display: grid;
+    place-items: center;
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    background: #e8f2fd;
+    color: #326ba5;
+    font-size: .76rem;
+    font-weight: 900;
+}
+
+.household-person-copy {
+    min-width: 0;
+}
+
+.household-person-copy strong,
+.household-person-copy small {
+    display: block;
+}
+
+.household-person-copy strong {
+    overflow: hidden;
+    color: var(--hh-text);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.household-person-copy small {
+    margin-top: 3px;
+    color: var(--hh-muted);
+    font-size: .77rem;
+}
+
+.household-person-status {
+    display: inline-flex;
+    align-items: center;
+    min-height: 28px;
+    padding: 4px 9px;
+    border-radius: 999px;
+    background: #f1f4f7;
+    color: #6c7c8d;
+    font-size: .72rem;
+    font-weight: 800;
+}
+
+.household-person-status.is-active {
+    background: #eaf8ef;
+    color: #2c7946;
+}
+
+.household-row-arrow {
+    color: #7697b9;
+    font-size: 1.25rem;
+}
+
+.household-action-card > summary {
+    display: grid;
+    grid-template-columns: 42px 1fr auto;
+    align-items: center;
+    gap: 11px;
+    min-height: 76px;
+    padding: 14px 16px;
+    cursor: pointer;
+    list-style: none;
+    background: linear-gradient(180deg, #fff, #fbfdff);
+}
+
+.household-action-card > summary::-webkit-details-marker {
+    display: none;
+}
+
+.household-action-card > summary strong,
+.household-action-card > summary small {
+    display: block;
+}
+
+.household-action-card > summary strong {
+    color: var(--hh-text);
+}
+
+.household-action-card > summary small {
+    margin-top: 3px;
+    color: var(--hh-muted);
+    font-size: .78rem;
+}
+
+.household-action-card > summary b {
+    color: #52769a;
+    font-size: .75rem;
+}
+
+.household-summary-icon,
+.household-group-icon {
+    display: grid;
+    place-items: center;
+    width: 38px;
+    height: 38px;
+    border-radius: 11px;
+    background: #edf6ff;
+    color: #3972ab;
+    font-weight: 900;
+}
+
+.household-action-card[open] > summary {
+    border-bottom: 1px solid var(--hh-line);
+}
+
+.household-action-body {
+    padding: 16px;
+}
+
+.household-form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.household-form-three {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.household-form-grid .field {
+    min-width: 0;
+}
+
+.household-form-grid label {
+    display: block;
+    margin-bottom: 6px;
+    color: #405a75;
+    font-size: .77rem;
+    font-weight: 800;
+}
+
+.household-form-grid input,
+.household-form-grid select,
+.household-inline-form input {
+    width: 100%;
+    min-height: 42px;
+    padding: 9px 11px;
+    border: 1px solid #cbdbea;
+    border-radius: 10px;
+    background: #fff;
+    color: var(--hh-text);
+    outline: none;
+}
+
+.household-form-grid input:focus,
+.household-form-grid select:focus,
+.household-inline-form input:focus {
+    border-color: #74a9df;
+    box-shadow: 0 0 0 3px rgba(66, 136, 207, .1);
+}
+
+.household-form-grid .full {
+    grid-column: 1 / -1;
+}
+
+.household-checkbox {
+    display: flex;
+    align-items: flex-end;
+}
+
+.household-checkbox label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 42px;
+    margin: 0;
+    padding: 9px 11px;
+    border: 1px solid #d7e3ef;
+    border-radius: 10px;
+    background: #f8fbff;
+}
+
+.household-checkbox input {
+    width: auto;
+    min-height: 0;
+}
+
+.household-form-actions {
+    display: flex;
+    justify-content: flex-end;
+    padding-top: 2px;
+}
+
+.household-info-note {
+    padding: 11px 12px;
+    border: 1px solid #d7e7f6;
+    border-radius: 11px;
+    background: #f2f8ff;
+    color: #526d88;
+    font-size: .8rem;
+    line-height: 1.45;
+}
+
+.household-group-row {
+    grid-template-columns: auto 1fr;
+}
+
+.household-group-row strong,
+.household-group-row small,
+.household-residence-row strong,
+.household-residence-row small {
+    display: block;
+}
+
+.household-group-row small,
+.household-residence-row small {
+    margin-top: 3px;
+    color: var(--hh-muted);
+    font-size: .76rem;
+}
+
+.household-inline-details {
+    margin-top: 10px;
+    border-top: 1px solid #e6edf5;
+    padding-top: 10px;
+}
+
+.household-inline-details > summary {
+    cursor: pointer;
+    color: #356b9f;
+    font-size: .8rem;
+    font-weight: 850;
+}
+
+.household-inline-form {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 9px;
+    margin-top: 10px;
+}
+
+.household-form-compact {
+    margin-top: 11px;
+}
+
+.household-action-wide {
+    width: 100%;
+}
+
+.household-residence-row {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+}
+
+.household-residence-period {
+    color: #506d89;
+    font-size: .78rem;
+    font-weight: 750;
+    text-align: right;
+}
+
+.household-request-row {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+}
+
+.household-request-actions {
+    display: flex;
+    gap: 7px;
+}
+
+.household-request-actions form {
+    margin: 0;
+}
+
+.household-empty {
+    padding: 20px;
+    border: 1px dashed #cad9e8;
+    border-radius: 12px;
+    background: #f9fbfd;
+    color: var(--hh-muted);
+    text-align: center;
+}
+
+.household-success {
+    margin-bottom: 16px;
+}
+
+@media (max-width: 1150px) {
+    .household-kpis {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .household-nav-tiles {
+        grid-template-columns: repeat(5, 200px);
+    }
+
+    .household-form-three {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 850px) {
+    .household-dashboard {
+        padding: 18px;
+    }
+
+    .household-dashboard-head,
+    .household-section-head {
+        flex-direction: column;
+    }
+
+    .household-two-column,
+    .household-form-grid,
+    .household-form-three {
+        grid-template-columns: 1fr;
+    }
+
+    .household-form-grid .full {
+        grid-column: auto;
+    }
+
+    .household-person-row {
+        grid-template-columns: auto minmax(0, 1fr) auto;
+    }
+
+    .household-person-status {
+        grid-column: 2;
+        justify-self: start;
+    }
+
+    .household-row-arrow {
+        grid-column: 3;
+        grid-row: 1 / span 2;
+    }
+
+    .household-request-row {
+        grid-template-columns: auto minmax(0, 1fr);
+    }
+
+    .household-request-actions {
+        grid-column: 1 / -1;
+        justify-content: flex-end;
+    }
+}
+
+@media (max-width: 560px) {
+    .household-kpis {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .household-kpi {
+        min-height: 72px;
+        padding: 10px;
+    }
+
+    .household-kpi-icon {
+        width: 36px;
+        height: 36px;
+    }
+
+    .household-inline-form,
+    .household-residence-row {
+        grid-template-columns: 1fr;
+    }
+
+    .household-residence-period {
+        text-align: left;
+        padding-left: 49px;
+    }
+}

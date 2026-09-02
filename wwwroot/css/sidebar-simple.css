@@ -1,0 +1,177 @@
+/* PKG-015k-UI-01 — lewy pasek jako prosta lista, bez kafelków */
+
+.sidebar-simple-nav {
+    display: block;
+    padding: 4px 8px 18px;
+}
+
+.sidebar-simple-nav .nav-section {
+    margin: 0 0 14px;
+    padding: 0;
+}
+
+.sidebar-simple-nav .sidebar-caption {
+    margin: 12px 8px 5px;
+    padding: 0;
+    color: rgba(224, 235, 247, .56);
+    font-size: .66rem;
+    font-weight: 900;
+    letter-spacing: .11em;
+    text-transform: uppercase;
+}
+
+.sidebar-simple-nav .nav-item {
+    position: relative;
+    display: grid;
+    grid-template-columns: 26px minmax(0, 1fr);
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    min-height: 38px;
+    margin: 0;
+    padding: 6px 9px;
+    border: 0 !important;
+    border-radius: 7px !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    color: rgba(239, 245, 252, .84);
+    text-decoration: none;
+    transition: background .14s ease, color .14s ease;
+}
+
+.sidebar-simple-nav .nav-item::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 8px;
+    bottom: 8px;
+    width: 3px;
+    border-radius: 99px;
+    background: transparent;
+}
+
+.sidebar-simple-nav .nav-item:hover {
+    transform: none !important;
+    border: 0 !important;
+    background: rgba(255, 255, 255, .055) !important;
+    color: #fff;
+}
+
+.sidebar-simple-nav .nav-item.active {
+    border: 0 !important;
+    background: rgba(92, 157, 221, .13) !important;
+    box-shadow: none !important;
+    color: #fff;
+}
+
+.sidebar-simple-nav .nav-item.active::before {
+    background: #69aaf0;
+}
+
+.sidebar-simple-nav .nav-icon {
+    display: grid;
+    place-items: center;
+    width: 24px !important;
+    height: 24px !important;
+    min-width: 24px;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    color: rgba(208, 226, 244, .78);
+}
+
+.sidebar-simple-nav .nav-item.active .nav-icon,
+.sidebar-simple-nav .nav-item:hover .nav-icon {
+    color: #9dccff;
+}
+
+.sidebar-simple-nav .nav-icon svg {
+    width: 18px !important;
+    height: 18px !important;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.sidebar-simple-nav .nav-copy {
+    min-width: 0;
+    display: block;
+}
+
+.sidebar-simple-nav .nav-copy strong {
+    display: block;
+    overflow: hidden;
+    color: inherit;
+    font-size: .82rem;
+    font-weight: 760;
+    line-height: 1.2;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Zwykła lista ma być zwarta — opisy z kafelków ukrywamy. */
+.sidebar-simple-nav .nav-copy small {
+    display: none !important;
+}
+
+.sidebar-simple-nav .nav-submenu {
+    margin: 2px 0 5px 34px;
+    padding: 1px 0 1px 9px;
+    border-left: 1px solid rgba(211, 228, 245, .14);
+}
+
+.sidebar-simple-nav .nav-subitem {
+    position: relative;
+    display: block;
+    min-height: 29px;
+    padding: 6px 8px;
+    border: 0 !important;
+    border-radius: 5px !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    color: rgba(210, 225, 241, .7);
+    font-size: .75rem;
+    font-weight: 620;
+    line-height: 1.25;
+    text-decoration: none;
+}
+
+.sidebar-simple-nav .nav-subitem:hover {
+    background: rgba(255, 255, 255, .045) !important;
+    color: #eef7ff;
+}
+
+.sidebar-simple-nav .nav-subitem.active {
+    background: rgba(92, 157, 221, .10) !important;
+    color: #a9d3ff;
+    font-weight: 780;
+}
+
+/* Usuwamy odstępy typowe dla wariantu kafelkowego. */
+.sidebar-simple-nav .nav-section + .nav-section {
+    padding-top: 0;
+    border-top: 0;
+}
+
+/* Węższy pasek wygląda lepiej jako lista. */
+@media (min-width: 900px) {
+    .app-sidebar:has(.sidebar-simple-nav) {
+        --sidebar-item-radius: 7px;
+    }
+}
+
+@media (max-width: 760px) {
+    .sidebar-simple-nav {
+        padding-left: 5px;
+        padding-right: 5px;
+    }
+
+    .sidebar-simple-nav .nav-item {
+        min-height: 40px;
+        padding-left: 8px;
+        padding-right: 8px;
+    }
+}

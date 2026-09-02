@@ -1,0 +1,27 @@
+[
+  {
+    "id": "14a748d6-99ee-435b-9777-48c60c4e31a0",
+    "householdId": "95fe82d1-5e7e-41da-abcb-801cffdc3fff",
+    "invoiceId": "0b94f85e-fb26-41b8-884a-9f9110e89b34",
+    "invoiceNo": "t001",
+    "supplier": "TEST",
+    "amountMinor": 123000,
+    "currencyCode": "PLN",
+    "dueDate": "2026-09-16",
+    "assigneePersonId": "3cf0a540-7ad0-4c64-9047-25f7b32b009c",
+    "assigneeName": "Piotr Hundert",
+    "assignedByUserAccountId": "3b460853-d5a8-4928-9fb8-3c88f6462e61",
+    "assignedAtUtc": "2026-09-02T07:23:20.8944697Z",
+    "submittedAtUtc": "2026-09-02T07:24:08.958337Z",
+    "approvedAtUtc": "2026-09-02T07:58:00.8655934Z",
+    "approvedByUserAccountId": "3b460853-d5a8-4928-9fb8-3c88f6462e61",
+    "approvedAmountMinor": 123000,
+    "invoicePaymentBookedAtUtc": "2026-09-02T08:22:45.3409689Z",
+    "invoicePaymentBookedAmountMinor": 123000,
+    "claimId": "e6061b62-a6a6-47c0-a9f0-bc26777bfb8a",
+    "closedAtUtc": "2026-09-02T07:58:00.8655934Z",
+    "status": "Approved",
+    "settlementType": null,
+    "note": "test"
+  }
+]

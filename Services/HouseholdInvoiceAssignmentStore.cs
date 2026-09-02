@@ -96,13 +96,16 @@ public sealed class HouseholdInvoiceAssignmentStore
             var all = await LoadUnsafeAsync(cancellationToken);
             var now = DateTime.UtcNow;
 
-            foreach (var previous in all.Where(x =>
-                         x.HouseholdId == householdId &&
-                         x.InvoiceId == invoiceId &&
-                         x.Status == ActiveStatus))
+            var locked = all.FirstOrDefault(x =>
+                x.HouseholdId == householdId &&
+                x.InvoiceId == invoiceId &&
+                x.Status is "Assigned" or "Submitted" or "Approved");
+            if (locked is not null)
             {
-                previous.Status = "Reassigned";
-                previous.ClosedAtUtc = now;
+                throw new InvalidOperationException(
+                    locked.Status == "Submitted"
+                        ? "Dla tej faktury zgłoszono już opłacenie przez domownika."
+                        : "Ta faktura jest już przekazana do opłacenia innej osobie.");
             }
 
             var item = new HouseholdInvoiceAssignmentRecord
@@ -137,6 +140,8 @@ public sealed class HouseholdInvoiceAssignmentStore
         Guid assignmentId,
         Guid householdId,
         Guid personId,
+        string settlementType,
+        Guid? claimId,
         CancellationToken cancellationToken)
     {
         await Gate.WaitAsync(cancellationToken);
@@ -155,6 +160,108 @@ public sealed class HouseholdInvoiceAssignmentStore
 
             item.Status = "Submitted";
             item.SubmittedAtUtc = DateTime.UtcNow;
+            item.SettlementType = string.Equals(
+                settlementType,
+                "Compensation",
+                StringComparison.OrdinalIgnoreCase)
+                ? "Compensation"
+                : "Refund";
+            item.ClaimId = claimId;
+            await SaveUnsafeAsync(all, cancellationToken);
+            return true;
+        }
+        finally
+        {
+            Gate.Release();
+        }
+    }
+
+    public async Task<bool> LinkClaimAsync(
+        Guid assignmentId,
+        Guid householdId,
+        Guid claimId,
+        CancellationToken cancellationToken)
+    {
+        await Gate.WaitAsync(cancellationToken);
+        try
+        {
+            var all = await LoadUnsafeAsync(cancellationToken);
+            var item = all.FirstOrDefault(x =>
+                x.Id == assignmentId &&
+                x.HouseholdId == householdId);
+
+            if (item is null || item.Status != "Submitted")
+            {
+                return false;
+            }
+
+            item.ClaimId = claimId;
+            await SaveUnsafeAsync(all, cancellationToken);
+            return true;
+        }
+        finally
+        {
+            Gate.Release();
+        }
+    }
+
+    public async Task<bool> MarkApprovedAsync(
+        Guid assignmentId,
+        Guid householdId,
+        Guid approvedByUserAccountId,
+        long approvedAmountMinor,
+        CancellationToken cancellationToken)
+    {
+        await Gate.WaitAsync(cancellationToken);
+        try
+        {
+            var all = await LoadUnsafeAsync(cancellationToken);
+            var item = all.FirstOrDefault(x =>
+                x.Id == assignmentId &&
+                x.HouseholdId == householdId);
+
+            if (item is null || item.Status != "Submitted")
+            {
+                return false;
+            }
+
+            item.Status = "Approved";
+            item.ApprovedAtUtc = DateTime.UtcNow;
+            item.ApprovedByUserAccountId = approvedByUserAccountId;
+            item.ApprovedAmountMinor = approvedAmountMinor;
+            item.InvoicePaymentBookedAtUtc = DateTime.UtcNow;
+            item.InvoicePaymentBookedAmountMinor = approvedAmountMinor;
+            item.ClosedAtUtc = item.ApprovedAtUtc;
+            await SaveUnsafeAsync(all, cancellationToken);
+            return true;
+        }
+        finally
+        {
+            Gate.Release();
+        }
+    }
+
+    public async Task<bool> MarkInvoicePaymentBookedAsync(
+        Guid assignmentId,
+        Guid householdId,
+        long bookedAmountMinor,
+        CancellationToken cancellationToken)
+    {
+        await Gate.WaitAsync(cancellationToken);
+        try
+        {
+            var all = await LoadUnsafeAsync(cancellationToken);
+            var item = all.FirstOrDefault(x =>
+                x.Id == assignmentId &&
+                x.HouseholdId == householdId);
+
+            if (item is null || item.Status != "Approved")
+            {
+                return false;
+            }
+
+            item.InvoicePaymentBookedAtUtc = DateTime.UtcNow;
+            item.InvoicePaymentBookedAmountMinor = bookedAmountMinor;
             await SaveUnsafeAsync(all, cancellationToken);
             return true;
         }
@@ -241,7 +348,14 @@ public sealed class HouseholdInvoiceAssignmentRecord
     public Guid AssignedByUserAccountId { get; set; }
     public DateTime AssignedAtUtc { get; set; }
     public DateTime? SubmittedAtUtc { get; set; }
+    public DateTime? ApprovedAtUtc { get; set; }
+    public Guid? ApprovedByUserAccountId { get; set; }
+    public long? ApprovedAmountMinor { get; set; }
+    public DateTime? InvoicePaymentBookedAtUtc { get; set; }
+    public long? InvoicePaymentBookedAmountMinor { get; set; }
+    public Guid? ClaimId { get; set; }
     public DateTime? ClosedAtUtc { get; set; }
     public string Status { get; set; } = "Assigned";
+    public string? SettlementType { get; set; }
     public string? Note { get; set; }
 }
