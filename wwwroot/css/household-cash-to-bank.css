@@ -1,0 +1,236 @@
+/* PKG-015n-FEAT-01 — przesunięcie gotówki na konto bankowe */
+.hf-cash-bank-section {
+    margin-top: 14px;
+}
+
+.hf-cash-bank-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 18px;
+    align-items: flex-start;
+}
+
+.hf-cash-bank-head span {
+    display: block;
+    color: #537795;
+    font-size: .63rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+}
+
+.hf-cash-bank-head h2 {
+    margin: 3px 0 0;
+}
+
+.hf-cash-bank-head p {
+    max-width: 780px;
+    margin: 5px 0 0;
+    color: #6a7f92;
+    font-size: .7rem;
+    line-height: 1.45;
+}
+
+.hf-cash-bank-balances {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr 1fr;
+    gap: 8px;
+    align-items: center;
+    margin-top: 12px;
+}
+
+.hf-cash-bank-balances > div:not(.hf-cash-bank-arrow) {
+    padding: 9px 10px;
+    border: 1px solid #d8e5ee;
+    border-radius: 9px;
+    background: #fbfdff;
+}
+
+.hf-cash-bank-balances span,
+.hf-cash-bank-balances strong,
+.hf-cash-bank-balances small {
+    display: block;
+}
+
+.hf-cash-bank-balances span {
+    color: #708497;
+    font-size: .61rem;
+}
+
+.hf-cash-bank-balances strong {
+    margin-top: 2px;
+    color: #254a69;
+    font-size: .82rem;
+}
+
+.hf-cash-bank-balances small {
+    margin-top: 2px;
+    color: #7a8b99;
+    font-size: .58rem;
+}
+
+.hf-cash-bank-arrow {
+    color: #6185a4;
+    font-size: 1.2rem;
+    font-weight: 900;
+}
+
+.hf-cash-bank-section form {
+    margin-top: 11px;
+    padding: 11px;
+    border: 1px solid #cbddea;
+    border-radius: 9px;
+    background: #f7fbfe;
+}
+
+.hf-cash-bank-section form[hidden] {
+    display: none !important;
+}
+
+.hf-cash-bank-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 9px;
+}
+
+.hf-cash-bank-grid label {
+    display: grid;
+    gap: 5px;
+    color: #58738a;
+    font-size: .65rem;
+    font-weight: 800;
+}
+
+.hf-cash-bank-grid input {
+    width: 100%;
+    min-height: 37px;
+    padding: 7px 8px;
+    border: 1px solid #c9d9e5;
+    border-radius: 7px;
+    background: #fff;
+    color: #243d52;
+}
+
+.hf-cash-bank-full {
+    grid-column: 1 / -1;
+}
+
+.hf-cash-bank-amount {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 6px;
+    align-items: center;
+}
+
+.hf-cash-bank-amount span {
+    color: #57748b;
+    font-size: .67rem;
+    font-weight: 850;
+}
+
+.hf-cash-bank-preview {
+    margin-top: 9px;
+    padding: 8px 9px;
+    border: 1px solid #d7e5ef;
+    border-radius: 7px;
+    background: #fff;
+    color: #637b8e;
+    font-size: .65rem;
+}
+
+.hf-cash-bank-preview strong {
+    color: #2f628c;
+}
+
+.hf-cash-bank-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 7px;
+    margin-top: 9px;
+}
+
+.hf-cash-bank-history {
+    margin-top: 11px;
+    border-top: 1px solid #e0e8ee;
+    padding-top: 9px;
+}
+
+.hf-cash-bank-history[hidden] {
+    display: none !important;
+}
+
+.hf-cash-bank-history summary {
+    color: #466b88;
+    font-size: .67rem;
+    font-weight: 850;
+    cursor: pointer;
+}
+
+.hf-cash-bank-history > div {
+    display: grid;
+    gap: 6px;
+    margin-top: 7px;
+}
+
+.hf-cash-bank-history article {
+    display: grid;
+    grid-template-columns: 170px 1fr 1fr 1.3fr;
+    gap: 8px;
+    align-items: center;
+    padding: 8px 9px;
+    border: 1px solid #e0e8ee;
+    border-radius: 8px;
+    background: #fff;
+}
+
+.hf-cash-bank-history article strong,
+.hf-cash-bank-history article small,
+.hf-cash-bank-history article span {
+    display: block;
+}
+
+.hf-cash-bank-history article span {
+    color: #788a99;
+    font-size: .57rem;
+}
+
+.hf-cash-bank-history article strong {
+    color: #405c73;
+    font-size: .65rem;
+}
+
+.hf-cash-bank-history article small {
+    margin-top: 2px;
+    color: #7b8b98;
+    font-size: .57rem;
+}
+
+@media (max-width: 900px) {
+    .hf-cash-bank-balances {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .hf-cash-bank-arrow {
+        display: none;
+    }
+
+    .hf-cash-bank-history article {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+@media (max-width: 600px) {
+    .hf-cash-bank-head {
+        flex-direction: column;
+    }
+
+    .hf-cash-bank-balances,
+    .hf-cash-bank-grid,
+    .hf-cash-bank-history article {
+        grid-template-columns: 1fr;
+    }
+
+    .hf-cash-bank-full {
+        grid-column: auto;
+    }
+}

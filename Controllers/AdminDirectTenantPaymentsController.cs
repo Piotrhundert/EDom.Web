@@ -2,11 +2,14 @@ using System.Collections;
 using System.Reflection;
 using EDom.Application.Rental;
 using EDom.Domain.Rental;
+using EDom.Domain.Authorization;
+using EDom.Infrastructure.Persistence;
 using EDom.Web.Authorization;
 using EDom.Web.Infrastructure;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace EDom.Web.Controllers;
 
@@ -15,7 +18,8 @@ namespace EDom.Web.Controllers;
 public sealed class AdminDirectTenantPaymentsController(
     WebAccessService access,
     ITenantSettlementService settlementService,
-    IAntiforgery antiforgery) : Controller
+    IAntiforgery antiforgery,
+    EDomDbContext db) : Controller
 {
     [HttpGet("Data")]
     public async Task<IActionResult> Data(
@@ -217,15 +221,57 @@ public sealed class AdminDirectTenantPaymentsController(
                     DateTimeKind.Local)
                 .ToUniversalTime();
 
+        var paidMinorBefore =
+            GetLong(
+                settlementBefore,
+                "PaidMinor");
+
         var beforeSubmissionIds =
             GetSubmissionIds(
                 settlementBefore);
 
+        var payerPersonId =
+            GetGuid(
+                settlementBefore,
+                "PayerPersonId");
+
+        if (payerPersonId == Guid.Empty)
+        {
+            return BadRequest(new
+            {
+                message =
+                    "Rozliczenie nie ma przypisanego płatnika. Nie można przyjąć wpłaty w imieniu lokatora."
+            });
+        }
+
         try
         {
-            // Krok 1: używamy standardowego mechanizmu zgłoszenia wpłaty.
+            // SubmitPaymentAsync sprawdza uprawnienia rzeczywistego konta
+            // lokatora. Sam PersonId nie wystarcza — aktor musi zawierać
+            // zgodną parę UserAccountId + PersonId.
+            var payerAccountId = await ResolveTenantAccountIdAsync(
+                payerPersonId,
+                actor.HouseholdId,
+                cancellationToken);
+
+            if (payerAccountId == Guid.Empty)
+            {
+                return BadRequest(new
+                {
+                    message =
+                        "Nie znaleziono aktywnego konta lokatora z rolą Tenant dla tego gospodarstwa. Sprawdź przypisanie użytkownika do pokoju i rolę Lokator."
+                });
+            }
+
+            var payerActor = new RentalActor(
+                payerAccountId,
+                payerPersonId,
+                actor.HouseholdId,
+                actor.CorrelationId,
+                actor.NowUtc);
+
             await settlementService.SubmitPaymentAsync(
-                actor,
+                payerActor,
                 new(
                     settlementId,
                     amountMinor,
@@ -309,7 +355,7 @@ public sealed class AdminDirectTenantPaymentsController(
                     actor,
                     new(
                         submissionId,
-                        amountMinor,
+                        null,
                         decisionReason),
                     cancellationToken);
             }
@@ -348,13 +394,35 @@ public sealed class AdminDirectTenantPaymentsController(
                             settlementFinal,
                             "TotalDueMinor"));
 
+            if (settlementFinal is null)
+            {
+                throw new InvalidOperationException(
+                    "Wpłata została przetworzona, ale nie udało się odczytać końcowego stanu rozliczenia.");
+            }
+
+            var expectedPaidMinor =
+                checked(
+                    paidMinorBefore
+                    + amountMinor);
+
+            if (totalPaidMinor < expectedPaidMinor)
+            {
+                throw new InvalidOperationException(
+                    $"Wpłata została utworzona, ale saldo rozliczenia nie wzrosło prawidłowo. " +
+                    $"Id zgłoszenia: {submissionId}. " +
+                    $"Przed operacją: {paidMinorBefore / 100m:N2} {normalizedCurrency}, " +
+                    $"po operacji: {totalPaidMinor / 100m:N2} {normalizedCurrency}, " +
+                    $"oczekiwano co najmniej: {expectedPaidMinor / 100m:N2} {normalizedCurrency}. " +
+                    $"Zgłoszenie pozostaje widoczne w sekcji „Zgłoszenia wpłat” i można je zatwierdzić ręcznie.");
+            }
+
             var sourceLabel =
                 normalizedMethod == "Cash"
                     ? "kasie domowej"
                     : "rachunku bankowym domu";
 
             var message =
-                $"Przyjęto i zaksięgowano {amountMinor / 100m:N2} {normalizedCurrency} od {GetString(settlementBefore, "TenantName")}. Kwota została ujęta w {sourceLabel}.";
+                $"Przyjęto i zaksięgowano {amountMinor / 100m:N2} {normalizedCurrency} od {GetString(settlementBefore, "TenantName")}. Rozliczenie zostało zaktualizowane, a kwota została ujęta w {sourceLabel}.";
 
             if (remainingMinor > 0)
             {
@@ -396,6 +464,42 @@ public sealed class AdminDirectTenantPaymentsController(
                 message = ex.Message
             });
         }
+    }
+
+    private async Task<Guid> ResolveTenantAccountIdAsync(
+        Guid payerPersonId,
+        Guid householdId,
+        CancellationToken cancellationToken)
+    {
+        var now = DateTime.UtcNow;
+
+        // Preferujemy konto z aktywną rolą Tenant w tym gospodarstwie.
+        var tenantAccountId = await (
+            from account in db.UserAccounts.AsNoTracking()
+            join assignment in db.AccessAssignments.AsNoTracking()
+                on account.Id equals assignment.UserAccountId
+            where account.PersonId == payerPersonId
+            where assignment.HouseholdId == householdId
+            where assignment.RoleCode == RoleCodes.Tenant
+            where assignment.ValidFromUtc <= now
+            where assignment.ValidToUtc == null
+                  || assignment.ValidToUtc > now
+            orderby assignment.ValidFromUtc descending
+            select account.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (tenantAccountId != Guid.Empty)
+        {
+            return tenantAccountId;
+        }
+
+        // Fallback dla starszych danych: konto może być poprawnie powiązane
+        // z osobą, ale nie mieć jeszcze odtworzonego AccessAssignment.
+        return await db.UserAccounts
+            .AsNoTracking()
+            .Where(x => x.PersonId == payerPersonId)
+            .Select(x => x.Id)
+            .FirstOrDefaultAsync(cancellationToken);
     }
 
     private async Task<RentalActor?> GetActorAsync(
@@ -472,21 +576,15 @@ public sealed class AdminDirectTenantPaymentsController(
                         return false;
                     }
 
-                    var method =
-                        GetString(
-                            x,
-                            "PaymentMethod");
-
                     var amount =
                         GetLong(
                             x,
                             "AmountMinor");
 
-                    return amount == amountMinor
-                           && string.Equals(
-                               method,
-                               paymentMethod,
-                               StringComparison.OrdinalIgnoreCase);
+                    // Nazwa pola metody płatności różniła się pomiędzy
+                    // wersjami modelu widoku, dlatego identyfikujemy nowe
+                    // zgłoszenie przede wszystkim po nowym Id i kwocie.
+                    return amount == amountMinor;
                 })
                 .OrderByDescending(x =>
                     GetDateTime(
