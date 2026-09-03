@@ -21,6 +21,35 @@
       "createdByUserAccountId": "3b460853-d5a8-4928-9fb8-3c88f6462e61"
     }
   ],
-  "plans": [],
-  "applications": []
+  "plans": [
+    {
+      "id": "4be4f869-457d-45ea-ac32-fb0144b297d0",
+      "householdId": "95fe82d1-5e7e-41da-abcb-801cffdc3fff",
+      "poolId": "4d09020b-7e6f-4e7d-bacc-5f6e265c6025",
+      "periodKey": "2026-09",
+      "poolAllocatedBeforeMinor": 0,
+      "poolRemainingBeforeMinor": 900000,
+      "monthsRemaining": 12,
+      "monthlyBudgetMinor": 75000,
+      "tenantCount": 2,
+      "shares": [
+        {
+          "leaseContractId": "6139531c-2b2b-4a2d-8e7b-88416de54bf9",
+          "tenantName": "lokator lok",
+          "roomName": "Pok\u00F3j 1",
+          "amountMinor": 37500
+        },
+        {
+          "leaseContractId": "9ccc7210-5003-4a72-849b-91db6c1402d7",
+          "tenantName": "lokator2 lok",
+          "roomName": "Pok\u00F3j 2",
+          "amountMinor": 37500
+        }
+      ],
+      "createdAtUtc": "2026-09-02T14:56:06.9182412Z"
+    }
+  ],
+  "applications": [],
+  "purchases": [],
+  "invoiceAdjustments": []
 }

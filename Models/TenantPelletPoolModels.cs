@@ -114,3 +114,35 @@ public sealed class TenantPelletApplicationRecord
     public string CurrencyCode { get; set; } = "PLN";
     public DateTime AppliedAtUtc { get; set; }
 }
+
+
+public sealed record TenantPelletCorrectionPreviewRow(
+    Guid SettlementId,
+    Guid LeaseContractId,
+    string PeriodKey,
+    string TenantName,
+    string RoomName,
+    string SettlementStatus,
+    long MonthlyPoolMinor,
+    int TenantCount,
+    long TargetShareMinor,
+    long AlreadyAssignedPelletMinor,
+    long CorrectionNeededMinor,
+    bool ClosedSettlement);
+
+public sealed record TenantPelletCorrectionPreviewResult(
+    Guid PoolId,
+    string BuildingName,
+    string SeasonName,
+    string CurrencyCode,
+    long PoolTotalMinor,
+    long AlreadyAllocatedMinor,
+    long ProposedCorrectionMinor,
+    int ClosedCorrectionCount,
+    IReadOnlyList<TenantPelletCorrectionPreviewRow> Rows);
+
+public sealed record TenantPelletCorrectionGenerationResult(
+    Guid PoolId,
+    int CorrectionCount,
+    long CorrectionAmountMinor,
+    DateOnly DueDate);

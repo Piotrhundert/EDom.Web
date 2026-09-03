@@ -266,3 +266,226 @@
         grid-column: auto;
     }
 }
+
+
+/* PKG-015m-FEAT-07 — wyliczenie i korekty zamkniętych okresów */
+.tenant-pellet-correction-actions {
+    display: flex;
+    gap: 7px;
+    flex-wrap: wrap;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid #e3eaf0;
+}
+
+.tenant-pellet-correction-preview {
+    margin-top: 9px;
+    padding: 10px;
+    border: 1px solid #cddfec;
+    border-radius: 9px;
+    background: #f8fcff;
+}
+
+.tenant-pellet-correction-preview[hidden] {
+    display: none !important;
+}
+
+.tenant-pellet-preview-loading,
+.tenant-pellet-preview-error,
+.tenant-pellet-preview-ok {
+    padding: 10px;
+    border-radius: 8px;
+    font-size: .68rem;
+}
+
+.tenant-pellet-preview-loading {
+    background: #f1f6fa;
+    color: #657a8e;
+}
+
+.tenant-pellet-preview-error {
+    border: 1px solid #ebc5c5;
+    background: #fff6f6;
+    color: #9b4b4b;
+}
+
+.tenant-pellet-preview-ok {
+    border: 1px solid #cde5d4;
+    background: #f1fbf4;
+    color: #447455;
+}
+
+.tenant-pellet-preview-head strong,
+.tenant-pellet-preview-head small {
+    display: block;
+}
+
+.tenant-pellet-preview-head strong {
+    color: #244e72;
+    font-size: .76rem;
+}
+
+.tenant-pellet-preview-head small {
+    margin-top: 2px;
+    color: #6e8193;
+    font-size: .63rem;
+}
+
+.tenant-pellet-preview-table-wrap {
+    overflow-x: auto;
+    margin-top: 8px;
+}
+
+.tenant-pellet-preview-table {
+    width: 100%;
+    min-width: 880px;
+    border-collapse: collapse;
+    background: #fff;
+    font-size: .64rem;
+}
+
+.tenant-pellet-preview-table th,
+.tenant-pellet-preview-table td {
+    padding: 7px 8px;
+    border: 1px solid #e1e9ef;
+    text-align: left;
+    vertical-align: middle;
+}
+
+.tenant-pellet-preview-table th {
+    background: #f1f6fa;
+    color: #546f88;
+    font-size: .58rem;
+    text-transform: uppercase;
+    letter-spacing: .03em;
+}
+
+.tenant-pellet-preview-table td {
+    color: #4d6377;
+}
+
+.tenant-pellet-preview-table td > strong,
+.tenant-pellet-preview-table td > small {
+    display: block;
+}
+
+.tenant-pellet-preview-table td > small {
+    margin-top: 2px;
+    color: #7a8c9c;
+}
+
+.tenant-pellet-preview-table tr.is-open {
+    opacity: .7;
+}
+
+.tenant-pellet-preview-table .needs-correction {
+    color: #a46412;
+}
+
+.tenant-pellet-closed,
+.tenant-pellet-open {
+    display: inline-flex;
+    padding: 4px 6px;
+    border-radius: 999px;
+    font-size: .56rem;
+    font-weight: 850;
+    white-space: nowrap;
+}
+
+.tenant-pellet-closed {
+    background: #fff0dc;
+    color: #8b5c1d;
+}
+
+.tenant-pellet-open {
+    background: #eaf6ef;
+    color: #427154;
+}
+
+.tenant-pellet-generate-box {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    align-items: end;
+    margin-top: 9px;
+    padding-top: 9px;
+    border-top: 1px solid #dde7ef;
+}
+
+.tenant-pellet-generate-box label {
+    display: grid;
+    gap: 4px;
+    color: #60788f;
+    font-size: .61rem;
+    font-weight: 800;
+}
+
+.tenant-pellet-generate-box input {
+    min-height: 34px;
+    padding: 6px 7px;
+    border: 1px solid #cbd9e4;
+    border-radius: 7px;
+    background: #fff;
+}
+
+@media (max-width: 650px) {
+    .tenant-pellet-generate-box {
+        align-items: stretch;
+        flex-direction: column;
+    }
+}
+
+
+/* PKG-015m-FEAT-10 — pellet bezpośrednio w projekcie rozliczenia */
+.tenant-pellet-draft-action {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: center;
+    margin: 10px 0;
+    padding: 9px 10px;
+    border: 1px solid #d7c79f;
+    border-radius: 9px;
+    background: #fffaf0;
+}
+
+.tenant-pellet-draft-action span,
+.tenant-pellet-draft-action strong,
+.tenant-pellet-draft-action small {
+    display: block;
+}
+
+.tenant-pellet-draft-action span {
+    color: #8a682e;
+    font-size: .59rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+}
+
+.tenant-pellet-draft-action strong {
+    margin-top: 2px;
+    color: #53452d;
+    font-size: .72rem;
+}
+
+.tenant-pellet-draft-action small {
+    margin-top: 2px;
+    color: #806f53;
+    font-size: .61rem;
+}
+
+.tenant-pellet-draft-action > b {
+    padding: 5px 8px;
+    border-radius: 999px;
+    background: #edf7ef;
+    color: #477153;
+    font-size: .61rem;
+}
+
+@media (max-width: 620px) {
+    .tenant-pellet-draft-action {
+        align-items: stretch;
+        flex-direction: column;
+    }
+}

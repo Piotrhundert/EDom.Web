@@ -54,16 +54,37 @@ public sealed class TenantOverpaymentsController(
                 continue;
             }
 
-            var approvedTotal = GetApprovedTotal(settlement);
+            var grossApprovedTotal = GetApprovedTotal(settlement);
             var totalDue = GetLong(settlement, "TotalDueMinor");
-            var overpayment = Math.Max(0, approvedTotal - totalDue);
 
             var decisions = records
                 .Where(x => x.SourceSettlementId == settlementId)
                 .ToArray();
 
-            var decided = decisions.Sum(x => x.AmountMinor);
-            var available = Math.Max(0, overpayment - decided);
+            var refundedMinor = decisions
+                .Where(x => x.Decision == TenantOverpaymentDecisions.Refunded)
+                .Sum(x => x.AmountMinor);
+
+            var carryForwardMinor = decisions
+                .Where(x => x.Decision == TenantOverpaymentDecisions.CarryForward)
+                .Sum(x => x.AmountMinor);
+
+            var disposedMinor = checked(
+                refundedMinor + carryForwardMinor);
+
+            var effectiveApprovedTotal = Math.Max(
+                0,
+                grossApprovedTotal - disposedMinor);
+
+            var overpayment = Math.Max(
+                0,
+                effectiveApprovedTotal - totalDue);
+
+            var remainingAfterDecisions = Math.Max(
+                0,
+                totalDue - effectiveApprovedTotal);
+
+            var available = overpayment;
 
             result.Add(new
             {
@@ -72,19 +93,18 @@ public sealed class TenantOverpaymentsController(
                 roomName = GetString(settlement, "RoomName"),
                 periodKey = GetString(settlement, "PeriodKey"),
                 currencyCode = GetString(settlement, "CurrencyCode", "PLN"),
-                approvedTotalMinor = approvedTotal,
+                grossApprovedTotalMinor = grossApprovedTotal,
+                approvedTotalMinor = effectiveApprovedTotal,
+                disposedMinor,
+                remainingAfterDecisionsMinor = remainingAfterDecisions,
                 totalDueMinor = totalDue,
                 overpaymentMinor = overpayment,
                 availableMinor = available,
-                carryForwardMinor = decisions
-                    .Where(x => x.Decision == TenantOverpaymentDecisions.CarryForward)
-                    .Sum(x => x.AmountMinor),
+                carryForwardMinor,
                 carryForwardAppliedMinor = decisions
                     .Where(x => x.Decision == TenantOverpaymentDecisions.CarryForward)
                     .Sum(x => x.Applications.Sum(a => a.AmountMinor)),
-                refundedMinor = decisions
-                    .Where(x => x.Decision == TenantOverpaymentDecisions.Refunded)
-                    .Sum(x => x.AmountMinor),
+                refundedMinor,
                 decisions = decisions.Select(x => new
                 {
                     x.Id,
@@ -827,12 +847,18 @@ public sealed class TenantOverpaymentsController(
     {
         var approved = GetApprovedTotal(settlement);
         var due = GetLong(settlement, "TotalDueMinor");
-        var overpayment = Math.Max(0, approved - due);
-        var decided = records
+
+        var disposed = records
             .Where(x => x.SourceSettlementId == GetGuid(settlement, "Id"))
             .Sum(x => x.AmountMinor);
 
-        return Math.Max(0, overpayment - decided);
+        var effectiveApproved = Math.Max(
+            0,
+            approved - disposed);
+
+        return Math.Max(
+            0,
+            effectiveApproved - due);
     }
 
     private static long GetApprovedTotal(object settlement)

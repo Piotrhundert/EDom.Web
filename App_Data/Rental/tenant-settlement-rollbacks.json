@@ -1,0 +1,36 @@
+[
+  {
+    "id": "cf3d9e70-012b-4eec-9076-7fb10f35c94e",
+    "householdId": "95fe82d1-5e7e-41da-abcb-801cffdc3fff",
+    "settlementId": "68d73312-f55f-4267-a8a4-e1ae2902db7c",
+    "leaseContractId": "9ccc7210-5003-4a72-849b-91db6c1402d7",
+    "payerPersonId": "d4f947c3-dc7b-4c3d-b58a-ade4cd081c60",
+    "tenantName": "lokator2 lok",
+    "roomName": "Scinawska / Pok\u00F3j 2",
+    "periodKey": "2026-09",
+    "previousStatus": "Published",
+    "reopenedStatus": "Draft",
+    "reason": "test.test",
+    "paidMinorAtRollback": 0,
+    "keptApprovedPayments": false,
+    "reopenedAtUtc": "2026-09-02T14:55:32.172175Z",
+    "reopenedByUserAccountId": "3b460853-d5a8-4928-9fb8-3c88f6462e61"
+  },
+  {
+    "id": "f38fdeb6-6716-4347-889b-b9c411163b86",
+    "householdId": "95fe82d1-5e7e-41da-abcb-801cffdc3fff",
+    "settlementId": "925ae9af-0e65-4a54-b04d-601afe07e10d",
+    "leaseContractId": "6139531c-2b2b-4a2d-8e7b-88416de54bf9",
+    "payerPersonId": "b8f23244-e4f2-43e2-ab6c-64b2c3cf675f",
+    "tenantName": "lokator lok",
+    "roomName": "Scinawska / Pok\u00F3j 1",
+    "periodKey": "2026-09",
+    "previousStatus": "Paid",
+    "reopenedStatus": "Draft",
+    "reason": "test.test",
+    "paidMinorAtRollback": 105000,
+    "keptApprovedPayments": true,
+    "reopenedAtUtc": "2026-09-02T15:25:13.5397899Z",
+    "reopenedByUserAccountId": "3b460853-d5a8-4928-9fb8-3c88f6462e61"
+  }
+]

@@ -1,8 +1,12 @@
 using System.Collections;
 using System.Reflection;
 using EDom.Application.Rental;
+using EDom.Domain.Rental;
 using EDom.Web.Authorization;
 using EDom.Web.Infrastructure;
+using EDom.Web.Models;
+using EDom.Web.Services;
+using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -12,14 +16,18 @@ namespace EDom.Web.Controllers;
 [Route("Rental/SettlementCorrections")]
 public sealed class TenantSettlementCorrectionsController(
     WebAccessService access,
-    ITenantSettlementService settlementService) : Controller
+    ITenantSettlementService settlementService,
+    IAntiforgery antiforgery,
+    IWebHostEnvironment environment) : Controller
 {
     [HttpGet("Data")]
     public async Task<IActionResult> Data(
         CancellationToken cancellationToken)
     {
         var actor = await GetActorAsync(cancellationToken);
-        if (actor is null)
+        var current = await access.GetCurrentAsync(cancellationToken);
+
+        if (actor is null || current is null)
         {
             return Unauthorized();
         }
@@ -28,14 +36,60 @@ public sealed class TenantSettlementCorrectionsController(
             actor,
             cancellationToken);
 
+        var store = new TenantSettlementCorrectionUiStore(
+            environment.ContentRootPath);
+
+        var correctionHistory = await store.GetForHouseholdAsync(
+            current.HouseholdId,
+            cancellationToken);
+
+        var requestToken = antiforgery
+            .GetAndStoreTokens(HttpContext)
+            .RequestToken;
+
         var settlements = AsObjects(GetValue(overview, "Settlements"))
             .Select(x =>
             {
+                var settlementId = GetGuid(x, "Id");
                 var status = GetString(x, "Status");
+
+                var lines = AsObjects(GetValue(x, "Lines"))
+                    .ToArray();
+
+                var pelletAmountMinor = lines
+                    .Where(line => string.Equals(
+                        GetString(line, "LineType"),
+                        TenantSettlementLineTypes.Pellet,
+                        StringComparison.OrdinalIgnoreCase))
+                    .Sum(line => GetLong(line, "AmountMinor"));
+
+                var correctionLineMinor = lines
+                    .Where(line => string.Equals(
+                        GetString(line, "LineType"),
+                        TenantSettlementLineTypes.Correction,
+                        StringComparison.OrdinalIgnoreCase))
+                    .Sum(line => GetLong(line, "AmountMinor"));
+
+                var storedCorrections = correctionHistory
+                    .Where(c => c.SettlementId == settlementId)
+                    .OrderByDescending(c => c.CreatedAtUtc)
+                    .Select(c => new
+                    {
+                        c.Id,
+                        c.CorrectionType,
+                        c.DeltaMinor,
+                        c.CurrencyCode,
+                        c.DueDate,
+                        c.Reason,
+                        c.CreatedAtUtc
+                    })
+                    .ToArray();
+
+                var dueDate = GetNullableDateOnly(x, "DueDate");
 
                 return new
                 {
-                    settlementId = GetGuid(x, "Id"),
+                    settlementId,
                     tenantName = GetString(x, "TenantName"),
                     roomName = GetString(x, "RoomName"),
                     periodKey = GetString(x, "PeriodKey"),
@@ -43,6 +97,12 @@ public sealed class TenantSettlementCorrectionsController(
                     currencyCode = GetString(x, "CurrencyCode", "PLN"),
                     totalDueMinor = GetLong(x, "TotalDueMinor"),
                     paidMinor = GetLong(x, "PaidMinor"),
+                    remainingMinor = GetLong(x, "RemainingMinor"),
+                    payerPersonId = GetGuid(x, "PayerPersonId"),
+                    dueDate,
+                    pelletAmountMinor,
+                    correctionLineMinor,
+                    corrections = storedCorrections,
                     lockedForNormalEdit = !IsEditableStatus(status)
                 };
             })
@@ -52,6 +112,8 @@ public sealed class TenantSettlementCorrectionsController(
         return Json(new
         {
             canManage = GetBool(overview, "CanManage"),
+            isTenant = GetBool(overview, "IsTenant"),
+            requestToken,
             settlements
         });
     }
@@ -63,11 +125,14 @@ public sealed class TenantSettlementCorrectionsController(
         string correctionType,
         string operation,
         decimal amount,
+        DateOnly? dueDate,
         string? reason,
         CancellationToken cancellationToken)
     {
         var actor = await GetActorAsync(cancellationToken);
-        if (actor is null)
+        var current = await access.GetCurrentAsync(cancellationToken);
+
+        if (actor is null || current is null)
         {
             return Unauthorized();
         }
@@ -94,6 +159,7 @@ public sealed class TenantSettlementCorrectionsController(
         }
 
         var status = GetString(settlement, "Status");
+
         if (IsEditableStatus(status))
         {
             return BadRequest(new
@@ -117,9 +183,18 @@ public sealed class TenantSettlementCorrectionsController(
             normalizedType);
 
         var amountMinor = ToMinor(amount);
+
         var deltaMinor = normalizedOperation == "Subtract"
             ? checked(-amountMinor)
             : amountMinor;
+
+        if (deltaMinor > 0 && !dueDate.HasValue)
+        {
+            return BadRequest(new
+            {
+                message = "Dla korekty zwiększającej należność podaj termin płatności."
+            });
+        }
 
         var currency = GetString(
             settlement,
@@ -139,7 +214,7 @@ public sealed class TenantSettlementCorrectionsController(
             "RoomName");
 
         var typeLabel = normalizedType == "Pellet"
-            ? "Pellet"
+            ? "Pellet / ogrzewanie"
             : "Korekta ręczna";
 
         var operationLabel = deltaMinor >= 0
@@ -153,6 +228,9 @@ public sealed class TenantSettlementCorrectionsController(
         var fullReason =
             $"{typeLabel} — {operationLabel} {Math.Abs(deltaMinor) / 100m:N2} {currency}. " +
             $"Lokator: {tenantName}, {roomName}, okres {periodKey}." +
+            (dueDate.HasValue
+                ? $" Termin płatności korekty: {dueDate.Value:yyyy-MM-dd}."
+                : string.Empty) +
             (cleanReason is null
                 ? string.Empty
                 : $" Powód: {cleanReason}");
@@ -167,14 +245,154 @@ public sealed class TenantSettlementCorrectionsController(
                     fullReason),
                 cancellationToken);
 
+            // Dodatnia korekta jest realną nową należnością.
+            // Termin zapisujemy również jako widoczne dla lokatora uzgodnienie,
+            // aby termin był częścią standardowego modelu rozliczeń.
+            if (deltaMinor > 0 && dueDate.HasValue)
+            {
+                await settlementService.CreatePaymentArrangementAsync(
+                    actor,
+                    new(
+                        settlementId,
+                        deltaMinor,
+                        dueDate.Value,
+                        $"Termin płatności korekty — {typeLabel}",
+                        fullReason,
+                        true),
+                    cancellationToken);
+            }
+
+            var store = new TenantSettlementCorrectionUiStore(
+                environment.ContentRootPath);
+
+            await store.AddAsync(
+                new TenantSettlementCorrectionUiRecord
+                {
+                    Id = Guid.NewGuid(),
+                    HouseholdId = current.HouseholdId,
+                    SettlementId = settlementId,
+                    CorrectionType = normalizedType,
+                    DeltaMinor = deltaMinor,
+                    CurrencyCode = currency,
+                    DueDate = dueDate,
+                    Reason = cleanReason,
+                    TenantName = tenantName,
+                    RoomName = roomName,
+                    PeriodKey = periodKey,
+                    CreatedAtUtc = DateTime.UtcNow,
+                    CreatedByUserAccountId = current.UserAccountId
+                },
+                cancellationToken);
+
             return Json(new
             {
                 ok = true,
                 deltaMinor,
                 correctionType = normalizedType,
+                dueDate,
                 message = normalizedType == "Pellet"
-                    ? $"Utworzono korektę pelletu: {(deltaMinor >= 0 ? "+" : "-")}{Math.Abs(deltaMinor) / 100m:N2} {currency}."
+                    ? $"Utworzono korektę pelletu: {(deltaMinor >= 0 ? "+" : "-")}{Math.Abs(deltaMinor) / 100m:N2} {currency}. {(dueDate.HasValue ? $"Termin: {dueDate.Value:dd.MM.yyyy}." : "")}"
                     : $"Utworzono korektę rozliczenia: {(deltaMinor >= 0 ? "+" : "-")}{Math.Abs(deltaMinor) / 100m:N2} {currency}."
+            });
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new
+            {
+                message = ex.Message
+            });
+        }
+    }
+
+    [HttpPost("Payment/Submit")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> SubmitCorrectionPayment(
+        Guid settlementId,
+        decimal amount,
+        string currencyCode,
+        DateTime declaredPaidAtLocal,
+        string paymentMethod,
+        CancellationToken cancellationToken)
+    {
+        var actor = await GetActorAsync(cancellationToken);
+
+        if (actor is null)
+        {
+            return Unauthorized();
+        }
+
+        var overview = await settlementService.GetOverviewAsync(
+            actor,
+            cancellationToken);
+
+        if (!GetBool(overview, "IsTenant"))
+        {
+            return Forbid();
+        }
+
+        var settlement = AsObjects(GetValue(overview, "Settlements"))
+            .FirstOrDefault(x =>
+                GetGuid(x, "Id") == settlementId);
+
+        if (settlement is null)
+        {
+            return BadRequest(new
+            {
+                message = "Nie znaleziono rozliczenia lub nie jest ono widoczne dla tego lokatora."
+            });
+        }
+
+        if (amount <= 0m)
+        {
+            return BadRequest(new
+            {
+                message = "Kwota wpłaty musi być większa od 0."
+            });
+        }
+
+        var remainingMinor = GetLong(
+            settlement,
+            "RemainingMinor");
+
+        var amountMinor = ToMinor(amount);
+
+        if (remainingMinor > 0 && amountMinor > remainingMinor)
+        {
+            return BadRequest(new
+            {
+                message =
+                    $"Kwota wpłaty przekracza aktualną należność. Pozostało {remainingMinor / 100m:N2} {GetString(settlement, "CurrencyCode", "PLN")}."
+            });
+        }
+
+        var declaredUtc = DateTime.SpecifyKind(
+                declaredPaidAtLocal,
+                DateTimeKind.Local)
+            .ToUniversalTime();
+
+        try
+        {
+            await settlementService.SubmitPaymentAsync(
+                actor,
+                new(
+                    settlementId,
+                    amountMinor,
+                    NormalizeCurrency(currencyCode),
+                    declaredUtc,
+                    NormalizePaymentMethod(paymentMethod),
+                    null,
+                    null),
+                cancellationToken);
+
+            return Json(new
+            {
+                ok = true,
+                message =
+                    "Wpłata korekty została zgłoszona. Administrator zobaczy ją w zgłoszeniach wpłat i zatwierdzi standardowym mechanizmem."
             });
         }
         catch (UnauthorizedAccessException)
@@ -209,9 +427,9 @@ public sealed class TenantSettlementCorrectionsController(
     private static bool IsEditableStatus(
         string? status) =>
         status is
-            "Draft"
-            or "AwaitingData"
-            or "ReadyForApproval";
+            TenantSettlementStatuses.Draft
+            or TenantSettlementStatuses.AwaitingData
+            or TenantSettlementStatuses.ReadyForApproval;
 
     private static string NormalizeType(
         string? value)
@@ -241,6 +459,27 @@ public sealed class TenantSettlementCorrectionsController(
             ? "Subtract"
             : "Add";
     }
+
+    private static string NormalizeCurrency(
+        string? value)
+    {
+        var currency = (value ?? "PLN")
+            .Trim()
+            .ToUpperInvariant();
+
+        return currency.Length == 3
+            ? currency
+            : "PLN";
+    }
+
+    private static string NormalizePaymentMethod(
+        string? value) =>
+        string.Equals(
+            value,
+            "Cash",
+            StringComparison.OrdinalIgnoreCase)
+            ? "Cash"
+            : "Bank";
 
     private static long ToMinor(
         decimal amount) =>
@@ -346,5 +585,28 @@ public sealed class TenantSettlementCorrectionsController(
         {
             return 0L;
         }
+    }
+
+    private static DateOnly? GetNullableDateOnly(
+        object source,
+        params string[] names)
+    {
+        var value = GetValue(source, names);
+
+        if (value is DateOnly dateOnly)
+        {
+            return dateOnly;
+        }
+
+        if (value is DateTime dateTime)
+        {
+            return DateOnly.FromDateTime(dateTime);
+        }
+
+        return DateOnly.TryParse(
+            value?.ToString(),
+            out var parsed)
+            ? parsed
+            : null;
     }
 }

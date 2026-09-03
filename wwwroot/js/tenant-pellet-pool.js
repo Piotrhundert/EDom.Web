@@ -31,6 +31,16 @@
         return p.length === 3 ? `${p[2]}.${p[1]}.${p[0]}` : raw;
     };
 
+
+    const defaultCorrectionDueDate = () => {
+        const value = new Date();
+        value.setDate(value.getDate() + 14);
+        const local = new Date(
+            value.getTime() - value.getTimezoneOffset() * 60000
+        );
+        return local.toISOString().slice(0, 10);
+    };
+
     function defaultDates() {
         const now = new Date();
         const from = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -46,6 +56,166 @@
             to: iso(to),
             purchase: iso(now)
         };
+    }
+
+    function findSettlementCard(item) {
+        const expected =
+            `${String(item.tenantName || "").trim()} — ${String(item.periodKey || "").trim()}`
+                .toLowerCase();
+
+        const heading = Array.from(
+            main.querySelectorAll(
+                ".card-header strong, .card strong"
+            )
+        ).find(x =>
+            String(x.textContent || "")
+                .trim()
+                .toLowerCase() === expected
+        );
+
+        return heading?.closest(".card") || null;
+    }
+
+    function addPelletButtonToSettlement(
+        item,
+        canManage)
+    {
+        if (!canManage || !item.editable) {
+            return;
+        }
+
+        const card = findSettlementCard(item);
+        if (!card) {
+            return;
+        }
+
+        if (card.querySelector(
+                "[data-add-pellet-to-settlement]")) {
+            return;
+        }
+
+        const body =
+            card.querySelector(".card-body")
+            || card;
+
+        const panel = document.createElement("section");
+        panel.className = "tenant-pellet-draft-action";
+
+        if (Number(item.pelletAmountMinor || 0) > 0) {
+            panel.innerHTML = `
+                <div>
+                    <span>Pellet / ogrzewanie</span>
+                    <strong>
+                        Już dodano:
+                        ${esc(money(item.pelletAmountMinor, "PLN"))}
+                    </strong>
+                    <small>
+                        Pozycja jest częścią bieżącego projektu rozliczenia.
+                    </small>
+                </div>
+                <b>Gotowe</b>`;
+        } else {
+            panel.innerHTML = `
+                <div>
+                    <span>Pellet / ogrzewanie</span>
+                    <strong>Dodaj udział z aktywnej puli pelletu</strong>
+                    <small>
+                        e-dom wyliczy kwotę dla ${esc(item.periodKey)}
+                        na podstawie puli domu i liczby aktywnych lokatorów.
+                    </small>
+                </div>
+
+                <button type="button"
+                        class="btn btn-secondary btn-sm"
+                        data-add-pellet-to-settlement>
+                    Dodaj pellet z puli
+                </button>`;
+        }
+
+        const table =
+            body.querySelector("table");
+
+        if (table) {
+            table.insertAdjacentElement(
+                "afterend",
+                panel
+            );
+        } else {
+            body.prepend(panel);
+        }
+
+        panel.querySelector(
+            "[data-add-pellet-to-settlement]"
+        )?.addEventListener(
+            "click",
+            async event => {
+                const button =
+                    event.currentTarget;
+
+                if (!window.confirm(
+                    `Dodać do projektu ${item.periodKey} udział pelletu wyliczony z aktywnej puli?`
+                )) {
+                    return;
+                }
+
+                button.disabled = true;
+
+                try {
+                    const body = new FormData();
+
+                    body.append(
+                        "leaseContractId",
+                        item.leaseContractId
+                    );
+
+                    body.append(
+                        "periodKey",
+                        item.periodKey
+                    );
+
+                    if (token) {
+                        body.append(
+                            "__RequestVerificationToken",
+                            token
+                        );
+                    }
+
+                    const response = await fetch(
+                        `${endpoint}/ApplyToSettlement`,
+                        {
+                            method: "POST",
+                            body,
+                            credentials: "same-origin"
+                        }
+                    );
+
+                    const result =
+                        await response.json()
+                            .catch(() => ({}));
+
+                    if (!response.ok) {
+                        throw new Error(
+                            result.message
+                            || "Nie udało się dodać pelletu."
+                        );
+                    }
+
+                    window.alert(
+                        result.message
+                        || "Pellet został dodany."
+                    );
+
+                    window.location.reload();
+                } catch (error) {
+                    window.alert(
+                        error.message
+                        || "Nie udało się dodać pelletu."
+                    );
+
+                    button.disabled = false;
+                }
+            }
+        );
     }
 
     function findInsertPoint() {
@@ -87,6 +257,24 @@
                     ${pool.weightKg != null ? `<span>Masa: <strong>${esc(pool.weightKg)} kg</strong></span>` : ""}
                 </div>
 
+                <div class="tenant-pellet-correction-actions">
+                    <button type="button"
+                            class="btn btn-secondary btn-sm"
+                            data-pellet-preview="${esc(pool.id)}">
+                        Wylicz podział
+                    </button>
+
+                    <button type="button"
+                            class="btn btn-primary btn-sm"
+                            data-pellet-generate="${esc(pool.id)}">
+                        Wygeneruj korekty
+                    </button>
+                </div>
+
+                <div class="tenant-pellet-correction-preview"
+                     data-pellet-preview-host="${esc(pool.id)}"
+                     hidden></div>
+
                 <details class="tenant-pellet-history">
                     <summary>Historia miesięcznych podziałów (${plans.length})</summary>
                     <div>
@@ -106,6 +294,195 @@
             </article>`;
     }
 
+    async function loadCorrectionPreview(pool, host) {
+        host.hidden = false;
+        host.innerHTML = `
+            <div class="tenant-pellet-preview-loading">
+                Wyliczam podział puli i sprawdzam zamknięte rozliczenia…
+            </div>`;
+
+        const response = await fetch(
+            `${endpoint}/PreviewCorrections/${encodeURIComponent(pool.id)}`,
+            {
+                credentials: "same-origin",
+                headers: { "Accept": "application/json" }
+            }
+        );
+
+        const result = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+            throw new Error(
+                result.message ||
+                "Nie udało się wyliczyć podziału pelletu."
+            );
+        }
+
+        const preview = result.preview;
+        const rows = preview.rows || [];
+
+        const closedRows = rows.filter(x => x.closedSettlement);
+        const corrections = closedRows.filter(
+            x => Number(x.correctionNeededMinor || 0) > 0
+        );
+
+        host.innerHTML = `
+            <div class="tenant-pellet-preview-head">
+                <div>
+                    <strong>Wyliczenie dla zamkniętych rozliczeń</strong>
+                    <small>
+                        Pula ${esc(money(preview.poolTotalMinor, preview.currencyCode))}
+                        · do korekt ${esc(money(preview.proposedCorrectionMinor, preview.currencyCode))}
+                        · ${esc(preview.closedCorrectionCount)} korekt
+                    </small>
+                </div>
+            </div>
+
+            ${rows.length
+                ? `
+                    <div class="tenant-pellet-preview-table-wrap">
+                        <table class="tenant-pellet-preview-table">
+                            <thead>
+                                <tr>
+                                    <th>Miesiąc</th>
+                                    <th>Lokator</th>
+                                    <th>Osób</th>
+                                    <th>Pula miesiąca</th>
+                                    <th>Należny udział</th>
+                                    <th>Już pellet</th>
+                                    <th>Korekta</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${rows.map(row => `
+                                    <tr class="${row.closedSettlement ? "" : "is-open"}">
+                                        <td>${esc(row.periodKey)}</td>
+                                        <td>
+                                            <strong>${esc(row.tenantName)}</strong>
+                                            <small>${esc(row.roomName)}</small>
+                                        </td>
+                                        <td>${esc(row.tenantCount)}</td>
+                                        <td>${esc(money(row.monthlyPoolMinor, preview.currencyCode))}</td>
+                                        <td>${esc(money(row.targetShareMinor, preview.currencyCode))}</td>
+                                        <td>${esc(money(row.alreadyAssignedPelletMinor, preview.currencyCode))}</td>
+                                        <td>
+                                            <strong class="${Number(row.correctionNeededMinor || 0) > 0 ? "needs-correction" : ""}">
+                                                ${esc(money(row.correctionNeededMinor, preview.currencyCode))}
+                                            </strong>
+                                        </td>
+                                        <td>
+                                            ${row.closedSettlement
+                                                ? `<span class="tenant-pellet-closed">Zamknięte · ${esc(row.settlementStatus)}</span>`
+                                                : `<span class="tenant-pellet-open">Otwarte · ${esc(row.settlementStatus)}</span>`}
+                                        </td>
+                                    </tr>`).join("")}
+                            </tbody>
+                        </table>
+                    </div>`
+                : `
+                    <div class="tenant-pellet-no-plan">
+                        Nie znaleziono rozliczeń lokatorów w okresie tej puli.
+                    </div>`}
+
+            ${corrections.length
+                ? `
+                    <div class="tenant-pellet-generate-box">
+                        <label>Termin płatności wygenerowanych korekt
+                            <input type="date"
+                                   data-pellet-correction-due
+                                   value="${defaultCorrectionDueDate()}" />
+                        </label>
+
+                        <button type="button"
+                                class="btn btn-primary btn-sm"
+                                data-pellet-generate-confirm="${esc(pool.id)}">
+                            Wygeneruj ${esc(corrections.length)} korekt
+                            · ${esc(money(preview.proposedCorrectionMinor, preview.currencyCode))}
+                        </button>
+                    </div>`
+                : `
+                    <div class="tenant-pellet-preview-ok">
+                        Zamknięte rozliczenia nie wymagają nowych korekt pelletu.
+                    </div>`}
+        `;
+
+        host.querySelector(
+            "[data-pellet-generate-confirm]"
+        )?.addEventListener("click", async event => {
+            await generateCorrections(
+                pool,
+                host,
+                event.currentTarget
+            );
+        });
+    }
+
+    async function generateCorrections(pool, host, button) {
+        const dueDate = host.querySelector(
+            "[data-pellet-correction-due]"
+        )?.value || "";
+
+        if (!dueDate) {
+            window.alert(
+                "Podaj termin płatności korekt."
+            );
+            return;
+        }
+
+        if (!window.confirm(
+            "Wygenerować korekty pelletu dla wszystkich zamkniętych rozliczeń wskazanych w wyliczeniu? Oryginalne rachunki pozostaną w historii."
+        )) {
+            return;
+        }
+
+        button.disabled = true;
+
+        try {
+            const body = new FormData();
+            body.append("poolId", pool.id);
+            body.append("dueDate", dueDate);
+
+            if (token) {
+                body.append(
+                    "__RequestVerificationToken",
+                    token
+                );
+            }
+
+            const response = await fetch(
+                `${endpoint}/GenerateCorrections`,
+                {
+                    method: "POST",
+                    body,
+                    credentials: "same-origin"
+                }
+            );
+
+            const result = await response.json().catch(() => ({}));
+
+            if (!response.ok) {
+                throw new Error(
+                    result.message ||
+                    "Nie udało się wygenerować korekt."
+                );
+            }
+
+            window.alert(
+                result.message ||
+                "Korekty zostały wygenerowane."
+            );
+
+            window.location.reload();
+        } catch (error) {
+            window.alert(
+                error.message ||
+                "Nie udało się wygenerować korekt."
+            );
+            button.disabled = false;
+        }
+    }
+
     function render(data) {
         const existing = document.getElementById("tenantPelletPoolModule");
         existing?.remove();
@@ -116,6 +493,14 @@
         const buildings = payload.buildings || [];
         const pools = payload.pools || [];
         const defaults = defaultDates();
+
+
+        (data.editableSettlements || []).forEach(
+            settlement => addPelletButtonToSettlement(
+                settlement,
+                Boolean(data.canManage)
+            )
+        );
 
         const module = document.createElement("section");
         module.id = "tenantPelletPoolModule";
@@ -204,6 +589,73 @@
         const create = module.querySelector("[data-pellet-create-form]");
         module.querySelector("[data-pellet-create-toggle]")?.addEventListener("click", () => {
             create.hidden = !create.hidden;
+        });
+
+
+        module.querySelectorAll("[data-pellet-preview]").forEach(button => {
+            button.addEventListener("click", async () => {
+                const poolId = button.dataset.pelletPreview;
+                const pool = pools.find(
+                    x => String(x.id) === String(poolId)
+                );
+
+                const host = module.querySelector(
+                    `[data-pellet-preview-host="${CSS.escape(String(poolId))}"]`
+                );
+
+                if (!pool || !host) return;
+
+                try {
+                    if (!host.hidden) {
+                        host.hidden = true;
+                        return;
+                    }
+
+                    await loadCorrectionPreview(
+                        pool,
+                        host
+                    );
+                } catch (error) {
+                    host.hidden = false;
+                    host.innerHTML = `
+                        <div class="tenant-pellet-preview-error">
+                            ${esc(error.message || "Nie udało się wyliczyć podziału.")}
+                        </div>`;
+                }
+            });
+        });
+
+        module.querySelectorAll("[data-pellet-generate]").forEach(button => {
+            button.addEventListener("click", async () => {
+                const poolId = button.dataset.pelletGenerate;
+                const pool = pools.find(
+                    x => String(x.id) === String(poolId)
+                );
+
+                const host = module.querySelector(
+                    `[data-pellet-preview-host="${CSS.escape(String(poolId))}"]`
+                );
+
+                if (!pool || !host) return;
+
+                try {
+                    await loadCorrectionPreview(
+                        pool,
+                        host
+                    );
+
+                    host.scrollIntoView({
+                        behavior: "smooth",
+                        block: "nearest"
+                    });
+                } catch (error) {
+                    host.hidden = false;
+                    host.innerHTML = `
+                        <div class="tenant-pellet-preview-error">
+                            ${esc(error.message || "Nie udało się przygotować korekt.")}
+                        </div>`;
+                }
+            });
         });
 
         create?.querySelector("form")?.addEventListener("submit", async event => {

@@ -455,6 +455,359 @@ public sealed class TenantPelletPoolEngine(
             openLineAmount);
     }
 
+    public async Task<TenantPelletCorrectionPreviewResult> PreviewClosedCorrectionsAsync(
+        RentalActor rentalActor,
+        Guid householdId,
+        Guid poolId,
+        CancellationToken cancellationToken)
+    {
+        var settlementOverview = await settlementService.GetOverviewAsync(
+            rentalActor,
+            cancellationToken);
+
+        var rentalOverview = await rentalService.GetOverviewAsync(
+            rentalActor,
+            cancellationToken);
+
+        var propertyActor = new PropertyActor(
+            rentalActor.AccountId,
+            rentalActor.PersonId,
+            rentalActor.HouseholdId,
+            rentalActor.CorrelationId,
+            rentalActor.NowUtc);
+
+        var propertyOverview = await propertyService.GetOverviewAsync(
+            propertyActor,
+            cancellationToken);
+
+        var data = await store.GetAsync(
+            householdId,
+            cancellationToken);
+
+        var pool = data.Pools.FirstOrDefault(x =>
+            x.Id == poolId);
+
+        if (pool is null)
+        {
+            throw new InvalidOperationException(
+                "Nie znaleziono wybranej puli pelletu.");
+        }
+
+        var correctionStore = new TenantSettlementCorrectionUiStore(
+            contentRootPath);
+
+        var knownCorrections = await correctionStore.GetForHouseholdAsync(
+            householdId,
+            cancellationToken);
+
+        var rows = new List<TenantPelletCorrectionPreviewRow>();
+        long runningAllocatedMinor = 0;
+
+        foreach (var monthStart in EnumerateMonths(
+                     pool.PeriodFrom,
+                     pool.PeriodTo))
+        {
+            var monthEnd = new DateOnly(
+                monthStart.Year,
+                monthStart.Month,
+                DateTime.DaysInMonth(
+                    monthStart.Year,
+                    monthStart.Month));
+
+            var periodKey = $"{monthStart:yyyy-MM}";
+
+            var participants = ResolveHistoricalParticipants(
+                rentalOverview,
+                propertyOverview,
+                pool.BuildingId,
+                monthStart,
+                monthEnd)
+                .OrderBy(x => x.LeaseContractId)
+                .ToArray();
+
+            if (participants.Length == 0)
+            {
+                continue;
+            }
+
+            var remainingBeforeMinor = Math.Max(
+                0,
+                pool.TotalAmountMinor - runningAllocatedMinor);
+
+            var monthsRemaining = CountMonthsInclusive(
+                monthStart,
+                pool.PeriodTo);
+
+            if (monthsRemaining <= 0)
+            {
+                monthsRemaining = 1;
+            }
+
+            var monthlyPoolMinor = monthsRemaining == 1
+                ? remainingBeforeMinor
+                : remainingBeforeMinor / monthsRemaining;
+
+            if (monthlyPoolMinor <= 0)
+            {
+                continue;
+            }
+
+            var baseShare = monthlyPoolMinor / participants.Length;
+            var shareRemainder = monthlyPoolMinor % participants.Length;
+
+            long monthAllocatedMinor = 0;
+
+            for (var participantIndex = 0;
+                 participantIndex < participants.Length;
+                 participantIndex++)
+            {
+                var participant = participants[participantIndex];
+
+                var targetShareMinor = baseShare
+                    + (participantIndex < shareRemainder ? 1 : 0);
+
+                var settlement = FindSettlement(
+                    settlementOverview,
+                    participant.LeaseContractId,
+                    periodKey);
+
+                if (settlement is null)
+                {
+                    continue;
+                }
+
+                var settlementId = GetGuid(
+                    settlement,
+                    "Id");
+
+                if (settlementId == Guid.Empty)
+                {
+                    continue;
+                }
+
+                var existingApplication = data.Applications.FirstOrDefault(x =>
+                    x.PoolId == pool.Id
+                    && x.SettlementId == settlementId);
+
+                var applicationMinor =
+                    existingApplication?.AmountMinor ?? 0;
+
+                var pelletLineMinor = GetPelletLineAmountMinor(
+                    settlement);
+
+                var manualPelletCorrectionMinor = knownCorrections
+                    .Where(x =>
+                        x.SettlementId == settlementId
+                        && string.Equals(
+                            x.CorrectionType,
+                            "Pellet",
+                            StringComparison.OrdinalIgnoreCase)
+                        && x.DeltaMinor > 0)
+                    .Sum(x => x.DeltaMinor);
+
+                var alreadyAssignedMinor = Math.Max(
+                    applicationMinor,
+                    checked(
+                        Math.Max(0, pelletLineMinor)
+                        + manualPelletCorrectionMinor));
+
+                var status = GetString(
+                    settlement,
+                    "Status");
+
+                var closed = !IsEditableSettlementStatus(
+                    status);
+
+                var correctionNeededMinor = closed
+                    ? Math.Max(
+                        0,
+                        targetShareMinor - alreadyAssignedMinor)
+                    : 0;
+
+                rows.Add(
+                    new TenantPelletCorrectionPreviewRow(
+                        settlementId,
+                        participant.LeaseContractId,
+                        periodKey,
+                        participant.TenantName,
+                        participant.RoomName,
+                        status,
+                        monthlyPoolMinor,
+                        participants.Length,
+                        targetShareMinor,
+                        alreadyAssignedMinor,
+                        correctionNeededMinor,
+                        closed));
+
+                monthAllocatedMinor = checked(
+                    monthAllocatedMinor
+                    + alreadyAssignedMinor
+                    + correctionNeededMinor);
+            }
+
+            runningAllocatedMinor = checked(
+                runningAllocatedMinor
+                + monthAllocatedMinor);
+        }
+
+        var alreadyAllocatedMinor = data.Applications
+            .Where(x => x.PoolId == pool.Id)
+            .Sum(x => x.AmountMinor);
+
+        var proposedCorrectionMinor = rows
+            .Sum(x => x.CorrectionNeededMinor);
+
+        var closedCorrectionCount = rows.Count(x =>
+            x.ClosedSettlement
+            && x.CorrectionNeededMinor > 0);
+
+        return new TenantPelletCorrectionPreviewResult(
+            pool.Id,
+            pool.BuildingName,
+            pool.SeasonName,
+            pool.CurrencyCode,
+            pool.TotalAmountMinor,
+            alreadyAllocatedMinor,
+            proposedCorrectionMinor,
+            closedCorrectionCount,
+            rows);
+    }
+
+    public async Task<TenantPelletCorrectionGenerationResult> GenerateClosedCorrectionsAsync(
+        RentalActor rentalActor,
+        Guid householdId,
+        Guid poolId,
+        DateOnly dueDate,
+        Guid createdByUserAccountId,
+        CancellationToken cancellationToken)
+    {
+        var preview = await PreviewClosedCorrectionsAsync(
+            rentalActor,
+            householdId,
+            poolId,
+            cancellationToken);
+
+        var poolData = await store.GetAsync(
+            householdId,
+            cancellationToken);
+
+        var pool = poolData.Pools.FirstOrDefault(x =>
+            x.Id == poolId);
+
+        if (pool is null)
+        {
+            throw new InvalidOperationException(
+                "Nie znaleziono wybranej puli pelletu.");
+        }
+
+        var correctionStore = new TenantSettlementCorrectionUiStore(
+            contentRootPath);
+
+        var correctionCount = 0;
+        long correctionAmountMinor = 0;
+
+        foreach (var row in preview.Rows
+                     .Where(x =>
+                         x.ClosedSettlement
+                         && x.CorrectionNeededMinor > 0)
+                     .OrderBy(x => x.PeriodKey)
+                     .ThenBy(x => x.TenantName))
+        {
+            var refreshedData = await store.GetAsync(
+                householdId,
+                cancellationToken);
+
+            var existingApplication = refreshedData.Applications.FirstOrDefault(x =>
+                x.PoolId == pool.Id
+                && x.SettlementId == row.SettlementId);
+
+            var alreadyAppliedMinor =
+                existingApplication?.AmountMinor ?? 0;
+
+            var amountMinor = Math.Max(
+                0,
+                row.TargetShareMinor - alreadyAppliedMinor);
+
+            if (amountMinor <= 0)
+            {
+                continue;
+            }
+
+            var reason =
+                $"Pellet — korekta z puli „{pool.SeasonName}” dla {pool.BuildingName}. " +
+                $"Okres {row.PeriodKey}, {row.TenantName} ({row.RoomName}). " +
+                $"Udział należny: {row.TargetShareMinor / 100m:N2} {pool.CurrencyCode}, " +
+                $"wcześniej przypisano: {row.AlreadyAssignedPelletMinor / 100m:N2} {pool.CurrencyCode}, " +
+                $"korekta: {amountMinor / 100m:N2} {pool.CurrencyCode}.";
+
+            await settlementService.CorrectSettlementAsync(
+                rentalActor,
+                new(
+                    row.SettlementId,
+                    amountMinor,
+                    reason),
+                cancellationToken);
+
+            await settlementService.CreatePaymentArrangementAsync(
+                rentalActor,
+                new(
+                    row.SettlementId,
+                    amountMinor,
+                    dueDate,
+                    "Termin płatności korekty pelletu",
+                    reason,
+                    true),
+                cancellationToken);
+
+            await correctionStore.AddAsync(
+                new TenantSettlementCorrectionUiRecord
+                {
+                    Id = Guid.NewGuid(),
+                    HouseholdId = householdId,
+                    SettlementId = row.SettlementId,
+                    CorrectionType = "Pellet",
+                    DeltaMinor = amountMinor,
+                    CurrencyCode = pool.CurrencyCode,
+                    DueDate = dueDate,
+                    Reason = reason,
+                    TenantName = row.TenantName,
+                    RoomName = row.RoomName,
+                    PeriodKey = row.PeriodKey,
+                    CreatedAtUtc = DateTime.UtcNow,
+                    CreatedByUserAccountId = createdByUserAccountId
+                },
+                cancellationToken);
+
+            await store.AddToApplicationAsync(
+                new TenantPelletApplicationRecord
+                {
+                    Id = Guid.NewGuid(),
+                    HouseholdId = householdId,
+                    PoolId = pool.Id,
+                    PlanId = Guid.Empty,
+                    SettlementId = row.SettlementId,
+                    LeaseContractId = row.LeaseContractId,
+                    PeriodKey = row.PeriodKey,
+                    TenantName = row.TenantName,
+                    RoomName = row.RoomName,
+                    CurrencyCode = pool.CurrencyCode,
+                    AppliedAtUtc = DateTime.UtcNow
+                },
+                amountMinor,
+                cancellationToken);
+
+            correctionCount++;
+            correctionAmountMinor = checked(
+                correctionAmountMinor + amountMinor);
+        }
+
+        return new TenantPelletCorrectionGenerationResult(
+            pool.Id,
+            correctionCount,
+            correctionAmountMinor,
+            dueDate);
+    }
+
     public async Task<object> BuildDataAsync(
         RentalActor rentalActor,
         Guid householdId,
@@ -924,6 +1277,123 @@ public sealed class TenantPelletPoolEngine(
 
         return false;
     }
+
+    private static List<Participant> ResolveHistoricalParticipants(
+        object rentalOverview,
+        PropertyOverview propertyOverview,
+        Guid buildingId,
+        DateOnly monthStart,
+        DateOnly monthEnd)
+    {
+        var result = new List<Participant>();
+
+        foreach (var contract in AsObjects(GetValue(
+                     rentalOverview,
+                     "Contracts")))
+        {
+            var contractId = GetGuid(
+                contract,
+                "ContractId",
+                "Id");
+
+            if (contractId == Guid.Empty)
+            {
+                continue;
+            }
+
+            var status = GetString(
+                contract,
+                "Status");
+
+            if (string.Equals(
+                    status,
+                    LeaseStatuses.Prepared,
+                    StringComparison.OrdinalIgnoreCase)
+                || string.Equals(
+                    status,
+                    "Cancelled",
+                    StringComparison.OrdinalIgnoreCase)
+                || string.Equals(
+                    status,
+                    "Canceled",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var leaseFrom = GetDateOnly(
+                contract,
+                "LeaseFrom");
+
+            var leaseTo = GetNullableDateOnly(
+                contract,
+                "LeaseTo");
+
+            if (leaseFrom.HasValue
+                && leaseFrom.Value > monthEnd)
+            {
+                continue;
+            }
+
+            if (leaseTo.HasValue
+                && leaseTo.Value < monthStart)
+            {
+                continue;
+            }
+
+            if (ResolveBuildingId(
+                    contract,
+                    propertyOverview) != buildingId)
+            {
+                continue;
+            }
+
+            result.Add(
+                new Participant(
+                    contractId,
+                    GetString(contract, "TenantName"),
+                    GetString(contract, "RoomName")));
+        }
+
+        return result;
+    }
+
+    private static long GetPelletLineAmountMinor(
+        object settlement)
+    {
+        long total = 0;
+
+        foreach (var line in AsObjects(GetValue(
+                     settlement,
+                     "Lines")))
+        {
+            var lineType = GetString(
+                line,
+                "LineType");
+
+            if (!string.Equals(
+                    lineType,
+                    TenantSettlementLineTypes.Pellet,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            total = checked(
+                total + GetLong(
+                    line,
+                    "AmountMinor"));
+        }
+
+        return total;
+    }
+
+    private static bool IsEditableSettlementStatus(
+        string? status) =>
+        status is
+            TenantSettlementStatuses.Draft
+            or TenantSettlementStatuses.AwaitingData
+            or TenantSettlementStatuses.ReadyForApproval;
 
     private static IEnumerable<DateOnly> EnumerateMonths(
         DateOnly from,

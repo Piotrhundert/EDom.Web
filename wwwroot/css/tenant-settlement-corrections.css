@@ -163,3 +163,428 @@
         grid-column: auto;
     }
 }
+
+
+/* PKG-015m-FEAT-06 — korekta jako widoczna należność */
+.tenant-correction-summary {
+    margin-bottom: 14px;
+    padding: 13px;
+    border: 1px solid #d6c18e;
+    border-radius: 11px;
+    background: linear-gradient(135deg, #fffaf0, #ffffff);
+}
+
+.tenant-correction-summary-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: flex-start;
+}
+
+.tenant-correction-summary-head span,
+.tenant-correction-summary-head strong {
+    display: block;
+}
+
+.tenant-correction-summary-head span {
+    color: #84652d;
+    font-size: .64rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+}
+
+.tenant-correction-summary-head strong {
+    margin-top: 3px;
+    color: #543f1d;
+    font-size: .91rem;
+}
+
+.tenant-correction-summary-head b {
+    padding: 5px 8px;
+    border-radius: 999px;
+    font-size: .64rem;
+}
+
+.tenant-correction-summary-head b.is-due {
+    background: #fff0d7;
+    color: #94621d;
+}
+
+.tenant-correction-summary-head b.is-paid {
+    background: #eaf7ee;
+    color: #32714b;
+}
+
+.tenant-correction-summary-list {
+    display: grid;
+    gap: 6px;
+    margin-top: 10px;
+}
+
+.tenant-correction-summary-list article {
+    display: grid;
+    grid-template-columns: 1fr 160px minmax(180px, 1.4fr);
+    gap: 9px;
+    align-items: center;
+    padding: 8px 9px;
+    border: 1px solid #eadfc7;
+    border-radius: 8px;
+    background: #fff;
+}
+
+.tenant-correction-summary-list article > div > span,
+.tenant-correction-summary-list article > div > strong,
+.tenant-correction-summary-list article > div > small {
+    display: block;
+}
+
+.tenant-correction-summary-list article > div > span {
+    color: #857762;
+    font-size: .58rem;
+}
+
+.tenant-correction-summary-list article > div > strong {
+    color: #4f4638;
+    font-size: .69rem;
+}
+
+.tenant-correction-summary-list article > div > small {
+    margin-top: 2px;
+    color: #7b5d28;
+    font-size: .65rem;
+    font-weight: 850;
+}
+
+.tenant-correction-payment {
+    margin-top: 11px;
+    padding-top: 10px;
+    border-top: 1px solid #eadfc6;
+}
+
+.tenant-correction-payment-head strong,
+.tenant-correction-payment-head small {
+    display: block;
+}
+
+.tenant-correction-payment-head strong {
+    color: #284c6c;
+    font-size: .75rem;
+}
+
+.tenant-correction-payment-head small {
+    margin-top: 2px;
+    color: #718296;
+    font-size: .63rem;
+}
+
+.tenant-correction-payment form {
+    display: grid;
+    grid-template-columns: 140px 210px 150px auto;
+    gap: 7px;
+    align-items: end;
+    margin-top: 8px;
+}
+
+.tenant-correction-payment label {
+    display: grid;
+    gap: 4px;
+    color: #63798d;
+    font-size: .63rem;
+    font-weight: 800;
+}
+
+.tenant-correction-payment input,
+.tenant-correction-payment select {
+    width: 100%;
+    min-height: 35px;
+    padding: 6px 7px;
+    border: 1px solid #cad9e6;
+    border-radius: 7px;
+    background: #fff;
+}
+
+[data-pellet-current-amount] {
+    display: block;
+    margin-top: 4px;
+    color: #7c704f;
+    font-size: .59rem;
+    font-weight: 500;
+}
+
+[data-correction-due-wrap][hidden] {
+    display: none !important;
+}
+
+@media (max-width: 850px) {
+    .tenant-correction-summary-list article,
+    .tenant-correction-payment form {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+@media (max-width: 560px) {
+    .tenant-correction-summary-list article,
+    .tenant-correction-payment form {
+        grid-template-columns: 1fr;
+    }
+}
+
+
+/* PKG-015m-FEAT-08 — cofnięcie miesięcznego rozliczenia */
+.tenant-settlement-rollback-toggle {
+    min-height: 30px;
+    padding: 5px 10px;
+    border: 1px solid #dfc5c5;
+    border-radius: 8px;
+    background: #fff;
+    color: #9b4c4c;
+    font: inherit;
+    font-size: .68rem;
+    font-weight: 850;
+    cursor: pointer;
+}
+
+.tenant-settlement-rollback-toggle:hover:not(:disabled),
+.tenant-settlement-rollback-toggle.is-open {
+    border-color: #cf8c8c;
+    background: #fff5f5;
+}
+
+.tenant-settlement-rollback-toggle:disabled {
+    opacity: .45;
+    cursor: not-allowed;
+}
+
+.tenant-settlement-rollback-panel {
+    margin-bottom: 14px;
+    padding: 13px;
+    border: 1px solid #e3c2c2;
+    border-radius: 11px;
+    background: linear-gradient(135deg, #fff7f7, #fff);
+}
+
+.tenant-settlement-rollback-panel[hidden] {
+    display: none !important;
+}
+
+.tenant-settlement-rollback-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: flex-start;
+}
+
+.tenant-settlement-rollback-head span,
+.tenant-settlement-rollback-head strong,
+.tenant-settlement-rollback-head small {
+    display: block;
+}
+
+.tenant-settlement-rollback-head span {
+    color: #9a5555;
+    font-size: .62rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+}
+
+.tenant-settlement-rollback-head strong {
+    margin-top: 2px;
+    color: #573636;
+    font-size: .82rem;
+}
+
+.tenant-settlement-rollback-head small {
+    margin-top: 2px;
+    color: #856b6b;
+    font-size: .64rem;
+}
+
+.tenant-settlement-rollback-head > button {
+    border: 0;
+    background: transparent;
+    color: #8f6262;
+    font-size: 1rem;
+    font-weight: 900;
+    cursor: pointer;
+}
+
+.tenant-settlement-rollback-warning {
+    margin-top: 9px;
+    padding: 8px 9px;
+    border: 1px solid #ead5d5;
+    border-radius: 8px;
+    background: #fff;
+    color: #806262;
+    font-size: .68rem;
+    line-height: 1.45;
+}
+
+.tenant-settlement-rollback-panel form {
+    display: grid;
+    gap: 9px;
+    margin-top: 10px;
+}
+
+.tenant-settlement-rollback-panel form > label:not(.tenant-settlement-rollback-confirm) {
+    display: grid;
+    gap: 5px;
+    color: #6d5555;
+    font-size: .67rem;
+    font-weight: 800;
+}
+
+.tenant-settlement-rollback-panel textarea {
+    width: 100%;
+    min-height: 80px;
+    padding: 8px;
+    border: 1px solid #decaca;
+    border-radius: 8px;
+    background: #fff;
+    font: inherit;
+    resize: vertical;
+}
+
+.tenant-settlement-rollback-confirm {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 8px;
+    align-items: flex-start;
+    padding: 8px 9px;
+    border: 1px solid #eadada;
+    border-radius: 8px;
+    background: #fffafa;
+    color: #765f5f;
+    font-size: .64rem;
+}
+
+.tenant-settlement-rollback-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 7px;
+}
+
+.tenant-settlement-rollback-history {
+    display: grid;
+    gap: 5px;
+    margin-bottom: 10px;
+}
+
+.tenant-settlement-rollback-history > div {
+    display: grid;
+    grid-template-columns: minmax(190px, .6fr) minmax(220px, 1fr);
+    gap: 9px;
+    padding: 8px 9px;
+    border-radius: 8px;
+}
+
+.tenant-settlement-rollback-history > div.is-active {
+    border: 1px solid #e0c294;
+    background: #fff8ea;
+}
+
+.tenant-settlement-rollback-history > div.is-closed {
+    border: 1px solid #d8e3eb;
+    background: #f8fbfd;
+}
+
+.tenant-settlement-rollback-history strong,
+.tenant-settlement-rollback-history small {
+    display: block;
+}
+
+.tenant-settlement-rollback-history strong {
+    color: #584a38;
+    font-size: .69rem;
+}
+
+.tenant-settlement-rollback-history small {
+    margin-top: 2px;
+    color: #847767;
+    font-size: .59rem;
+}
+
+.tenant-settlement-rollback-history span {
+    color: #665c50;
+    font-size: .64rem;
+}
+
+.tenant-settlement-rollback-notices {
+    display: grid;
+    gap: 8px;
+    margin-bottom: 16px;
+    padding: 13px;
+    border: 1px solid #e3b66f;
+    border-radius: 12px;
+    background: #fff8e9;
+}
+
+.tenant-rollback-notice-title strong,
+.tenant-rollback-notice-title span {
+    display: block;
+}
+
+.tenant-rollback-notice-title strong {
+    color: #76511b;
+    font-size: .82rem;
+}
+
+.tenant-rollback-notice-title span {
+    margin-top: 3px;
+    color: #806a49;
+    font-size: .67rem;
+}
+
+.tenant-settlement-rollback-notices article {
+    display: grid;
+    grid-template-columns: minmax(170px, .7fr) minmax(220px, 1.2fr) auto;
+    gap: 9px;
+    align-items: center;
+    padding: 9px;
+    border: 1px solid #ead5ad;
+    border-radius: 8px;
+    background: #fff;
+}
+
+.tenant-settlement-rollback-notices article strong,
+.tenant-settlement-rollback-notices article small,
+.tenant-settlement-rollback-notices article span {
+    display: block;
+}
+
+.tenant-settlement-rollback-notices article strong {
+    color: #594b35;
+    font-size: .7rem;
+}
+
+.tenant-settlement-rollback-notices article small,
+.tenant-settlement-rollback-notices article span {
+    color: #84755e;
+    font-size: .61rem;
+}
+
+.tenant-settlement-rollback-notices article b {
+    padding: 5px 7px;
+    border-radius: 999px;
+    background: #fff0d1;
+    color: #8b5f1a;
+    font-size: .6rem;
+    white-space: nowrap;
+}
+
+@media (max-width: 700px) {
+    .tenant-settlement-rollback-history > div,
+    .tenant-settlement-rollback-notices article {
+        grid-template-columns: 1fr;
+    }
+}
+
+
+/* PKG-015m-FEAT-09 — cofnięcie opłaconego rozliczenia */
+.tenant-settlement-rollback-payment-keep {display:grid;grid-template-columns:auto 1fr;gap:8px;align-items:flex-start;padding:9px 10px;border:1px solid #bfd8ec;border-radius:8px;background:#f3f9ff;color:#4b6780;}
+.tenant-settlement-rollback-payment-keep input {margin-top:3px;}
+.tenant-settlement-rollback-payment-keep strong,.tenant-settlement-rollback-payment-keep small {display:block;}
+.tenant-settlement-rollback-payment-keep strong {color:#285d8d;font-size:.7rem;}
+.tenant-settlement-rollback-payment-keep small {margin-top:3px;color:#6c8296;font-size:.62rem;line-height:1.4;}
+.tenant-settlement-rollback-history span small {display:block;margin-top:3px;color:#52779a;font-size:.59rem;font-weight:800;}

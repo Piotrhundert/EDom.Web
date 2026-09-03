@@ -61,16 +61,13 @@
             }
         }
 
-        if (Number(item.overpaymentMinor) <= 0) {
-            if (Number(item.approvedTotalMinor) > Number(item.totalDueMinor)) {
-                host.innerHTML = "";
-            } else {
-                host.remove();
-            }
+        const decisions = Array.isArray(item.decisions) ? item.decisions : [];
+        const hasHistory = decisions.length > 0;
+
+        if (Number(item.overpaymentMinor) <= 0 && !hasHistory) {
+            host.remove();
             return;
         }
-
-        const decisions = Array.isArray(item.decisions) ? item.decisions : [];
         const decisionHistory = decisions.length
             ? `<div class="tenant-overpayment-history">
                 <strong>Historia nadpłaty</strong>
@@ -125,22 +122,54 @@
             <div class="tenant-overpayment-panel">
                 <div class="tenant-overpayment-title">
                     <div>
-                        <span>Nadpłata lokatora</span>
-                        <strong>${esc(money(item.overpaymentMinor, item.currencyCode))}</strong>
+                        <span>${available > 0 ? "Nadpłata lokatora" : "Historia nadpłaty / rozliczenie wpłat"}</span>
+                        <strong>
+                            ${available > 0
+                                ? esc(money(item.overpaymentMinor, item.currencyCode))
+                                : (Number(item.remainingAfterDecisionsMinor || 0) > 0
+                                    ? `Do dopłaty ${esc(money(item.remainingAfterDecisionsMinor, item.currencyCode))}`
+                                    : "Brak aktywnej nadpłaty")}
+                        </strong>
                     </div>
-                    <b>${available > 0 ? "Wymaga decyzji" : "Rozliczona"}</b>
+                    <b>
+                        ${available > 0
+                            ? "Wymaga decyzji"
+                            : (Number(item.remainingAfterDecisionsMinor || 0) > 0
+                                ? "Do dopłaty"
+                                : "Rozliczona historycznie")}
+                    </b>
                 </div>
 
                 <div class="tenant-overpayment-kpis">
-                    <div><span>Należność</span><strong>${esc(money(item.totalDueMinor, item.currencyCode))}</strong></div>
-                    <div><span>Faktycznie zatwierdzone wpłaty</span><strong>${esc(money(item.approvedTotalMinor, item.currencyCode))}</strong></div>
-                    <div><span>Nadpłata</span><strong>${esc(money(item.overpaymentMinor, item.currencyCode))}</strong></div>
-                    <div><span>Pozostało do decyzji</span><strong>${esc(money(item.availableMinor, item.currencyCode))}</strong></div>
+                    <div>
+                        <span>Należność po przeliczeniu</span>
+                        <strong>${esc(money(item.totalDueMinor, item.currencyCode))}</strong>
+                    </div>
+                    <div>
+                        <span>Wpłaty zatwierdzone brutto</span>
+                        <strong>${esc(money(item.grossApprovedTotalMinor ?? item.approvedTotalMinor, item.currencyCode))}</strong>
+                    </div>
+                    <div>
+                        <span>Zwrócono / przeniesiono</span>
+                        <strong>-${esc(money(item.disposedMinor || 0, item.currencyCode))}</strong>
+                    </div>
+                    <div>
+                        <span>Efektywnie zaliczone wpłaty</span>
+                        <strong>${esc(money(item.approvedTotalMinor, item.currencyCode))}</strong>
+                    </div>
+                    <div>
+                        <span>Aktywna nadpłata</span>
+                        <strong>${esc(money(item.overpaymentMinor, item.currencyCode))}</strong>
+                    </div>
+                    <div>
+                        <span>Do dopłaty</span>
+                        <strong>${esc(money(item.remainingAfterDecisionsMinor || 0, item.currencyCode))}</strong>
+                    </div>
                 </div>
 
                 <p>
-                    Rozliczenie pozostaje opłacone, a nadwyżka nie tworzy ujemnej należności.
-                    Możesz przenieść ją na kolejne miesiące albo zarejestrować zwrot lokatorowi.
+                    Kwoty już zwrócone lokatorowi lub przeniesione na inne miesiące nie są ponownie zaliczane do tego rozliczenia.
+                    Historia pozostaje widoczna dla audytu.
                 </p>
 
                 ${actions}

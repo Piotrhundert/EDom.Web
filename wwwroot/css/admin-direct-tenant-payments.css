@@ -1,0 +1,146 @@
+/* PKG-015m-FEAT-12 — wpłata przyjmowana bezpośrednio przez administratora */
+.admin-direct-payment {
+    margin: 12px 0 16px;
+    padding: 11px;
+    border: 1px solid #c9ddeb;
+    border-radius: 10px;
+    background: #f8fcff;
+}
+
+.admin-direct-payment.is-disabled {
+    opacity: .7;
+}
+
+.admin-direct-payment > div > span,
+.admin-direct-payment > div > strong,
+.admin-direct-payment > div > small,
+.admin-direct-payment-head span,
+.admin-direct-payment-head strong,
+.admin-direct-payment-head small {
+    display: block;
+}
+
+.admin-direct-payment > div > span,
+.admin-direct-payment-head span {
+    color: #557794;
+    font-size: .61rem;
+    font-weight: 900;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+}
+
+.admin-direct-payment > div > strong,
+.admin-direct-payment-head strong {
+    margin-top: 2px;
+    color: #23455f;
+    font-size: .78rem;
+}
+
+.admin-direct-payment > div > small,
+.admin-direct-payment-head small {
+    margin-top: 3px;
+    color: #6e8295;
+    font-size: .63rem;
+    line-height: 1.4;
+}
+
+.admin-direct-payment-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: center;
+}
+
+.admin-direct-payment form {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid #dce8f0;
+}
+
+.admin-direct-payment form[hidden] {
+    display: none !important;
+}
+
+.admin-direct-payment-grid {
+    display: grid;
+    grid-template-columns: 180px 180px 220px;
+    gap: 8px;
+}
+
+.admin-direct-payment-grid label {
+    display: grid;
+    gap: 4px;
+    color: #587187;
+    font-size: .64rem;
+    font-weight: 800;
+}
+
+.admin-direct-payment-grid input,
+.admin-direct-payment-grid select {
+    width: 100%;
+    min-height: 36px;
+    padding: 6px 8px;
+    border: 1px solid #c9d9e5;
+    border-radius: 7px;
+    background: #fff;
+    color: #243b50;
+}
+
+.admin-direct-payment-full {
+    grid-column: 1 / -1;
+}
+
+.admin-direct-payment-amount {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 6px;
+    align-items: center;
+}
+
+.admin-direct-payment-amount span {
+    color: #587187;
+    font-size: .65rem;
+    font-weight: 850;
+}
+
+.admin-direct-payment-info {
+    margin-top: 8px;
+    padding: 7px 8px;
+    border: 1px solid #d7e5ef;
+    border-radius: 7px;
+    background: #fff;
+    color: #607b91;
+    font-size: .63rem;
+}
+
+.admin-direct-payment-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 7px;
+    margin-top: 9px;
+}
+
+@media (max-width: 850px) {
+    .admin-direct-payment-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .admin-direct-payment-full {
+        grid-column: 1 / -1;
+    }
+}
+
+@media (max-width: 560px) {
+    .admin-direct-payment-head {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .admin-direct-payment-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .admin-direct-payment-full {
+        grid-column: auto;
+    }
+}
