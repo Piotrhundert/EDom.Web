@@ -399,17 +399,36 @@ public sealed class SubmeterTenantSettlementController(
             });
         }
 
-        var lineType = snapshot.Medium switch
-        {
-            "Electricity" => "Electricity",
-            "Water" => "Water",
-            "Gas" => "Gas",
-            _ => "Adjustment"
-        };
+        // AddManualLineAsync celowo dopuszcza tylko ręczne typy:
+        // Asset, Repair, Adjustment i Correction.
+        // Media (Electricity/Water/Gas) są typami systemowymi budowanymi
+        // z właściwych źródeł i nie mogą być podszywane ręcznym wpisem.
+        // Podlicznik zapisujemy więc jako Adjustment, a pełną semantykę
+        // medium zachowujemy w SourceType oraz SnapshotJson.
+        const string lineType = "Adjustment";
+
+        var sourceType =
+            snapshot.Medium switch
+            {
+                "Electricity" => "SubmeterElectricity",
+                "Water" => "SubmeterWater",
+                "Gas" => "SubmeterGas",
+                _ => "SubmeterReading"
+            };
 
         var audit = JsonSerializer.Serialize(new
         {
             source = "SubmeterReading",
+            sourceType,
+            settlementLineType = lineType,
+            medium = snapshot.Medium,
+            displayLabel = snapshot.Medium switch
+            {
+                "Electricity" => "Prąd — podlicznik",
+                "Water" => "Woda — podlicznik",
+                "Gas" => "Gaz — podlicznik",
+                _ => "Media — podlicznik"
+            },
             meterId = snapshot.MeterId,
             meterName = snapshot.MeterName,
             roomId = snapshot.RoomId,
@@ -444,7 +463,7 @@ public sealed class SubmeterTenantSettlementController(
                 lineType,
                 amountMinor,
                 currency,
-                "SubmeterReading",
+                sourceType,
                 null,
                 audit),
             cancellationToken);
@@ -510,7 +529,7 @@ public sealed class SubmeterTenantSettlementController(
             amountMinor,
             currencyCode = currency,
             message =
-                $"Dodano do rozliczenia {snapshot.TenantName} za {periodKey}: " +
+                $"Dodano koszt podlicznika ({MediumLabel(snapshot.Medium)}) do rozliczenia {snapshot.TenantName} za {periodKey}: " +
                 $"{snapshot.Consumption:N3} {snapshot.UnitCode} × {parsedRatePerUnit:N4} {currency}/{snapshot.UnitCode} " +
                 $"= {amountMinor / 100m:N2} {currency}."
         });
@@ -1569,6 +1588,16 @@ public sealed class SubmeterTenantSettlementController(
             TenantSettlementStatuses.Draft
             or TenantSettlementStatuses.AwaitingData
             or TenantSettlementStatuses.ReadyForApproval;
+
+    private static string MediumLabel(
+        string? medium) =>
+        medium switch
+        {
+            "Electricity" => "prąd",
+            "Water" => "woda",
+            "Gas" => "gaz",
+            _ => "media"
+        };
 
     private static bool TryParseFlexibleDecimal(
         string? value,

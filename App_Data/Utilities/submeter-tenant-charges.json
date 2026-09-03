@@ -1,0 +1,27 @@
+[
+  {
+    "id": "1b5d5d3e-ae74-44bb-a668-1ef58e353588",
+    "householdId": "95fe82d1-5e7e-41da-abcb-801cffdc3fff",
+    "meterId": "737bece6-7484-49f6-9855-58ec10b12081",
+    "previousReadingId": "4a70a745-e439-4cf2-9197-a06da1ad8589",
+    "currentReadingId": "7ec51da9-4837-44b8-a41b-9523cb516f23",
+    "leaseContractId": "6139531c-2b2b-4a2d-8e7b-88416de54bf9",
+    "settlementId": "925ae9af-0e65-4a54-b04d-601afe07e10d",
+    "roomId": "cbccbd35-ad30-4b80-a7ea-03ca12c97f28",
+    "roomName": "Pok\u00F3j 1",
+    "tenantName": "lokator lok",
+    "periodKey": "2026-09",
+    "medium": "Electricity",
+    "zoneCode": "ALL",
+    "unitCode": "kWh",
+    "previousValue": 100,
+    "currentValue": 150,
+    "consumption": 50,
+    "ratePerUnit": 1.15,
+    "amountMinor": 5750,
+    "currencyCode": "PLN",
+    "rateSource": "ManualOverride",
+    "createdAtUtc": "2026-09-03T12:31:36.9964586Z",
+    "createdByUserAccountId": "3b460853-d5a8-4928-9fb8-3c88f6462e61"
+  }
+]

@@ -1,4 +1,5 @@
 using EDom.Application.Collaboration;
+using EDom.Domain.Collaboration;
 using EDom.Web.Authorization;
 using EDom.Web.Models;
 using Microsoft.AspNetCore.Authorization;
@@ -7,25 +8,98 @@ using Microsoft.AspNetCore.Mvc;
 namespace EDom.Web.Controllers;
 
 [Authorize]
-public sealed class NotificationsController(WebAccessService access, ICollaborationService collaboration) : Controller
+public sealed class NotificationsController(
+    WebAccessService access,
+    ICollaborationService collaboration) : Controller
 {
     [HttpGet("/Notifications")]
-    public async Task<IActionResult> Index(CancellationToken cancellationToken)
+    public async Task<IActionResult> Index(
+        CancellationToken cancellationToken)
     {
-        var current = await access.GetCurrentAsync(cancellationToken);
-        if (current is null) return Challenge();
-        await collaboration.SyncFinancialNotificationsAsync(current.HouseholdId, cancellationToken);
-        var items = await collaboration.ListOwnNotificationsAsync(current.UserAccountId, current.HouseholdId, cancellationToken);
-        return View(new NotificationsPageModel(items));
+        var current =
+            await access.GetCurrentAsync(
+                cancellationToken);
+
+        if (current is null)
+        {
+            return Challenge();
+        }
+
+        await collaboration.SyncFinancialNotificationsAsync(
+            current.HouseholdId,
+            cancellationToken);
+
+        var items =
+            await collaboration.ListOwnNotificationsAsync(
+                current.UserAccountId,
+                current.HouseholdId,
+                cancellationToken);
+
+        return View(
+            new NotificationsPageModel(
+                items));
+    }
+
+    [HttpGet("/Notifications/UnreadCount")]
+    public async Task<IActionResult> UnreadCount(
+        CancellationToken cancellationToken)
+    {
+        var current =
+            await access.GetCurrentAsync(
+                cancellationToken);
+
+        if (current is null)
+        {
+            return Unauthorized();
+        }
+
+        // Synchronizacja jest idempotentna. Dzięki temu dzwonek może
+        // pokazać również nowe przypomnienia finansowe bez konieczności
+        // wcześniejszego otwierania strony Powiadomienia.
+        await collaboration.SyncFinancialNotificationsAsync(
+            current.HouseholdId,
+            cancellationToken);
+
+        var items =
+            await collaboration.ListOwnNotificationsAsync(
+                current.UserAccountId,
+                current.HouseholdId,
+                cancellationToken);
+
+        var unreadCount =
+            items.Count(x =>
+                x.Status
+                == NotificationStatuses.Unread);
+
+        return Json(new
+        {
+            unreadCount,
+            hasUnread =
+                unreadCount > 0
+        });
     }
 
     [HttpPost("/Notifications/{id:guid}/Read")]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Read(Guid id, CancellationToken cancellationToken)
+    public async Task<IActionResult> Read(
+        Guid id,
+        CancellationToken cancellationToken)
     {
-        var current = await access.GetCurrentAsync(cancellationToken);
-        if (current is null) return Challenge();
-        await collaboration.MarkNotificationReadAsync(current.UserAccountId, id, cancellationToken);
-        return RedirectToAction(nameof(Index));
+        var current =
+            await access.GetCurrentAsync(
+                cancellationToken);
+
+        if (current is null)
+        {
+            return Challenge();
+        }
+
+        await collaboration.MarkNotificationReadAsync(
+            current.UserAccountId,
+            id,
+            cancellationToken);
+
+        return RedirectToAction(
+            nameof(Index));
     }
 }

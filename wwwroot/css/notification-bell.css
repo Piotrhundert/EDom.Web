@@ -1,0 +1,79 @@
+/* PKG-015p-FEAT-01 — licznik nieodczytanych powiadomień */
+
+.notification-bell {
+    position: relative;
+    overflow: visible;
+}
+
+.notification-badge {
+    position: absolute;
+    top: -6px;
+    right: -7px;
+    z-index: 3;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border: 2px solid var(--panel, #fff);
+    border-radius: 999px;
+    background: #d92d20;
+    color: #fff;
+    box-shadow: 0 2px 5px rgba(110, 24, 18, .25);
+    font-size: .56rem;
+    font-weight: 900;
+    line-height: 1;
+}
+
+.notification-badge[hidden] {
+    display: none !important;
+}
+
+.notification-bell.has-unread svg {
+    stroke: #235f96;
+}
+
+.notification-bell-new {
+    animation: notification-bell-ring .55s ease-in-out 3;
+}
+
+.notification-bell-new .notification-badge {
+    animation: notification-badge-pop .45s ease-out 1;
+}
+
+@keyframes notification-bell-ring {
+    0%,
+    100% {
+        transform: rotate(0);
+    }
+
+    25% {
+        transform: rotate(8deg);
+    }
+
+    75% {
+        transform: rotate(-8deg);
+    }
+}
+
+@keyframes notification-badge-pop {
+    0% {
+        transform: scale(.6);
+    }
+
+    65% {
+        transform: scale(1.18);
+    }
+
+    100% {
+        transform: scale(1);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .notification-bell-new,
+    .notification-bell-new .notification-badge {
+        animation: none;
+    }
+}

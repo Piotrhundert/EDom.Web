@@ -20,6 +20,7 @@
     <link rel="stylesheet" href="~/css/tenant-settlement-corrections.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/admin-direct-tenant-payments.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/household-cash-to-bank.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/notification-bell.css" asp-append-version="true" />
 </head>
 <body class="@(isAuthenticated ? "app-authenticated" : "app-public")">
     <div class="shell-backdrop" aria-hidden="true"></div>
@@ -72,8 +73,17 @@
                         </div>
                     </div>
                     <div class="topbar-actions">
-                        <a class="icon-button" asp-controller="Notifications" asp-action="Index" title="Powiadomienia" aria-label="Powiadomienia">
+                        <a class="icon-button notification-bell"
+                           asp-controller="Notifications"
+                           asp-action="Index"
+                           title="Powiadomienia"
+                           aria-label="Powiadomienia"
+                           data-notification-bell>
                             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" /></svg>
+                            <span class="notification-badge"
+                                  data-notification-badge
+                                  hidden
+                                  aria-hidden="true"></span>
                         </a>
                         <a class="user-chip" asp-controller="UserProfile" asp-action="Index" title="Otwórz mój profil" aria-label="Otwórz mój profil">
                             <span class="user-initial">@userInitial</span>
@@ -112,6 +122,7 @@
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 15 6-6 6 6" /></svg>
     </button>
     <script src="~/js/site.js" asp-append-version="true"></script>
+    <script src="~/js/notification-bell.js" asp-append-version="true"></script>
     <script src="~/js/private-finance-tile-fix.js" asp-append-version="true"></script>
     <script src="~/js/household-finance-recipient-column.js" asp-append-version="true"></script>
     <script src="~/js/household-invoice-assignments.js" asp-append-version="true"></script>
