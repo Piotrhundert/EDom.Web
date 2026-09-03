@@ -163,7 +163,7 @@ public sealed class SubmeterTenantSettlementController(
         Guid meterId,
         Guid currentReadingId,
         string periodKey,
-        decimal ratePerUnit,
+        string ratePerUnit,
         CancellationToken cancellationToken)
     {
         var current = await access.GetCurrentAsync(cancellationToken);
@@ -172,12 +172,16 @@ public sealed class SubmeterTenantSettlementController(
             return Unauthorized();
         }
 
-        if (ratePerUnit <= 0m)
+        if (!TryParseFlexibleDecimal(
+                ratePerUnit,
+                out var parsedRatePerUnit)
+            || parsedRatePerUnit <= 0m)
         {
             return BadRequest(new
             {
                 message =
-                    "Stawka za jednostkę musi być większa od 0."
+                    $"Nie udało się odczytać stawki „{ratePerUnit}”. " +
+                    "Podaj liczbę większą od 0, np. 1,15 lub 1.15."
             });
         }
 
@@ -381,7 +385,7 @@ public sealed class SubmeterTenantSettlementController(
             checked(
                 (long)Math.Round(
                     snapshot.Consumption
-                    * ratePerUnit
+                    * parsedRatePerUnit
                     * 100m,
                     0,
                     MidpointRounding.AwayFromZero));
@@ -423,10 +427,10 @@ public sealed class SubmeterTenantSettlementController(
             unitCode = snapshot.UnitCode,
             parentMeterId = snapshot.ParentMeterId,
             parentMeterName = snapshot.ParentMeterName,
-            ratePerUnit,
+            ratePerUnit = parsedRatePerUnit,
             rateSource =
                 snapshot.RecommendedRatePerUnit is decimal recommendedRateForAudit
-                && recommendedRateForAudit == ratePerUnit
+                && recommendedRateForAudit == parsedRatePerUnit
                     ? snapshot.RateSource
                     : "ManualOverride",
             amountMinor,
@@ -482,14 +486,14 @@ public sealed class SubmeterTenantSettlementController(
                 Consumption =
                     snapshot.Consumption,
                 RatePerUnit =
-                    ratePerUnit,
+                    parsedRatePerUnit,
                 AmountMinor =
                     amountMinor,
                 CurrencyCode =
                     currency,
                 RateSource =
                     snapshot.RecommendedRatePerUnit is decimal recommendedRate
-                    && recommendedRate == ratePerUnit
+                    && recommendedRate == parsedRatePerUnit
                         ? snapshot.RateSource
                         : "ManualOverride",
                 CreatedAtUtc =
@@ -507,7 +511,7 @@ public sealed class SubmeterTenantSettlementController(
             currencyCode = currency,
             message =
                 $"Dodano do rozliczenia {snapshot.TenantName} za {periodKey}: " +
-                $"{snapshot.Consumption:N3} {snapshot.UnitCode} × {ratePerUnit:N4} {currency}/{snapshot.UnitCode} " +
+                $"{snapshot.Consumption:N3} {snapshot.UnitCode} × {parsedRatePerUnit:N4} {currency}/{snapshot.UnitCode} " +
                 $"= {amountMinor / 100m:N2} {currency}."
         });
     }
@@ -827,69 +831,34 @@ public sealed class SubmeterTenantSettlementController(
             return null;
         }
 
-        // Najpierw ustalamy umowę operatora przypisaną do licznika głównego.
-        var contractIds =
+        var allObjects =
             WalkObjectGraph(
                     overview,
-                    maxDepth: 4)
-                .Where(item =>
-                    item.GetType().Name.Contains(
-                        "Contract",
-                        StringComparison.OrdinalIgnoreCase))
-                .Where(item =>
-                    GetGuid(
-                        item,
-                        "MeterId",
-                        "MainMeterId") == parentMeterId)
-                .Select(item =>
-                    GetGuid(
-                        item,
-                        "Id",
-                        "ContractId",
-                        "UtilityContractId"))
-                .Where(id =>
-                    id != Guid.Empty)
-                .Distinct()
-                .ToHashSet();
+                    maxDepth: 6)
+                .ToArray();
 
-        // Jeżeli relacja umowa -> licznik jest modelowana odwrotnie,
-        // próbujemy również odczytać ContractId z samego licznika głównego.
-        var directContractId =
-            GetGuid(
-                parentMeter,
-                "UtilityContractId",
-                "ContractId");
-
-        if (directContractId != Guid.Empty)
-        {
-            contractIds.Add(
-                directContractId);
-        }
+        // 1. Ustalamy umowę / umowy powiązane z licznikiem głównym.
+        var contractIds =
+            ResolveContractIdsForMeter(
+                allObjects,
+                parentMeterId);
 
         if (contractIds.Count == 0)
         {
             return null;
         }
 
-        var candidates =
-            new List<(int Score, decimal Rate, string Source)>();
+        // 2. Ustalamy wersje taryf należące do tych umów.
+        var tariffVersionIds =
+            new HashSet<Guid>();
 
-        foreach (var item in WalkObjectGraph(
-                     overview,
-                     maxDepth: 5))
+        var tariffRoots =
+            new List<object>();
+
+        foreach (var item in allObjects)
         {
             var typeName =
                 item.GetType().Name;
-
-            if (!typeName.Contains(
-                    "Tariff",
-                    StringComparison.OrdinalIgnoreCase)
-                && !typeName.Contains(
-                    "Rate",
-                    StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
 
             var itemContractId =
                 GetGuid(
@@ -897,7 +866,6 @@ public sealed class SubmeterTenantSettlementController(
                     "UtilityContractId",
                     "ContractId");
 
-            // Stawka musi należeć do umowy licznika głównego.
             if (itemContractId == Guid.Empty
                 || !contractIds.Contains(
                     itemContractId))
@@ -905,6 +873,91 @@ public sealed class SubmeterTenantSettlementController(
                 continue;
             }
 
+            if (!typeName.Contains(
+                    "Tariff",
+                    StringComparison.OrdinalIgnoreCase)
+                && !HasProperty(
+                    item,
+                    "TariffVersionId")
+                && !HasProperty(
+                    item,
+                    "UtilityTariffVersionId"))
+            {
+                continue;
+            }
+
+            tariffRoots.Add(
+                item);
+
+            var tariffId =
+                GetGuid(
+                    item,
+                    "Id",
+                    "TariffId",
+                    "TariffVersionId",
+                    "UtilityTariffVersionId");
+
+            if (tariffId != Guid.Empty)
+            {
+                tariffVersionIds.Add(
+                    tariffId);
+            }
+        }
+
+        // 3. Zbieramy wszystkie stawki. Stawka może:
+        //    a) być dzieckiem obiektu wersji taryfy,
+        //    b) być osobnym rekordem z TariffVersionId.
+        var rateCandidates =
+            new List<object>();
+
+        foreach (var tariffRoot in tariffRoots)
+        {
+            foreach (var nested in WalkObjectGraph(
+                         tariffRoot,
+                         maxDepth: 3))
+            {
+                if (LooksLikeRate(
+                        nested))
+                {
+                    rateCandidates.Add(
+                        nested);
+                }
+            }
+        }
+
+        foreach (var item in allObjects)
+        {
+            var linkedTariffId =
+                GetGuid(
+                    item,
+                    "UtilityTariffVersionId",
+                    "TariffVersionId",
+                    "TariffId");
+
+            if (linkedTariffId != Guid.Empty
+                && tariffVersionIds.Contains(
+                    linkedTariffId)
+                && LooksLikeRate(
+                    item))
+            {
+                rateCandidates.Add(
+                    item);
+            }
+        }
+
+        // Niektóre modele zwracają wersję taryfy razem z pojedynczą stawką
+        // w tym samym DTO. Takie obiekty również dopuszczamy.
+        rateCandidates.AddRange(
+            tariffRoots.Where(
+                LooksLikeRate));
+
+        var candidates =
+            new List<(int Score, decimal Rate, string Source)>();
+
+        foreach (var item in rateCandidates
+                     .Distinct(
+                         ReferenceComparer.Instance))
+        {
             var rate =
                 TryReadRate(
                     item);
@@ -933,12 +986,14 @@ public sealed class SubmeterTenantSettlementController(
             var validFrom =
                 GetDateOnly(
                     item,
-                    "ValidFrom");
+                    "ValidFrom",
+                    "EffectiveFrom");
 
             var validTo =
                 GetNullableDateOnly(
                     item,
-                    "ValidTo");
+                    "ValidTo",
+                    "EffectiveTo");
 
             if (validFrom.HasValue
                 && validFrom.Value > date)
@@ -976,7 +1031,7 @@ public sealed class SubmeterTenantSettlementController(
                     item,
                     "ComponentCode");
 
-            var score = 100; // powiązanie z umową licznika głównego
+            var score = 100;
 
             if (string.Equals(
                     candidateUnit,
@@ -1001,8 +1056,6 @@ public sealed class SubmeterTenantSettlementController(
                 score += 10;
             }
 
-            // Do podlicznika wybieramy przede wszystkim koszt zależny od zużycia,
-            // a nie opłatę stałą lub abonament.
             if (component.Contains(
                     "Consumption",
                     StringComparison.OrdinalIgnoreCase)
@@ -1029,15 +1082,35 @@ public sealed class SubmeterTenantSettlementController(
                 score -= 50;
             }
 
+            var tariffName =
+                FindTariffNameForRate(
+                    item,
+                    tariffRoots,
+                    tariffVersionIds);
+
+            var source =
+                $"Taryfa licznika głównego „{GetString(parentMeter, "Name", "główny")}”";
+
+            if (!string.IsNullOrWhiteSpace(
+                    tariffName))
+            {
+                source +=
+                    $" · {tariffName}";
+            }
+
+            if (!string.IsNullOrWhiteSpace(
+                    component))
+            {
+                source +=
+                    $" · {component}";
+            }
+
             candidates.Add(
                 (
                     score,
                     rate.Value,
-                    $"Taryfa licznika głównego „{GetString(parentMeter, "Name", "główny")}”" +
-                    (string.IsNullOrWhiteSpace(component)
-                        ? ""
-                        : $" · {component}")
-                ));
+                    source)
+                );
         }
 
         var best =
@@ -1051,6 +1124,254 @@ public sealed class SubmeterTenantSettlementController(
                 best.Rate,
                 best.Source)
             : null;
+    }
+
+    private static HashSet<Guid> ResolveContractIdsForMeter(
+        IReadOnlyList<object> allObjects,
+        Guid meterId)
+    {
+        var result =
+            new HashSet<Guid>();
+
+        foreach (var item in allObjects)
+        {
+            var typeName =
+                item.GetType().Name;
+
+            var contractId =
+                GetGuid(
+                    item,
+                    "UtilityContractId",
+                    "ContractId");
+
+            var linkedMeterId =
+                GetGuid(
+                    item,
+                    "MeterId",
+                    "MainMeterId");
+
+            // Tabela / DTO relacji Contract <-> Meter.
+            if (linkedMeterId == meterId
+                && contractId != Guid.Empty)
+            {
+                result.Add(
+                    contractId);
+            }
+
+            // Sam obiekt umowy może zawierać pojedynczy MeterId.
+            if (typeName.Contains(
+                    "Contract",
+                    StringComparison.OrdinalIgnoreCase)
+                && linkedMeterId == meterId)
+            {
+                var ownId =
+                    GetGuid(
+                        item,
+                        "Id",
+                        "ContractId",
+                        "UtilityContractId");
+
+                if (ownId != Guid.Empty)
+                {
+                    result.Add(
+                        ownId);
+                }
+            }
+
+            // Umowa może przechowywać kolekcję MeterIds albo obiektów Meter.
+            if (!typeName.Contains(
+                    "Contract",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var ownContractId =
+                GetGuid(
+                    item,
+                    "Id",
+                    "ContractId",
+                    "UtilityContractId");
+
+            if (ownContractId == Guid.Empty)
+            {
+                continue;
+            }
+
+            foreach (var property in item.GetType()
+                         .GetProperties(
+                             BindingFlags.Public
+                             | BindingFlags.Instance))
+            {
+                if (!property.CanRead
+                    || property.GetIndexParameters().Length > 0
+                    || !property.Name.Contains(
+                        "Meter",
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                object? value;
+
+                try
+                {
+                    value =
+                        property.GetValue(
+                            item);
+                }
+                catch
+                {
+                    continue;
+                }
+
+                if (ContainsGuid(
+                        value,
+                        meterId))
+                {
+                    result.Add(
+                        ownContractId);
+
+                    break;
+                }
+            }
+        }
+
+        return result;
+    }
+
+    private static bool ContainsGuid(
+        object? value,
+        Guid expected)
+    {
+        if (value is null)
+        {
+            return false;
+        }
+
+        if (value is Guid guid)
+        {
+            return guid == expected;
+        }
+
+        if (Guid.TryParse(
+                value.ToString(),
+                out var parsed))
+        {
+            return parsed == expected;
+        }
+
+        if (value is not IEnumerable enumerable
+            || value is string)
+        {
+            return false;
+        }
+
+        foreach (var item in enumerable)
+        {
+            if (item is null)
+            {
+                continue;
+            }
+
+            if (item is Guid itemGuid
+                && itemGuid == expected)
+            {
+                return true;
+            }
+
+            if (Guid.TryParse(
+                    item.ToString(),
+                    out var itemParsed)
+                && itemParsed == expected)
+            {
+                return true;
+            }
+
+            var objectId =
+                GetGuid(
+                    item,
+                    "Id",
+                    "MeterId");
+
+            if (objectId == expected)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool LooksLikeRate(
+        object item)
+    {
+        var typeName =
+            item.GetType().Name;
+
+        return HasProperty(
+                   item,
+                   "RatePerUnit")
+               || HasProperty(
+                   item,
+                   "ValueScaled")
+               || HasProperty(
+                   item,
+                   "RateScaled")
+               || HasProperty(
+                   item,
+                   "UnitRate")
+               || HasProperty(
+                   item,
+                   "RateMinorPerUnit")
+               || typeName.Contains(
+                   "TariffRate",
+                   StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string FindTariffNameForRate(
+        object rate,
+        IReadOnlyList<object> tariffRoots,
+        IReadOnlySet<Guid> tariffVersionIds)
+    {
+        var rateTariffId =
+            GetGuid(
+                rate,
+                "UtilityTariffVersionId",
+                "TariffVersionId",
+                "TariffId");
+
+        if (rateTariffId != Guid.Empty)
+        {
+            var matching =
+                tariffRoots.FirstOrDefault(x =>
+                    GetGuid(
+                        x,
+                        "Id",
+                        "TariffVersionId",
+                        "TariffId",
+                        "UtilityTariffVersionId")
+                    == rateTariffId);
+
+            if (matching is not null)
+            {
+                return GetString(
+                    matching,
+                    "Name");
+            }
+        }
+
+        // Jeśli stawka jest zagnieżdżona w taryfie i nie ma FK,
+        // pokazujemy pierwszą znalezioną nazwę aktywnej wersji.
+        return tariffRoots
+            .Select(x =>
+                GetString(
+                    x,
+                    "Name"))
+            .FirstOrDefault(x =>
+                !string.IsNullOrWhiteSpace(
+                    x))
+            ?? "";
     }
 
     private static IEnumerable<object> WalkObjectGraph(
@@ -1153,6 +1474,24 @@ public sealed class SubmeterTenantSettlementController(
             return direct;
         }
 
+        var valueScaled =
+            GetNullableLong(
+                source,
+                "ValueScaled");
+
+        if (valueScaled.HasValue)
+        {
+            var scale =
+                GetInt(
+                    source,
+                    "Scale");
+
+            return valueScaled.Value
+                   / (decimal)Math.Pow(
+                       10,
+                       Math.Max(0, scale));
+        }
+
         var scaled =
             GetNullableLong(
                 source,
@@ -1230,6 +1569,49 @@ public sealed class SubmeterTenantSettlementController(
             TenantSettlementStatuses.Draft
             or TenantSettlementStatuses.AwaitingData
             or TenantSettlementStatuses.ReadyForApproval;
+
+    private static bool TryParseFlexibleDecimal(
+        string? value,
+        out decimal result)
+    {
+        result = 0m;
+
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return false;
+        }
+
+        var normalized =
+            value.Trim()
+                .Replace("\u00A0", "")
+                .Replace(" ", "");
+
+        const System.Globalization.NumberStyles styles =
+            System.Globalization.NumberStyles.AllowLeadingSign
+            | System.Globalization.NumberStyles.AllowDecimalPoint;
+
+        // Wartość wpisana po polsku, np. 1,15.
+        if (decimal.TryParse(
+                normalized,
+                styles,
+                System.Globalization.CultureInfo.GetCultureInfo("pl-PL"),
+                out result))
+        {
+            return true;
+        }
+
+        // input type=number / FormData zwykle wysyła 1.15.
+        if (decimal.TryParse(
+                normalized,
+                styles,
+                System.Globalization.CultureInfo.InvariantCulture,
+                out result))
+        {
+            return true;
+        }
+
+        return false;
+    }
 
     private static bool IsPeriodKey(
         string? value)

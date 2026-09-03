@@ -833,3 +833,160 @@
         grid-template-columns: 1fr;
     }
 }
+
+
+/* PKG-015o-FEAT-03 — wersjonowanie taryf bez nakładania okresów */
+.utilities-tariff-replace {
+    margin-top: 2px;
+    padding: 9px 10px;
+    border: 1px solid #c8dceb;
+    border-radius: 8px;
+    background: #f5faff;
+}
+
+.utilities-tariff-replace span,
+.utilities-tariff-replace strong,
+.utilities-tariff-replace small {
+    display: block;
+}
+
+.utilities-tariff-replace strong {
+    color: #315f82;
+    font-size: .66rem;
+}
+
+.utilities-tariff-replace small {
+    margin-top: 3px;
+    color: #72889a;
+    font-size: .57rem;
+    font-weight: 500;
+    line-height: 1.4;
+}
+
+.utilities-tariff-version-hint {
+    padding: 8px 9px;
+    border: 1px solid #e0e7ec;
+    border-radius: 8px;
+    background: #fafcfd;
+}
+
+.utilities-tariff-version-hint strong,
+.utilities-tariff-version-hint span {
+    display: block;
+}
+
+.utilities-tariff-version-hint strong {
+    color: #5c7487;
+    font-size: .59rem;
+}
+
+.utilities-tariff-version-hint span {
+    margin-top: 2px;
+    color: #7a8b98;
+    font-size: .57rem;
+    line-height: 1.4;
+}
+
+
+/* PKG-015o-FEAT-04 — taryfa podstawowa bezpośrednio w edycji umowy */
+.utilities-base-tariff {
+    margin-top: 13px;
+    padding-top: 11px;
+    border-top: 1px solid #e1e9ef;
+}
+
+.utilities-base-tariff-summary {
+    display: grid;
+    grid-template-columns: 1.1fr 1fr 1fr 1fr .6fr auto;
+    gap: 7px;
+    align-items: stretch;
+}
+
+.utilities-base-tariff-summary > div,
+.utilities-base-tariff-empty {
+    padding: 8px 9px;
+    border: 1px solid #dbe6ed;
+    border-radius: 8px;
+    background: #fff;
+}
+
+.utilities-base-tariff-summary span,
+.utilities-base-tariff-summary strong,
+.utilities-base-tariff-empty strong,
+.utilities-base-tariff-empty span {
+    display: block;
+}
+
+.utilities-base-tariff-summary span {
+    color: #7a8c9b;
+    font-size: .56rem;
+}
+
+.utilities-base-tariff-summary strong {
+    margin-top: 3px;
+    color: #36566e;
+    font-size: .65rem;
+}
+
+.utilities-base-tariff-action {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.utilities-base-tariff-empty {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: center;
+    background: #f7fbfe;
+}
+
+.utilities-base-tariff-empty strong {
+    color: #315f7f;
+    font-size: .68rem;
+}
+
+.utilities-base-tariff-empty span {
+    margin-top: 2px;
+    color: #718799;
+    font-size: .59rem;
+}
+
+.utilities-base-tariff-note {
+    margin-top: 6px;
+    padding: 6px 8px;
+    border-radius: 7px;
+    background: #f4f7f9;
+    color: #708494;
+    font-size: .57rem;
+}
+
+.utilities-base-tariff-form {
+    margin-top: 9px;
+    padding: 10px;
+    border: 1px solid #cbddea;
+    border-radius: 9px;
+    background: #f8fcff;
+}
+
+.utilities-base-tariff-form[hidden] {
+    display: none !important;
+}
+
+@media (max-width: 980px) {
+    .utilities-base-tariff-summary {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 620px) {
+    .utilities-base-tariff-summary {
+        grid-template-columns: 1fr;
+    }
+
+    .utilities-base-tariff-empty {
+        align-items: stretch;
+        flex-direction: column;
+    }
+}

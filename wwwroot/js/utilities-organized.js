@@ -171,8 +171,15 @@
     const subtitle =
         root.querySelector("[data-contract-workspace-subtitle]");
 
+    const baseTariffSummary =
+        root.querySelector("[data-base-tariff-summary]");
+
+    const baseTariffForm =
+        root.querySelector("[data-base-tariff-form]");
+
     let currentContract = null;
     let currentCanEdit = false;
+    let currentTariff = null;
 
     function fillEditForm(contract) {
         if (!editForm) return;
@@ -278,6 +285,137 @@
         });
     }
 
+
+    function defaultUnitForMedium(medium) {
+        return ({
+            Electricity: "kWh",
+            Water: "m3",
+            Gas: "m3",
+            Heating: "kWh"
+        }[medium] || "unit");
+    }
+
+    function fillBaseTariffForm(contract, tariff) {
+        if (!baseTariffForm) return;
+
+        baseTariffForm.querySelector("[data-base-tariff-contract-id]").value =
+            contract?.id || "";
+
+        baseTariffForm.querySelector("[data-base-tariff-id]").value =
+            tariff?.id || "";
+
+        baseTariffForm.querySelector('[name="name"]').value =
+            tariff?.name || "Taryfa podstawowa";
+
+        baseTariffForm.querySelector('[name="ratePerUnit"]').value =
+            Number(tariff?.ratePerUnit || 0) > 0
+                ? Number(tariff.ratePerUnit).toFixed(6)
+                : "";
+
+        baseTariffForm.querySelector('[name="unitCode"]').value =
+            tariff?.unitCode
+            || defaultUnitForMedium(contract?.medium);
+
+        baseTariffForm.querySelector('[name="zoneCode"]').value =
+            tariff?.zoneCode || "ALL";
+
+        baseTariffForm.querySelector('[name="componentCode"]').value =
+            tariff?.componentCode || "Consumption";
+
+        baseTariffForm.querySelector('[name="currencyCode"]').value =
+            tariff?.currencyCode
+            || contract?.currencyCode
+            || "PLN";
+
+        baseTariffForm.querySelector('[name="validFrom"]').value =
+            tariff?.validFrom
+            || contract?.validFrom
+            || new Date().toISOString().slice(0, 10);
+
+        baseTariffForm.querySelector('[name="validTo"]').value =
+            tariff?.validTo || "";
+
+        baseTariffForm.querySelector('[name="reason"]').value = "";
+    }
+
+    function renderBaseTariff(contract, tariff, canEdit) {
+        currentTariff = tariff || null;
+
+        if (!baseTariffSummary) return;
+
+        if (!tariff) {
+            baseTariffSummary.innerHTML = `
+                <div class="utilities-base-tariff-empty">
+                    <div>
+                        <strong>Brak taryfy podstawowej</strong>
+                        <span>
+                            Dla tej umowy nie znaleziono taryfy. Utwórz ją tutaj,
+                            aby podliczniki mogły automatycznie pobierać stawkę.
+                        </span>
+                    </div>
+                    ${canEdit
+                        ? `<button type="button"
+                                   class="btn btn-primary btn-sm"
+                                   data-base-tariff-edit>
+                               + Ustaw taryfę podstawową
+                           </button>`
+                        : ""}
+                </div>`;
+        } else {
+            baseTariffSummary.innerHTML = `
+                <div class="utilities-base-tariff-summary">
+                    <div>
+                        <span>Nazwa</span>
+                        <strong>${esc(tariff.name || "Taryfa podstawowa")}</strong>
+                    </div>
+                    <div>
+                        <span>Stawka</span>
+                        <strong>${esc(Number(tariff.ratePerUnit || 0).toLocaleString("pl-PL", { maximumFractionDigits: 6 }))} ${esc(tariff.currencyCode || "PLN")}/${esc(tariff.unitCode || "")}</strong>
+                    </div>
+                    <div>
+                        <span>Strefa / składnik</span>
+                        <strong>${esc(tariff.zoneCode || "ALL")} · ${esc(tariff.componentCode || "Consumption")}</strong>
+                    </div>
+                    <div>
+                        <span>Obowiązuje</span>
+                        <strong>${esc(date(tariff.validFrom))} – ${esc(date(tariff.validTo))}</strong>
+                    </div>
+                    <div>
+                        <span>Wersje tej umowy</span>
+                        <strong>${esc(tariff.versionCount || 1)}</strong>
+                    </div>
+                    ${canEdit
+                        ? `<div class="utilities-base-tariff-action">
+                               <button type="button"
+                                       class="btn btn-secondary btn-sm"
+                                       data-base-tariff-edit>
+                                   Edytuj taryfę
+                               </button>
+                           </div>`
+                        : ""}
+                </div>
+
+                ${Number(tariff.versionCount || 0) > 1
+                    ? `<div class="utilities-base-tariff-note">
+                           W bazie istnieje ${esc(tariff.versionCount)} wersji taryfy tej umowy.
+                           Pokazana jest wersja aktywna lub najnowsza.
+                       </div>`
+                    : ""}
+            `;
+        }
+
+        baseTariffSummary
+            .querySelector("[data-base-tariff-edit]")
+            ?.addEventListener("click", () => {
+                fillBaseTariffForm(contract, tariff);
+                baseTariffForm.hidden = false;
+                baseTariffForm.scrollIntoView({
+                    behavior: "smooth",
+                    block: "nearest"
+                });
+            });
+    }
+
     function renderHistory(history) {
         if (!historyHost) return;
 
@@ -377,6 +515,12 @@
                 currentCanEdit
             );
 
+            renderBaseTariff(
+                result.contract,
+                result.tariff,
+                currentCanEdit
+            );
+
             renderHistory(
                 result.history
             );
@@ -410,6 +554,67 @@
         ?.addEventListener("click", () => {
             if (editForm) editForm.hidden = true;
         });
+
+
+    root.querySelector("[data-base-tariff-cancel]")
+        ?.addEventListener("click", () => {
+            if (baseTariffForm) {
+                baseTariffForm.hidden = true;
+            }
+        });
+
+    baseTariffForm?.addEventListener("submit", async event => {
+        event.preventDefault();
+
+        const submit =
+            baseTariffForm.querySelector('button[type="submit"]');
+
+        submit.disabled = true;
+
+        try {
+            const body =
+                new FormData(baseTariffForm);
+
+            const response =
+                await fetch(
+                    "/Utilities/Contracts/BaseTariff/Save",
+                    {
+                        method: "POST",
+                        body,
+                        credentials: "same-origin"
+                    }
+                );
+
+            const result =
+                await response.json().catch(() => ({}));
+
+            if (!response.ok) {
+                throw new Error(
+                    result.message
+                    || "Nie udało się zapisać taryfy podstawowej."
+                );
+            }
+
+            window.alert(
+                result.message
+                || "Taryfa podstawowa została zapisana."
+            );
+
+            const contractId =
+                body.get("contractId");
+
+            await loadContract(contractId);
+
+            baseTariffForm.hidden = true;
+        } catch (error) {
+            window.alert(
+                error.message
+                || "Nie udało się zapisać taryfy podstawowej."
+            );
+
+            submit.disabled = false;
+        }
+    });
 
     editForm?.addEventListener("submit", async event => {
         event.preventDefault();

@@ -715,6 +715,123 @@
                 </div>
             </form>
 
+            <section class="utilities-base-tariff">
+                <div class="utilities-card-head">
+                    <div>
+                        <span>TARYFA PODSTAWOWA</span>
+                        <h3>Stawka używana przez podliczniki</h3>
+                        <p>
+                            Podliczniki pokoi domyślnie pobierają tę stawkę z umowy licznika głównego.
+                            Jeśli taryfa już istnieje, edytujesz ją tutaj zamiast tworzyć drugą nakładającą się wersję.
+                        </p>
+                    </div>
+                </div>
+
+                <div data-base-tariff-summary></div>
+
+                <form class="utilities-base-tariff-form"
+                      data-base-tariff-form
+                      hidden>
+                    @Html.AntiForgeryToken()
+
+                    <input type="hidden"
+                           name="contractId"
+                           data-base-tariff-contract-id />
+
+                    <input type="hidden"
+                           name="tariffId"
+                           data-base-tariff-id />
+
+                    <div class="utilities-edit-grid">
+                        <label>
+                            <span>Nazwa taryfy</span>
+                            <input name="name"
+                                   value="Taryfa podstawowa"
+                                   required />
+                        </label>
+
+                        <label>
+                            <span>Stawka za jednostkę</span>
+                            <input name="ratePerUnit"
+                                   type="number"
+                                   min="0.000001"
+                                   step="0.000001"
+                                   required />
+                        </label>
+
+                        <label>
+                            <span>Jednostka</span>
+                            <select name="unitCode">
+                                <option value="kWh">kWh</option>
+                                <option value="MWh">MWh</option>
+                                <option value="m3">m³</option>
+                                <option value="l">l</option>
+                                <option value="GJ">GJ</option>
+                                <option value="unit">jednostka</option>
+                            </select>
+                        </label>
+
+                        <label>
+                            <span>Strefa</span>
+                            <select name="zoneCode">
+                                <option value="ALL">Całość / jedna strefa</option>
+                                <option value="DAY">Dzień</option>
+                                <option value="NIGHT">Noc</option>
+                            </select>
+                        </label>
+
+                        <label>
+                            <span>Składnik</span>
+                            <select name="componentCode">
+                                <option value="Consumption">Zużycie</option>
+                                <option value="Energy">Energia</option>
+                                <option value="Variable">Opłata zmienna</option>
+                            </select>
+                        </label>
+
+                        <label>
+                            <span>Waluta</span>
+                            <input name="currencyCode"
+                                   maxlength="3"
+                                   value="PLN" />
+                        </label>
+
+                        <label>
+                            <span>Obowiązuje od</span>
+                            <input name="validFrom"
+                                   type="date"
+                                   required />
+                        </label>
+
+                        <label>
+                            <span>Obowiązuje do</span>
+                            <input name="validTo"
+                                   type="date" />
+                        </label>
+
+                        <label class="utilities-full">
+                            <span>Opis zmiany</span>
+                            <input name="reason"
+                                   placeholder="np. aktualizacja ceny operatora" />
+                        </label>
+                    </div>
+
+                    <div class="utilities-form-actions">
+                        <button type="button"
+                                class="btn btn-secondary"
+                                data-base-tariff-cancel>
+                            Anuluj
+                        </button>
+
+                        <button type="submit"
+                                class="btn btn-primary"
+                                data-base-tariff-submit>
+                            Zapisz taryfę podstawową
+                        </button>
+                    </div>
+                </form>
+            </section>
+
             <section class="utilities-contract-history">
                 <div class="utilities-card-head">
                     <div>
@@ -798,9 +915,34 @@
                         <input name="validTo" type="date" />
                     </label>
 
+                    <label class="utilities-check utilities-full utilities-tariff-replace">
+                        <input name="replaceExistingTariff"
+                               type="checkbox"
+                               value="true"
+                               checked />
+                        <span>
+                            <strong>Zastąp dotychczasową taryfę od daty „Od”</strong>
+                            <small>
+                                Jeśli poprzednia taryfa tej umowy nadal obowiązuje,
+                                e-dom zakończy ją dzień wcześniej i zachowa w historii.
+                                Dzięki temu okresy taryf nie będą się nakładać.
+                            </small>
+                        </span>
+                    </label>
+
+                    <div class="utilities-tariff-version-hint utilities-full">
+                        <strong>Przykład</strong>
+                        <span>
+                            Stara taryfa: 01.01.2026 – bezterminowo.
+                            Nowa taryfa od 01.09.2026 →
+                            stara zostanie zakończona 31.08.2026,
+                            a nowa zacznie obowiązywać 01.09.2026.
+                        </span>
+                    </div>
+
                     <div class="utilities-full">
                         <button class="btn btn-primary" type="submit">
-                            Dodaj wersję taryfy
+                            Dodaj nową wersję taryfy
                         </button>
                     </div>
                 </form>
