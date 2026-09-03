@@ -3,6 +3,7 @@ namespace EDom.Web.Models;
 public sealed class HouseholdCashToBankTransferRecord
 {
     public Guid Id { get; set; }
+    public string TransferDirection { get; set; } = "CashToBank";
     public Guid HouseholdId { get; set; }
     public long AmountMinor { get; set; }
     public string CurrencyCode { get; set; } = "PLN";

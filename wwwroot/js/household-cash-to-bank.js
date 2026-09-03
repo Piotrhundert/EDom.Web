@@ -1,165 +1,121 @@
 (() => {
-    const path =
-        (window.location.pathname || "")
-            .toLowerCase();
+    const path = (window.location.pathname || "").toLowerCase();
+    if (path !== "/householdfinance" && path !== "/householdfinance/") return;
 
-    if (path !== "/householdfinance"
-        && path !== "/householdfinance/") {
-        return;
-    }
+    const endpoint = "/HouseholdFinance/CashToBank";
+    const main = document.querySelector("main, #mainContent") || document.body;
 
-    const endpoint =
-        "/HouseholdFinance/CashToBank";
+    const esc = value => String(value ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#39;");
 
-    const main =
-        document.querySelector(
-            "main, #mainContent")
-        || document.body;
-
-    const esc = value =>
-        String(value ?? "")
-            .replaceAll("&", "&amp;")
-            .replaceAll("<", "&lt;")
-            .replaceAll(">", "&gt;")
-            .replaceAll('"', "&quot;")
-            .replaceAll("'", "&#39;");
-
-    const money = (
-        minor,
-        currency
-    ) => {
+    const money = (minor, currency) => {
         try {
-            return new Intl.NumberFormat(
-                "pl-PL",
-                {
-                    style: "currency",
-                    currency:
-                        currency || "PLN"
-                }
-            ).format(
-                (Number(minor) || 0) / 100
-            );
+            return new Intl.NumberFormat("pl-PL", {
+                style: "currency",
+                currency: currency || "PLN"
+            }).format((Number(minor) || 0) / 100);
         } catch {
-            return `${
-                (
-                    (Number(minor) || 0)
-                    / 100
-                ).toFixed(2)
-            } ${currency || "PLN"}`;
+            return `${((Number(minor) || 0) / 100).toFixed(2)} ${currency || "PLN"}`;
         }
     };
 
     const localDateTimeValue = () => {
-        const now =
-            new Date();
-
-        const local =
-            new Date(
-                now.getTime()
-                - now.getTimezoneOffset()
-                  * 60000
-            );
-
-        return local
-            .toISOString()
-            .slice(0, 16);
+        const now = new Date();
+        const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
+        return local.toISOString().slice(0, 16);
     };
 
     const dateTime = value => {
-        if (!value) {
-            return "—";
-        }
-
+        if (!value) return "—";
         try {
-            return new Intl.DateTimeFormat(
-                "pl-PL",
-                {
-                    dateStyle: "short",
-                    timeStyle: "short"
-                }
-            ).format(
-                new Date(value)
-            );
+            return new Intl.DateTimeFormat("pl-PL", {
+                dateStyle: "short",
+                timeStyle: "short"
+            }).format(new Date(value));
         } catch {
             return String(value);
         }
     };
 
     function render(data) {
-        if (!data.canTransfer) {
-            return;
-        }
+        if (!data.canTransfer || document.getElementById("householdCashToBank")) return;
 
-        if (document.getElementById(
-                "householdCashToBank")) {
-            return;
-        }
+        const ledger = data.ledger || {};
+        const history = Array.isArray(data.history) ? data.history : [];
 
-        const ledger =
-            data.ledger || {};
-
-        const history =
-            Array.isArray(data.history)
-                ? data.history
-                : [];
-
-        const section =
-            document.createElement(
-                "section");
-
-        section.id =
-            "householdCashToBank";
-
-        section.className =
-            "panel hf-cash-bank-section";
+        const section = document.createElement("section");
+        section.id = "householdCashToBank";
+        section.className = "panel hf-cash-bank-section";
 
         section.innerHTML = `
             <div class="hf-cash-bank-head">
                 <div>
                     <span>Przesunięcie własnych środków</span>
-                    <h2>Wpłać gotówkę na konto bankowe</h2>
+                    <h2>Gotówka ↔ konto bankowe</h2>
                     <p>
-                        Ta operacja nie tworzy przychodu. Zmniejsza kasę domową
-                        i zwiększa saldo bankowe o dokładnie tę samą kwotę.
+                        Przenoś środki między kasą domową a kontem bankowym.
+                        Operacja nie jest przychodem ani wydatkiem i nie zmienia łącznej wartości środków domu.
                     </p>
                 </div>
-
-                <button type="button"
-                        class="btn btn-primary"
-                        data-cash-bank-toggle>
-                    Wpłać gotówkę na konto
-                </button>
             </div>
 
             <div class="hf-cash-bank-balances">
                 <div>
-                    <span>Gotówka przed operacją</span>
+                    <span>Gotówka</span>
                     <strong>${esc(money(ledger.cashBalanceMinor, ledger.currencyCode))}</strong>
                 </div>
 
-                <div class="hf-cash-bank-arrow">→</div>
+                <div class="hf-cash-bank-arrow">↔</div>
 
                 <div>
-                    <span>Saldo bankowe</span>
+                    <span>Konto bankowe</span>
                     <strong>${esc(money(ledger.bankBalanceMinor, ledger.currencyCode))}</strong>
                 </div>
 
                 <div>
                     <span>Łączne środki</span>
                     <strong>${esc(money(ledger.totalBalanceMinor, ledger.currencyCode))}</strong>
-                    <small>Ta wartość nie zmienia się przy przesunięciu.</small>
+                    <small>Transfer wewnętrzny nie zmienia tej wartości.</small>
                 </div>
             </div>
 
-            <form data-cash-bank-form
-                  hidden>
+            <div class="hf-cash-bank-mode-actions">
+                <button type="button"
+                        class="btn btn-primary"
+                        data-transfer-mode="CashToBank">
+                    Wpłać gotówkę na konto
+                </button>
+
+                <button type="button"
+                        class="btn btn-secondary"
+                        data-transfer-mode="BankToCash">
+                    Wypłać z konta do kasy
+                </button>
+            </div>
+
+            <form data-cash-bank-form hidden>
+                <input type="hidden"
+                       name="direction"
+                       value="CashToBank"
+                       data-transfer-direction />
+
+                <div class="hf-cash-bank-form-title">
+                    <strong data-transfer-title>Wpłata gotówki na konto</strong>
+                    <small data-transfer-description>
+                        Gotówka zmniejszy się, a saldo bankowe wzrośnie o tę samą kwotę.
+                    </small>
+                </div>
+
                 <div class="hf-cash-bank-grid">
-                    <label>Kwota wpłacana na konto
+                    <label data-transfer-amount-label>Kwota wpłacana na konto
                         <div class="hf-cash-bank-amount">
                             <input name="amount"
                                    type="number"
                                    min="0.01"
-                                   max="${Math.max(0, Number(ledger.cashBalanceMinor || 0) / 100).toFixed(2)}"
                                    step="0.01"
                                    required
                                    placeholder="0,00" />
@@ -167,7 +123,7 @@
                         </div>
                     </label>
 
-                    <label>Data i godzina wpłaty
+                    <label>Data i godzina operacji
                         <input name="transferredAtLocal"
                                type="datetime-local"
                                value="${localDateTimeValue()}"
@@ -177,12 +133,11 @@
                     <label class="hf-cash-bank-full">Opis / uwagi
                         <input name="note"
                                maxlength="500"
-                               placeholder="np. wpłata gotówki z kasy domu do bankomatu wpłatowego" />
+                               placeholder="np. wpłata we wpłatomacie / wypłata gotówki z bankomatu" />
                     </label>
                 </div>
 
-                <div class="hf-cash-bank-preview"
-                     data-cash-bank-preview>
+                <div class="hf-cash-bank-preview" data-cash-bank-preview>
                     Wpisz kwotę, aby zobaczyć saldo po operacji.
                 </div>
 
@@ -194,125 +149,136 @@
                     </button>
 
                     <button type="submit"
-                            class="btn btn-success">
+                            class="btn btn-success"
+                            data-transfer-submit>
                         Zaksięguj przesunięcie
                     </button>
                 </div>
             </form>
 
-            <details class="hf-cash-bank-history"
-                     ${history.length ? "" : "hidden"}>
-                <summary>Historia wpłat gotówki na konto (${history.length})</summary>
+            <details class="hf-cash-bank-history" ${history.length ? "" : "hidden"}>
+                <summary>Historia przesunięć gotówka ↔ bank (${history.length})</summary>
 
                 <div>
-                    ${history.map(item => `
-                        <article>
-                            <div>
-                                <strong>+${esc(money(item.amountMinor, item.currencyCode))} na bank</strong>
-                                <small>${esc(dateTime(item.transferredAtUtc))}</small>
-                            </div>
+                    ${history.map(item => {
+                        const bankToCash = item.transferDirection === "BankToCash";
+                        return `
+                            <article>
+                                <div>
+                                    <strong>
+                                        ${bankToCash ? "Bank → Kasa" : "Kasa → Bank"}
+                                        · ${esc(money(item.amountMinor, item.currencyCode))}
+                                    </strong>
+                                    <small>${esc(dateTime(item.transferredAtUtc))}</small>
+                                </div>
 
-                            <div>
-                                <span>Kasa</span>
-                                <strong>
-                                    ${esc(money(item.cashBeforeMinor, item.currencyCode))}
-                                    → ${esc(money(item.cashAfterMinor, item.currencyCode))}
-                                </strong>
-                            </div>
+                                <div>
+                                    <span>Kasa</span>
+                                    <strong>
+                                        ${esc(money(item.cashBeforeMinor, item.currencyCode))}
+                                        → ${esc(money(item.cashAfterMinor, item.currencyCode))}
+                                    </strong>
+                                </div>
 
-                            <div>
-                                <span>Bank</span>
-                                <strong>
-                                    ${esc(money(item.bankBeforeMinor, item.currencyCode))}
-                                    → ${esc(money(item.bankAfterMinor, item.currencyCode))}
-                                </strong>
-                            </div>
+                                <div>
+                                    <span>Bank</span>
+                                    <strong>
+                                        ${esc(money(item.bankBeforeMinor, item.currencyCode))}
+                                        → ${esc(money(item.bankAfterMinor, item.currencyCode))}
+                                    </strong>
+                                </div>
 
-                            <div>
-                                <span>Opis</span>
-                                <strong>${esc(item.note || "—")}</strong>
-                            </div>
-                        </article>
-                    `).join("")}
+                                <div>
+                                    <span>Opis</span>
+                                    <strong>${esc(item.note || "—")}</strong>
+                                </div>
+                            </article>`;
+                    }).join("")}
                 </div>
             </details>
         `;
 
-        const kpi =
-            main.querySelector(
-                ".hf-kpi-grid");
-
+        const kpi = main.querySelector(".hf-kpi-grid");
         if (kpi) {
-            const shell =
-                kpi.closest(
-                    ".hf-shell, .panel");
-
-            if (shell) {
-                shell.insertAdjacentElement(
-                    "afterend",
-                    section);
-            } else {
-                kpi.insertAdjacentElement(
-                    "afterend",
-                    section);
-            }
+            const shell = kpi.closest(".hf-shell, .panel");
+            (shell || kpi).insertAdjacentElement("afterend", section);
         } else {
-            main.prepend(
-                section);
+            main.prepend(section);
         }
 
-        const toggle =
-            section.querySelector(
-                "[data-cash-bank-toggle]");
+        const form = section.querySelector("[data-cash-bank-form]");
+        const directionInput = section.querySelector("[data-transfer-direction]");
+        const amount = section.querySelector('[name="amount"]');
+        const preview = section.querySelector("[data-cash-bank-preview]");
+        const title = section.querySelector("[data-transfer-title]");
+        const description = section.querySelector("[data-transfer-description]");
+        const amountLabel = section.querySelector("[data-transfer-amount-label]");
+        const submit = section.querySelector("[data-transfer-submit]");
 
-        const form =
-            section.querySelector(
-                "[data-cash-bank-form]");
+        const currentDirection = () => directionInput.value || "CashToBank";
 
-        const cancel =
-            section.querySelector(
-                "[data-cash-bank-cancel]");
+        const syncMode = direction => {
+            const bankToCash = direction === "BankToCash";
+            directionInput.value = bankToCash ? "BankToCash" : "CashToBank";
 
-        const amount =
-            section.querySelector(
-                '[name="amount"]');
+            title.textContent = bankToCash
+                ? "Wypłata z konta do kasy domowej"
+                : "Wpłata gotówki na konto";
 
-        const preview =
-            section.querySelector(
-                "[data-cash-bank-preview]");
+            description.textContent = bankToCash
+                ? "Saldo bankowe zmniejszy się, a gotówka w kasie wzrośnie o tę samą kwotę."
+                : "Gotówka zmniejszy się, a saldo bankowe wzrośnie o tę samą kwotę.";
+
+            amountLabel.childNodes[0].textContent = bankToCash
+                ? "Kwota wypłacana z konta "
+                : "Kwota wpłacana na konto ";
+
+            const sourceMinor = bankToCash
+                ? Number(ledger.bankBalanceMinor || 0)
+                : Number(ledger.cashBalanceMinor || 0);
+
+            amount.max = Math.max(0, sourceMinor / 100).toFixed(2);
+            amount.value = "";
+            preview.textContent = "Wpisz kwotę, aby zobaczyć saldo po operacji.";
+            submit.textContent = bankToCash
+                ? "Wypłać do kasy"
+                : "Wpłać na konto";
+
+            section.querySelectorAll("[data-transfer-mode]").forEach(button => {
+                button.classList.toggle(
+                    "is-active",
+                    button.dataset.transferMode === directionInput.value
+                );
+            });
+
+            form.hidden = false;
+            form.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        };
 
         const syncPreview = () => {
-            const major =
-                Number.parseFloat(
-                    String(
-                        amount?.value || "0"
-                    ).replace(",", ".")
-                );
+            const major = Number.parseFloat(String(amount?.value || "0").replace(",", "."));
 
-            if (!Number.isFinite(major)
-                || major <= 0) {
-                preview.textContent =
-                    "Wpisz kwotę, aby zobaczyć saldo po operacji.";
+            if (!Number.isFinite(major) || major <= 0) {
+                preview.textContent = "Wpisz kwotę, aby zobaczyć saldo po operacji.";
                 return;
             }
 
-            const minor =
-                Math.round(
-                    major * 100);
+            const minor = Math.round(major * 100);
+            const bankToCash = currentDirection() === "BankToCash";
 
-            const cashAfter =
-                Number(
-                    ledger.cashBalanceMinor || 0)
-                - minor;
+            const cashAfter = Number(ledger.cashBalanceMinor || 0)
+                + (bankToCash ? minor : -minor);
 
-            const bankAfter =
-                Number(
-                    ledger.bankBalanceMinor || 0)
-                + minor;
+            const bankAfter = Number(ledger.bankBalanceMinor || 0)
+                + (bankToCash ? -minor : minor);
 
-            if (cashAfter < 0) {
+            if (cashAfter < 0 || bankAfter < 0) {
+                const available = bankToCash
+                    ? ledger.bankBalanceMinor
+                    : ledger.cashBalanceMinor;
+
                 preview.innerHTML =
-                    `<strong>Brak środków.</strong> W kasie jest tylko ${esc(money(ledger.cashBalanceMinor, ledger.currencyCode))}.`;
+                    `<strong>Brak środków.</strong> Dostępne w źródle: ${esc(money(available, ledger.currencyCode))}.`;
                 return;
             }
 
@@ -327,166 +293,96 @@
             `;
         };
 
-        amount?.addEventListener(
-            "input",
-            syncPreview);
+        section.querySelectorAll("[data-transfer-mode]").forEach(button => {
+            button.addEventListener("click", () => syncMode(button.dataset.transferMode));
+        });
 
-        toggle?.addEventListener(
-            "click",
-            () => {
-                form.hidden =
-                    !form.hidden;
+        amount?.addEventListener("input", syncPreview);
 
-                toggle.classList.toggle(
-                    "is-open",
-                    !form.hidden);
-            });
+        section.querySelector("[data-cash-bank-cancel]")?.addEventListener("click", () => {
+            form.hidden = true;
+            section.querySelectorAll("[data-transfer-mode]").forEach(x => x.classList.remove("is-active"));
+        });
 
-        cancel?.addEventListener(
-            "click",
-            () => {
-                form.hidden = true;
+        form?.addEventListener("submit", async event => {
+            event.preventDefault();
 
-                toggle?.classList.remove(
-                    "is-open");
-            });
+            const major = Number.parseFloat(
+                String(form.querySelector('[name="amount"]')?.value || "0").replace(",", ".")
+            );
 
-        form?.addEventListener(
-            "submit",
-            async event => {
-                event.preventDefault();
+            if (!Number.isFinite(major) || major <= 0) {
+                window.alert("Podaj kwotę większą od 0.");
+                return;
+            }
 
-                const currentForm =
-                    event.currentTarget;
+            const bankToCash = currentDirection() === "BankToCash";
+            const availableMajor = (
+                bankToCash
+                    ? Number(ledger.bankBalanceMinor || 0)
+                    : Number(ledger.cashBalanceMinor || 0)
+            ) / 100;
 
-                const raw =
-                    currentForm.querySelector(
-                        '[name="amount"]'
-                    )?.value || "0";
+            if (major > availableMajor) {
+                window.alert(
+                    `Nie możesz przenieść więcej niż jest dostępne. Dostępne: ${availableMajor.toFixed(2)} ${ledger.currencyCode || "PLN"}.`
+                );
+                return;
+            }
 
-                const major =
-                    Number.parseFloat(
-                        String(raw)
-                            .replace(",", ".")
-                    );
+            const confirmText = bankToCash
+                ? `Wypłacić ${major.toFixed(2)} ${ledger.currencyCode || "PLN"} z konta bankowego do kasy domowej?`
+                : `Wpłacić ${major.toFixed(2)} ${ledger.currencyCode || "PLN"} z kasy domowej na konto bankowe?`;
 
-                const availableMajor =
-                    Number(
-                        ledger.cashBalanceMinor || 0)
-                    / 100;
+            if (!window.confirm(`${confirmText} Łączna wartość środków pozostanie bez zmian.`)) return;
 
-                if (!Number.isFinite(major)
-                    || major <= 0) {
-                    window.alert(
-                        "Podaj kwotę większą od 0.");
-                    return;
+            const submitButton = form.querySelector('button[type="submit"]');
+            submitButton.disabled = true;
+
+            try {
+                const body = new FormData(form);
+
+                if (data.requestToken) {
+                    body.append("__RequestVerificationToken", data.requestToken);
                 }
 
-                if (major > availableMajor) {
-                    window.alert(
-                        `Nie możesz wpłacić więcej niż znajduje się w kasie. Dostępne: ${availableMajor.toFixed(2)} ${ledger.currencyCode || "PLN"}.`
-                    );
-                    return;
+                const response = await fetch(`${endpoint}/Transfer`, {
+                    method: "POST",
+                    body,
+                    credentials: "same-origin"
+                });
+
+                const result = await response.json().catch(() => ({}));
+
+                if (!response.ok) {
+                    throw new Error(result.message || "Nie udało się wykonać przesunięcia środków.");
                 }
 
-                if (!window.confirm(
-                    `Przenieść ${major.toFixed(2)} ${ledger.currencyCode || "PLN"} z kasy domowej na konto bankowe? Łączna wartość środków gospodarstwa pozostanie bez zmian.`
-                )) {
-                    return;
-                }
-
-                const submit =
-                    currentForm.querySelector(
-                        'button[type="submit"]');
-
-                submit.disabled = true;
-
-                try {
-                    const body =
-                        new FormData(
-                            currentForm);
-
-                    if (data.requestToken) {
-                        body.append(
-                            "__RequestVerificationToken",
-                            data.requestToken);
-                    }
-
-                    const response =
-                        await fetch(
-                            `${endpoint}/Transfer`,
-                            {
-                                method: "POST",
-                                body,
-                                credentials:
-                                    "same-origin"
-                            }
-                        );
-
-                    const result =
-                        await response
-                            .json()
-                            .catch(
-                                () => ({})
-                            );
-
-                    if (!response.ok) {
-                        throw new Error(
-                            result.message
-                            || "Nie udało się przenieść gotówki na konto."
-                        );
-                    }
-
-                    window.alert(
-                        result.message
-                        || "Gotówka została przeniesiona na konto."
-                    );
-
-                    window.location.reload();
-                } catch (error) {
-                    window.alert(
-                        error.message
-                        || "Nie udało się przenieść gotówki na konto."
-                    );
-
-                    submit.disabled = false;
-                }
-            });
+                window.alert(result.message || "Przesunięcie zostało zaksięgowane.");
+                window.location.reload();
+            } catch (error) {
+                window.alert(error.message || "Nie udało się wykonać przesunięcia środków.");
+                submitButton.disabled = false;
+            }
+        });
     }
 
     async function load() {
         try {
-            const response =
-                await fetch(
-                    `${endpoint}/Data`,
-                    {
-                        credentials:
-                            "same-origin",
-                        headers: {
-                            "Accept":
-                                "application/json"
-                        }
-                    }
-                );
+            const response = await fetch(`${endpoint}/Data`, {
+                credentials: "same-origin",
+                headers: { "Accept": "application/json" }
+            });
 
-            if (!response.ok) {
-                return;
-            }
-
-            render(
-                await response.json());
+            if (!response.ok) return;
+            render(await response.json());
         } catch (error) {
-            console.warn(
-                "Nie udało się uruchomić przesunięcia gotówki na konto.",
-                error);
+            console.warn("Nie udało się uruchomić transferów gotówka ↔ bank.", error);
         }
     }
 
-    if (document.readyState
-        === "loading") {
-        document.addEventListener(
-            "DOMContentLoaded",
-            load);
+    if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", load);
     } else {
         load();
     }

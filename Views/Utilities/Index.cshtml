@@ -1,185 +1,1393 @@
 @using EDom.Domain.Utilities
 @using EDom.Domain.Property
 @model EDom.Web.Models.UtilitiesPageViewModel
+
 @{
     ViewData["Title"] = "Media";
+
     var nowLocal = DateTime.Now.ToString("yyyy-MM-ddTHH:mm");
     var today = DateOnly.FromDateTime(DateTime.Today);
     var meterById = Model.Overview.Meters.ToDictionary(x => x.Id);
     var contractById = Model.Overview.Contracts.ToDictionary(x => x.Id);
+
     string Money(long minor, string currency) => $"{minor / 100m:N2} {currency}";
+
+    string MediumLabel(string? medium) => medium switch
+    {
+        "Electricity" => "Prąd",
+        "Water" => "Woda",
+        "Gas" => "Gaz",
+        "Waste" => "Odpady",
+        "Heating" => "Ogrzewanie",
+        _ => medium ?? "Inne"
+    };
+
+    string ReadingStatus(string? status) => status switch
+    {
+        ReadingStatuses.Submitted => "Do zatwierdzenia",
+        ReadingStatuses.Approved => "Zatwierdzony",
+        "Rejected" => "Odrzucony",
+        _ => status ?? "—"
+    };
+
     string ReadingValue(Guid readingId)
     {
-        var values = Model.Overview.ReadingValues.Where(x => x.MeterReadingId == readingId).ToList();
-        if (values.Count == 0) return "—";
-        return string.Join(" · ", values.Select(x => $"{x.ZoneCode}: {x.ValueScaled / (decimal)Math.Pow(10, x.Scale):N3} {x.UnitCode}"));
+        var values = Model.Overview.ReadingValues
+            .Where(x => x.MeterReadingId == readingId)
+            .ToList();
+
+        if (values.Count == 0)
+        {
+            return "—";
+        }
+
+        return string.Join(
+            " · ",
+            values.Select(x =>
+                $"{x.ZoneCode}: {x.ValueScaled / (decimal)Math.Pow(10, x.Scale):N3} {x.UnitCode}"));
     }
+
+    var submittedCount = Model.Overview.Readings.Count(x => x.Status == ReadingStatuses.Submitted);
 }
 
-<section class="hero compact-hero">
+<link rel="stylesheet" href="~/css/utilities-organized.css" asp-append-version="true" />
+<link rel="stylesheet" href="~/css/submeter-tenant-settlement.css" asp-append-version="true" />
+
+<section class="utilities-hero">
     <div>
-        <div class="eyebrow">PKG-012 · Utilities Engine</div>
-        <h1>Media i liczniki</h1>
-        <p>Odczyty, umowy operatorów, taryfy, prognozy, faktury, kalkulacje zużycia oraz kontrolowane alokacje kosztów.</p>
+        <div class="utilities-eyebrow">MEDIA I LICZNIKI</div>
+        <h1>Media</h1>
+        <p>
+            Odczyty liczników na pierwszym miejscu. Umowy, faktury i bardziej techniczne funkcje
+            są rozdzielone na osobne, proste zakładki.
+        </p>
     </div>
-    <span class="status-pill">Schema 10</span>
+
+    <div class="utilities-hero-stats">
+        <div>
+            <strong>@Model.Overview.Meters.Count</strong>
+            <span>liczników</span>
+        </div>
+        <div>
+            <strong>@submittedCount</strong>
+            <span>do zatwierdzenia</span>
+        </div>
+        <div>
+            <strong>@Model.Overview.Contracts.Count</strong>
+            <span>umów</span>
+        </div>
+    </div>
 </section>
 
-@if (TempData["Success"] is string success) { <div class="success-box top-gap">@success</div> }
-@if (TempData["Error"] is string error) { <div class="error-box top-gap">@error</div> }
+@if (TempData["Success"] is string success)
+{
+    <div class="success-box top-gap">@success</div>
+}
 
-<section class="stats-grid top-gap">
-    <article class="stat-card"><strong>@Model.Overview.Meters.Count</strong><span>Liczniki</span><small>Główne i podliczniki dostępne w Twoim zakresie.</small></article>
-    <article class="stat-card"><strong>@Model.Overview.Readings.Count</strong><span>Odczyty</span><small>Zgłoszone, zatwierdzone, odrzucone i skorygowane.</small></article>
-    <article class="stat-card"><strong>@Model.Overview.Contracts.Count</strong><span>Umowy mediów</span><small>Operatorzy, taryfy i okresy obowiązywania.</small></article>
-    <article class="stat-card"><strong>@Model.Overview.Invoices.Count</strong><span>Faktury</span><small>Źródła kosztu powiązane z finansami domowymi.</small></article>
-</section>
+@if (TempData["Error"] is string error)
+{
+    <div class="error-box top-gap">@error</div>
+}
 
-<div class="split-grid top-gap">
-    <section class="panel">
-        <div class="section-header"><div><div class="eyebrow">BL-M2-008</div><h2>Dodaj odczyt</h2><p class="lead">Odczyt trafia najpierw do statusu zgłoszonego. Zdjęcie jest opcjonalne.</p></div></div>
-        <form asp-action="SubmitReading" method="post" enctype="multipart/form-data" class="form-grid">
-            @Html.AntiForgeryToken()
-            <div class="field full"><label>Licznik</label><select name="meterId" required>@foreach (var meter in Model.Overview.Meters) { <option value="@meter.Id">@meter.Name · @meter.Medium · @meter.UnitCode</option> }</select></div>
-            <div class="field"><label>Data i godzina</label><input name="readingAtLocal" type="datetime-local" value="@nowLocal" required /></div>
-            <div class="field"><label>Źródło</label><select name="source"><option value="Manual">Ręczny</option><option value="Tenant">Lokator</option><option value="OperatorInvoice">Faktura operatora</option></select></div>
-            <div class="field"><label>Strefa</label><input name="zoneCode" value="ALL" required /></div>
-            <div class="field"><label>Wartość</label><input name="value" type="number" step="0.001" min="0" required /></div>
-            <div class="field full"><label>Zdjęcie odczytu (opcjonalnie)</label><input name="photo" type="file" accept="image/*,.pdf" /></div>
-            <div class="full"><button class="btn btn-primary" type="submit">Zgłoś odczyt</button></div>
-        </form>
-    </section>
+<nav class="utilities-tabs" aria-label="Sekcje modułu Media">
+    <button type="button" class="is-active" data-utilities-tab="readings">
+        Odczyty
+        @if (submittedCount > 0)
+        {
+            <span>@submittedCount</span>
+        }
+    </button>
 
-    <section class="panel">
-        <div class="section-header"><div><div class="eyebrow">Historia</div><h2>Ostatnie odczyty</h2></div></div>
-        <div class="data-list">
-            @if (Model.Overview.Readings.Count == 0) { <div class="muted-block">Brak odczytów.</div> }
-            @foreach (var reading in Model.Overview.Readings.Take(12))
-            {
-                var meterName = meterById.TryGetValue(reading.MeterId, out var m) ? m.Name : reading.MeterId.ToString("D");
-                <div class="data-row stacked-row">
-                    <div class="row-main"><span><strong>@meterName</strong><small>@reading.ReadingAtUtc.ToLocalTime().ToString("dd.MM.yyyy HH:mm") · @ReadingValue(reading.Id)</small></span><span class="status-pill">@reading.Status</span></div>
-                    <small>@reading.Source @if (reading.CorrectionOfId.HasValue) { <text> · korekta wcześniejszego odczytu</text> }</small>
-                    @if (Model.CanManage)
-                    {
-                        if (reading.Status == ReadingStatuses.Submitted)
-                        {
-                        <div class="row-actions">
-                            <form asp-action="ApproveReading" method="post" class="inline-form">@Html.AntiForgeryToken()<input type="hidden" name="readingId" value="@reading.Id" /><input name="reason" placeholder="Komentarz (opcjonalnie)" /><button class="btn btn-success btn-sm" type="submit">Zatwierdź</button></form>
-                            <form asp-action="RejectReading" method="post" class="inline-form">@Html.AntiForgeryToken()<input type="hidden" name="readingId" value="@reading.Id" /><input name="reason" placeholder="Powód odrzucenia" required /><button class="btn btn-danger btn-sm" type="submit">Odrzuć</button></form>
+    <button type="button" data-utilities-tab="contracts">
+        Umowy operatorów
+        <span>@Model.Overview.Contracts.Count</span>
+    </button>
+
+    <button type="button" data-utilities-tab="billing">
+        Faktury i rozliczenia
+    </button>
+
+    @if (Model.CanManage)
+    {
+        <button type="button" data-utilities-tab="advanced">
+            Zaawansowane
+        </button>
+    }
+</nav>
+
+<section data-utilities-panel="readings">
+    <div class="utilities-section-title">
+        <div>
+            <span>NAJCZĘŚCIEJ UŻYWANE</span>
+            <h2>Wpisz odczyt licznika</h2>
+            <p>Wybierz licznik, wpisz stan i zapisz. Pozostałe opcje są schowane.</p>
+        </div>
+    </div>
+
+    @if (Model.Overview.Meters.Count == 0)
+    {
+        <div class="utilities-empty">
+            <strong>Nie ma jeszcze liczników.</strong>
+            <span>Dodaj licznik w module Nieruchomości, a pojawi się tutaj automatycznie.</span>
+        </div>
+    }
+    else
+    {
+        <div class="utilities-reading-layout">
+            <section class="utilities-card utilities-reading-entry">
+                <form asp-action="SubmitReading"
+                      method="post"
+                      enctype="multipart/form-data"
+                      data-quick-reading-form>
+                    @Html.AntiForgeryToken()
+
+                    <input type="hidden" name="source" value="Manual" />
+
+                    <label class="utilities-field utilities-full">
+                        <span>Licznik</span>
+                        <select name="meterId" required data-reading-meter>
+                            @foreach (var meter in Model.Overview.Meters)
+                            {
+                                var latest = Model.Overview.Readings
+                                    .Where(x =>
+                                        x.MeterId == meter.Id
+                                        && x.Status == ReadingStatuses.Approved)
+                                    .OrderByDescending(x => x.ReadingAtUtc)
+                                    .FirstOrDefault();
+
+                                var latestText = latest is null
+                                    ? "Brak wcześniejszego odczytu"
+                                    : $"{latest.ReadingAtUtc.ToLocalTime():dd.MM.yyyy} · {ReadingValue(latest.Id)}";
+
+                                <option value="@meter.Id"
+                                        data-unit="@meter.UnitCode"
+                                        data-medium="@meter.Medium"
+                                        data-latest="@latestText">
+                                    @meter.Name · @MediumLabel(meter.Medium)
+                                </option>
+                            }
+                        </select>
+
+                        <small data-reading-last>—</small>
+                    </label>
+
+                    <div class="utilities-reading-main">
+                        <label class="utilities-field utilities-value-field">
+                            <span>Nowy stan</span>
+                            <div class="utilities-value-input">
+                                <input name="value"
+                                       type="number"
+                                       step="0.001"
+                                       min="0"
+                                       inputmode="decimal"
+                                       autocomplete="off"
+                                       required
+                                       autofocus />
+                                <b data-reading-unit>—</b>
+                            </div>
+                        </label>
+
+                        <label class="utilities-field">
+                            <span>Strefa</span>
+                            <select name="zoneCode" required>
+                                <option value="ALL">Całość / jedna strefa</option>
+                                <option value="DAY">Dzień</option>
+                                <option value="NIGHT">Noc</option>
+                            </select>
+                        </label>
+
+                        <label class="utilities-field">
+                            <span>Data i godzina</span>
+                            <input name="readingAtLocal"
+                                   type="datetime-local"
+                                   value="@nowLocal"
+                                   required />
+                        </label>
+                    </div>
+
+                    <details class="utilities-more">
+                        <summary>Zdjęcie i dodatkowe opcje</summary>
+
+                        <div class="utilities-more-body">
+                            <label class="utilities-field utilities-full">
+                                <span>Zdjęcie licznika / dokument</span>
+                                <input name="photo"
+                                       type="file"
+                                       accept="image/*,.pdf" />
+                                <small>Opcjonalnie. Maksymalnie 25 MB.</small>
+                            </label>
                         </div>
-                        }
-                    }
-                    @if (Model.CanManage)
+                    </details>
+
+                    <button class="btn btn-primary utilities-submit-reading"
+                            type="submit">
+                        Zapisz odczyt
+                    </button>
+                </form>
+            </section>
+
+            <section class="utilities-card">
+                <div class="utilities-card-head">
+                    <div>
+                        <span>LICZNIKI</span>
+                        <h3>Szybki podgląd</h3>
+                    </div>
+                </div>
+
+                <div class="utilities-meter-list">
+                    @foreach (var meter in Model.Overview.Meters)
                     {
-                        if (reading.Status == ReadingStatuses.Approved)
-                        {
-                        <details class="crud-details"><summary>Korekta zatwierdzonego odczytu</summary><form asp-action="CorrectReading" method="post" class="form-grid">@Html.AntiForgeryToken()<input type="hidden" name="readingId" value="@reading.Id" /><div class="field"><label>Data</label><input name="readingAtLocal" type="datetime-local" value="@reading.ReadingAtUtc.ToLocalTime().ToString("yyyy-MM-ddTHH:mm")" required /></div><div class="field"><label>Nowa wartość</label><input name="value" type="number" step="0.001" min="0" required /></div><div class="field"><label>Strefa</label><input name="zoneCode" value="ALL" required /></div><div class="field"><label>Powód</label><input name="reason" required /></div><div class="field full checkbox-field"><label><input name="resetOrReplacement" type="checkbox" value="true" /> Wymiana / zerowanie licznika — dopuszczam niższą wartość</label></div><div class="full"><button class="btn btn-secondary" type="submit">Zapisz korektę</button></div></form></details>
-                        }
+                        var latest = Model.Overview.Readings
+                            .Where(x =>
+                                x.MeterId == meter.Id
+                                && x.Status == ReadingStatuses.Approved)
+                            .OrderByDescending(x => x.ReadingAtUtc)
+                            .FirstOrDefault();
+
+                        <article>
+                            <div>
+                                <strong>@meter.Name</strong>
+                                <small>@MediumLabel(meter.Medium) · @meter.UnitCode</small>
+                            </div>
+
+                            <div class="utilities-meter-last">
+                                @if (latest is null)
+                                {
+                                    <span>Brak odczytu</span>
+                                }
+                                else
+                                {
+                                    <strong>@ReadingValue(latest.Id)</strong>
+                                    <small>@latest.ReadingAtUtc.ToLocalTime().ToString("dd.MM.yyyy HH:mm")</small>
+                                }
+                            </div>
+                        </article>
                     }
                 </div>
+            </section>
+        </div>
+    }
+
+    
+    <section class="utilities-submeter-tenant" id="submeterTenantSettlement" hidden>
+        <div class="utilities-section-title">
+            <div>
+                <span>ROZLICZENIA LOKATORÓW</span>
+                <h2>Podliczniki pokoi</h2>
+                <p>
+                    e-dom porównuje najnowszy zatwierdzony odczyt z poprzednim,
+                    liczy zużycie i może dopisać koszt bezpośrednio do projektu
+                    miesięcznego rozliczenia lokatora danego pokoju.
+                </p>
+            </div>
+        </div>
+
+        <div data-submeter-tenant-list></div>
+    </section>
+
+<section class="utilities-card utilities-readings-history">
+        <div class="utilities-card-head">
+            <div>
+                <span>HISTORIA</span>
+                <h3>Odczyty</h3>
+                <p>Ostatnie odczyty są na górze. Korekta nie usuwa wcześniejszego rekordu.</p>
+            </div>
+        </div>
+
+        @if (Model.Overview.Readings.Count == 0)
+        {
+            <div class="utilities-empty compact">
+                Brak zapisanych odczytów.
+            </div>
+        }
+        else
+        {
+            <div class="utilities-reading-table">
+                @foreach (var reading in Model.Overview.Readings
+                    .OrderByDescending(x => x.ReadingAtUtc)
+                    .Take(20))
+                {
+                    var meterName = meterById.TryGetValue(
+                        reading.MeterId,
+                        out var meter)
+                        ? meter.Name
+                        : "Licznik";
+
+                    <article class="utilities-reading-row">
+                        <div class="utilities-reading-summary">
+                            <div>
+                                <strong>@meterName</strong>
+                                <small>
+                                    @reading.ReadingAtUtc.ToLocalTime().ToString("dd.MM.yyyy HH:mm")
+                                    · @reading.Source
+                                </small>
+                            </div>
+
+                            <div class="utilities-reading-number">
+                                <strong>@ReadingValue(reading.Id)</strong>
+                                @if (reading.CorrectionOfId.HasValue)
+                                {
+                                    <small>Korekta wcześniejszego odczytu</small>
+                                }
+                            </div>
+
+                            <span class="utilities-status utilities-status-@reading.Status.ToLowerInvariant()">
+                                @ReadingStatus(reading.Status)
+                            </span>
+                        </div>
+
+                        @if (Model.CanManage && reading.Status == ReadingStatuses.Submitted)
+                        {
+                            <div class="utilities-reading-actions">
+                                <form asp-action="ApproveReading" method="post">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="readingId" value="@reading.Id" />
+                                    <input name="reason" placeholder="Komentarz (opcjonalnie)" />
+                                    <button class="btn btn-success btn-sm" type="submit">
+                                        Zatwierdź
+                                    </button>
+                                </form>
+
+                                <form asp-action="RejectReading" method="post">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="readingId" value="@reading.Id" />
+                                    <input name="reason" placeholder="Powód odrzucenia" required />
+                                    <button class="btn btn-danger btn-sm" type="submit">
+                                        Odrzuć
+                                    </button>
+                                </form>
+                            </div>
+                        }
+
+                        @if (Model.CanManage && reading.Status == ReadingStatuses.Approved)
+                        {
+                            <details class="utilities-inline-details">
+                                <summary>Koryguj odczyt</summary>
+
+                                <form asp-action="CorrectReading"
+                                      method="post"
+                                      class="utilities-edit-grid">
+                                    @Html.AntiForgeryToken()
+
+                                    <input type="hidden"
+                                           name="readingId"
+                                           value="@reading.Id" />
+
+                                    <label>
+                                        <span>Data</span>
+                                        <input name="readingAtLocal"
+                                               type="datetime-local"
+                                               value="@reading.ReadingAtUtc.ToLocalTime().ToString("yyyy-MM-ddTHH:mm")"
+                                               required />
+                                    </label>
+
+                                    <label>
+                                        <span>Nowa wartość</span>
+                                        <input name="value"
+                                               type="number"
+                                               step="0.001"
+                                               min="0"
+                                               required />
+                                    </label>
+
+                                    <label>
+                                        <span>Strefa</span>
+                                        <select name="zoneCode">
+                                            <option value="ALL">Całość</option>
+                                            <option value="DAY">Dzień</option>
+                                            <option value="NIGHT">Noc</option>
+                                        </select>
+                                    </label>
+
+                                    <label>
+                                        <span>Powód korekty</span>
+                                        <input name="reason" required />
+                                    </label>
+
+                                    <label class="utilities-check utilities-full">
+                                        <input name="resetOrReplacement"
+                                               type="checkbox"
+                                               value="true" />
+                                        <span>Wymiana / zerowanie licznika — dopuszczam niższą wartość.</span>
+                                    </label>
+
+                                    <div class="utilities-full">
+                                        <button class="btn btn-secondary btn-sm"
+                                                type="submit">
+                                            Zapisz korektę
+                                        </button>
+                                    </div>
+                                </form>
+                            </details>
+                        }
+                    </article>
+                }
+            </div>
+        }
+    </section>
+</section>
+
+<section data-utilities-panel="contracts" hidden>
+    <div class="utilities-section-title">
+        <div>
+            <span>OPERATORZY</span>
+            <h2>Umowy na media</h2>
+            <p>Podgląd najważniejszych danych, edycja i pełna historia zmian bez kasowania poprzednich wartości.</p>
+        </div>
+
+        @if (Model.CanManage)
+        {
+            <button type="button"
+                    class="btn btn-primary"
+                    data-contract-create-toggle>
+                + Dodaj umowę
+            </button>
+        }
+    </div>
+
+    @if (Model.CanManage)
+    {
+        <section class="utilities-card utilities-contract-create" data-contract-create-panel hidden>
+            <div class="utilities-card-head">
+                <div>
+                    <span>NOWA UMOWA</span>
+                    <h3>Dodaj umowę operatora</h3>
+                </div>
+            </div>
+
+            <form asp-action="CreateContract"
+                  method="post"
+                  class="utilities-edit-grid">
+                @Html.AntiForgeryToken()
+
+                <label>
+                    <span>Działka</span>
+                    <select name="parcelId" required>
+                        @foreach (var parcel in Model.Parcels)
+                        {
+                            <option value="@parcel.Id">@parcel.Name</option>
+                        }
+                    </select>
+                </label>
+
+                <label>
+                    <span>Operator</span>
+                    <input name="operatorName" required />
+                </label>
+
+                <label>
+                    <span>Medium</span>
+                    <select name="medium">
+                        <option value="Electricity">Prąd</option>
+                        <option value="Water">Woda</option>
+                        <option value="Gas">Gaz</option>
+                        <option value="Waste">Odpady</option>
+                    </select>
+                </label>
+
+                <label>
+                    <span>Numer umowy</span>
+                    <input name="contractNumber" />
+                </label>
+
+                <label>
+                    <span>Punkt / PPE</span>
+                    <input name="accountPoint" />
+                </label>
+
+                <label>
+                    <span>Licznik</span>
+                    <select name="meterId">
+                        <option value="">— bez licznika —</option>
+                        @foreach (var meter in Model.Overview.Meters)
+                        {
+                            <option value="@meter.Id">@meter.Name · @MediumLabel(meter.Medium)</option>
+                        }
+                    </select>
+                </label>
+
+                <label>
+                    <span>Harmonogram</span>
+                    <select name="billingSchedule">
+                        <option value="Monthly">Miesięczny</option>
+                        <option value="BiMonthly">Co 2 miesiące</option>
+                        <option value="Quarterly">Kwartalny</option>
+                        <option value="Annual">Roczny</option>
+                    </select>
+                </label>
+
+                <label>
+                    <span>Opłata stała</span>
+                    <input name="fixedCharge"
+                           type="number"
+                           step="0.01"
+                           min="0"
+                           value="0" />
+                </label>
+
+                <label>
+                    <span>Od</span>
+                    <input name="validFrom"
+                           type="date"
+                           value="@today.ToString("yyyy-MM-dd")"
+                           required />
+                </label>
+
+                <label>
+                    <span>Do</span>
+                    <input name="validTo" type="date" />
+                </label>
+
+                <label>
+                    <span>Waluta</span>
+                    <input name="currencyCode" value="PLN" maxlength="3" />
+                </label>
+
+                <div class="utilities-full">
+                    <button class="btn btn-primary" type="submit">
+                        Zapisz umowę
+                    </button>
+                </div>
+            </form>
+        </section>
+    }
+
+    @if (Model.Overview.Contracts.Count == 0)
+    {
+        <div class="utilities-empty">
+            <strong>Nie ma jeszcze umów operatorów.</strong>
+            <span>Dodaj pierwszą umowę, aby prowadzić taryfy, prognozy i faktury.</span>
+        </div>
+    }
+    else
+    {
+        <div class="utilities-contract-list">
+            @foreach (var contract in Model.Overview.Contracts)
+            {
+                <article class="utilities-contract-card"
+                         data-contract-card="@contract.Id">
+                    <div class="utilities-contract-icon">
+                        @switch (contract.Medium)
+                        {
+                            case "Electricity":
+                                <text>⚡</text>
+                                break;
+                            case "Water":
+                                <text>💧</text>
+                                break;
+                            case "Gas":
+                                <text>◉</text>
+                                break;
+                            case "Waste":
+                                <text>♻</text>
+                                break;
+                            default:
+                                <text>●</text>
+                                break;
+                        }
+                    </div>
+
+                    <div class="utilities-contract-main">
+                        <span>@MediumLabel(contract.Medium)</span>
+                        <strong>@contract.OperatorName</strong>
+                        <small>
+                            @(string.IsNullOrWhiteSpace(contract.ContractNumber)
+                                ? "Brak numeru umowy"
+                                : $"Umowa: {contract.ContractNumber}")
+                        </small>
+                    </div>
+
+                    <div class="utilities-contract-state">
+                        <span>Umowa operatora</span>
+                    </div>
+
+                    <button type="button"
+                            class="btn btn-secondary btn-sm"
+                            data-contract-open="@contract.Id">
+                        Podgląd / edycja
+                    </button>
+                </article>
             }
         </div>
+    }
+
+    <section class="utilities-contract-workspace"
+             data-contract-workspace
+             hidden>
+        <div class="utilities-contract-workspace-head">
+            <div>
+                <span>SZCZEGÓŁY UMOWY</span>
+                <h3 data-contract-workspace-title>Umowa</h3>
+                <p data-contract-workspace-subtitle>—</p>
+            </div>
+
+            <button type="button"
+                    class="utilities-close"
+                    data-contract-workspace-close
+                    aria-label="Zamknij">
+                ×
+            </button>
+        </div>
+
+        <div data-contract-loading>
+            Wczytywanie danych umowy…
+        </div>
+
+        <div data-contract-content hidden>
+            <div class="utilities-contract-details" data-contract-details></div>
+
+            <form class="utilities-contract-edit"
+                  data-contract-edit-form
+                  hidden>
+                @Html.AntiForgeryToken()
+
+                <input type="hidden"
+                       name="contractId"
+                       data-contract-id />
+
+                <div class="utilities-edit-grid">
+                    <label>
+                        <span>Operator</span>
+                        <input name="operatorName" required />
+                    </label>
+
+                    <label>
+                        <span>Numer umowy</span>
+                        <input name="contractNumber" />
+                    </label>
+
+                    <label>
+                        <span>Punkt / PPE</span>
+                        <input name="accountPoint" />
+                    </label>
+
+                    <label>
+                        <span>Harmonogram</span>
+                        <select name="billingSchedule">
+                            <option value="Monthly">Miesięczny</option>
+                            <option value="BiMonthly">Co 2 miesiące</option>
+                            <option value="Quarterly">Kwartalny</option>
+                            <option value="Annual">Roczny</option>
+                        </select>
+                    </label>
+
+                    <label>
+                        <span>Obowiązuje od</span>
+                        <input name="validFrom" type="date" required />
+                    </label>
+
+                    <label>
+                        <span>Obowiązuje do</span>
+                        <input name="validTo" type="date" />
+                    </label>
+
+                    <label>
+                        <span>Opłata stała</span>
+                        <input name="fixedCharge"
+                               type="number"
+                               min="0"
+                               step="0.01" />
+                    </label>
+
+                    <label>
+                        <span>Waluta</span>
+                        <input name="currencyCode" maxlength="3" />
+                    </label>
+
+                    <label class="utilities-full">
+                        <span>Powód / opis zmiany</span>
+                        <input name="reason"
+                               placeholder="np. nowy numer umowy, zmiana harmonogramu rozliczeń" />
+                    </label>
+                </div>
+
+                <div class="utilities-form-actions">
+                    <button type="button"
+                            class="btn btn-secondary"
+                            data-contract-edit-cancel>
+                        Anuluj
+                    </button>
+
+                    <button type="submit"
+                            class="btn btn-primary">
+                        Zapisz zmiany
+                    </button>
+                </div>
+            </form>
+
+            <section class="utilities-contract-history">
+                <div class="utilities-card-head">
+                    <div>
+                        <span>HISTORIA ZMIAN</span>
+                        <h3>Co zmieniało się w umowie</h3>
+                    </div>
+                </div>
+
+                <div data-contract-history></div>
+            </section>
+        </div>
     </section>
-</div>
+
+    @if (Model.CanManage)
+    {
+        <details class="utilities-technical-details">
+            <summary>Taryfy i stawki umów</summary>
+
+            <div class="utilities-technical-body">
+                <form asp-action="CreateTariff"
+                      method="post"
+                      class="utilities-edit-grid">
+                    @Html.AntiForgeryToken()
+
+                    <label class="utilities-full">
+                        <span>Umowa</span>
+                        <select name="contractId" required>
+                            @foreach (var contract in Model.Overview.Contracts)
+                            {
+                                <option value="@contract.Id">
+                                    @contract.OperatorName · @MediumLabel(contract.Medium) · @contract.ContractNumber
+                                </option>
+                            }
+                        </select>
+                    </label>
+
+                    <label>
+                        <span>Nazwa taryfy</span>
+                        <input name="name" required />
+                    </label>
+
+                    <label>
+                        <span>Waluta</span>
+                        <input name="currencyCode" value="PLN" />
+                    </label>
+
+                    <label>
+                        <span>Strefa</span>
+                        <input name="zoneCode" value="ALL" />
+                    </label>
+
+                    <label>
+                        <span>Składnik</span>
+                        <input name="componentCode" value="Consumption" />
+                    </label>
+
+                    <label>
+                        <span>Stawka / jednostkę</span>
+                        <input name="ratePerUnit"
+                               type="number"
+                               step="0.000001"
+                               min="0"
+                               required />
+                    </label>
+
+                    <label>
+                        <span>Jednostka</span>
+                        <input name="unitCode" value="kWh" />
+                    </label>
+
+                    <label>
+                        <span>Od</span>
+                        <input name="validFrom"
+                               type="date"
+                               value="@today.ToString("yyyy-MM-dd")"
+                               required />
+                    </label>
+
+                    <label>
+                        <span>Do</span>
+                        <input name="validTo" type="date" />
+                    </label>
+
+                    <div class="utilities-full">
+                        <button class="btn btn-primary" type="submit">
+                            Dodaj wersję taryfy
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </details>
+    }
+</section>
+
+<section data-utilities-panel="billing" hidden>
+    <div class="utilities-section-title">
+        <div>
+            <span>RACHUNKI</span>
+            <h2>Faktury i rozliczenia mediów</h2>
+            <p>Faktury operatorów, prognozy i wyniki rozliczeń są razem, ale poza ekranem szybkich odczytów.</p>
+        </div>
+    </div>
+
+    <div class="utilities-action-cards">
+        <a class="utilities-action-card"
+           href="/Utilities/OperatorInvoice">
+            <span>PRĄD</span>
+            <strong>Rozliczenie faktury operatora</strong>
+            <small>Pełne rozliczenie G11/G12, odczyty, stawki i pozycje faktury.</small>
+            <b>Otwórz →</b>
+        </a>
+    </div>
+
+    @if (Model.CanManage)
+    {
+        <div class="utilities-two-columns">
+            <section class="utilities-card">
+                <div class="utilities-card-head">
+                    <div>
+                        <span>PROGNOZA</span>
+                        <h3>Prognoza kosztu</h3>
+                    </div>
+                </div>
+
+                <form asp-action="CreateForecast"
+                      method="post"
+                      class="utilities-edit-grid">
+                    @Html.AntiForgeryToken()
+
+                    <label class="utilities-full">
+                        <span>Umowa</span>
+                        <select name="contractId" required>
+                            @foreach (var contract in Model.Overview.Contracts)
+                            {
+                                <option value="@contract.Id">
+                                    @contract.OperatorName · @MediumLabel(contract.Medium)
+                                </option>
+                            }
+                        </select>
+                    </label>
+
+                    <label class="utilities-full">
+                        <span>Licznik</span>
+                        <select name="meterId">
+                            <option value="">— ilość wpisana ręcznie —</option>
+                            @foreach (var meter in Model.Overview.Meters)
+                            {
+                                <option value="@meter.Id">@meter.Name</option>
+                            }
+                        </select>
+                    </label>
+
+                    <label>
+                        <span>Od</span>
+                        <input name="periodFrom"
+                               type="date"
+                               value="@today.AddMonths(-1).ToString("yyyy-MM-dd")"
+                               required />
+                    </label>
+
+                    <label>
+                        <span>Do</span>
+                        <input name="periodTo"
+                               type="date"
+                               value="@today.ToString("yyyy-MM-dd")"
+                               required />
+                    </label>
+
+                    <label>
+                        <span>Szacowane zużycie</span>
+                        <input name="estimatedQuantity"
+                               type="number"
+                               step="0.001"
+                               min="0"
+                               value="0" />
+                    </label>
+
+                    <label>
+                        <span>Strefa</span>
+                        <select name="zoneCode">
+                            <option value="ALL">Całość</option>
+                            <option value="DAY">Dzień</option>
+                            <option value="NIGHT">Noc</option>
+                        </select>
+                    </label>
+
+                    <div class="utilities-full">
+                        <button class="btn btn-secondary" type="submit">
+                            Oblicz prognozę
+                        </button>
+                    </div>
+                </form>
+            </section>
+
+            <section class="utilities-card">
+                <div class="utilities-card-head">
+                    <div>
+                        <span>FAKTURA</span>
+                        <h3>Prosta rejestracja faktury</h3>
+                    </div>
+                </div>
+
+                <form asp-action="CreateInvoice"
+                      method="post"
+                      class="utilities-edit-grid">
+                    @Html.AntiForgeryToken()
+
+                    <label class="utilities-full">
+                        <span>Umowa</span>
+                        <select name="contractId" required>
+                            @foreach (var contract in Model.Overview.Contracts)
+                            {
+                                <option value="@contract.Id">
+                                    @contract.OperatorName · @MediumLabel(contract.Medium)
+                                </option>
+                            }
+                        </select>
+                    </label>
+
+                    <label>
+                        <span>Numer faktury</span>
+                        <input name="invoiceNo" required />
+                    </label>
+
+                    <label>
+                        <span>Kwota</span>
+                        <input name="totalAmount"
+                               type="number"
+                               step="0.01"
+                               min="0.01"
+                               required />
+                    </label>
+
+                    <label>
+                        <span>Okres od</span>
+                        <input name="periodFrom"
+                               type="date"
+                               value="@today.AddMonths(-1).ToString("yyyy-MM-dd")"
+                               required />
+                    </label>
+
+                    <label>
+                        <span>Okres do</span>
+                        <input name="periodTo"
+                               type="date"
+                               value="@today.ToString("yyyy-MM-dd")"
+                               required />
+                    </label>
+
+                    <label>
+                        <span>Wystawiona</span>
+                        <input name="issuedOn"
+                               type="date"
+                               value="@today.ToString("yyyy-MM-dd")"
+                               required />
+                    </label>
+
+                    <label>
+                        <span>Termin płatności</span>
+                        <input name="dueDate"
+                               type="date"
+                               value="@today.AddDays(14).ToString("yyyy-MM-dd")"
+                               required />
+                    </label>
+
+                    <label>
+                        <span>Waluta</span>
+                        <input name="currencyCode" value="PLN" />
+                    </label>
+
+                    <label>
+                        <span>Składnik</span>
+                        <input name="componentCode" value="Consumption" />
+                    </label>
+
+                    <div class="utilities-full">
+                        <button class="btn btn-primary" type="submit">
+                            Zarejestruj fakturę
+                        </button>
+                    </div>
+                </form>
+            </section>
+        </div>
+
+        <section class="utilities-card">
+            <div class="utilities-card-head">
+                <div>
+                    <span>HISTORIA</span>
+                    <h3>Faktury i wyniki</h3>
+                </div>
+            </div>
+
+            <div class="utilities-results">
+                @if (Model.Overview.Invoices.Count == 0 && Model.Overview.Calculations.Count == 0)
+                {
+                    <div class="utilities-empty compact">Brak faktur i kalkulacji.</div>
+                }
+
+                @foreach (var invoice in Model.Overview.Invoices.Take(10))
+                {
+                    var contract = contractById.TryGetValue(
+                        invoice.UtilityContractId,
+                        out var matchingContract)
+                        ? matchingContract
+                        : null;
+
+                    var comparison = Model.Overview.Comparisons
+                        .FirstOrDefault(x => x.UtilityInvoiceId == invoice.Id);
+
+                    <article>
+                        <div>
+                            <strong>@invoice.InvoiceNo · @Money(invoice.TotalAmountMinor, invoice.CurrencyCode)</strong>
+                            <small>
+                                @contract?.OperatorName · @MediumLabel(contract?.Medium)
+                                · @invoice.PeriodFrom – @invoice.PeriodTo
+                            </small>
+                        </div>
+
+                        @if (comparison is not null)
+                        {
+                            <div>
+                                <span>Prognoza</span>
+                                <strong>@Money(comparison.ForecastAmountMinor, invoice.CurrencyCode)</strong>
+                                <small>Różnica: @Money(comparison.DifferenceMinor, invoice.CurrencyCode)</small>
+                            </div>
+                        }
+
+                        <span class="utilities-status">@invoice.Status</span>
+                    </article>
+                }
+
+                @foreach (var calculation in Model.Overview.Calculations.Take(6))
+                {
+                    <article>
+                        <div>
+                            <strong>Kalkulacja podlicznika · @Money(calculation.CostMinor, calculation.CurrencyCode)</strong>
+                            <small>
+                                @(meterById.TryGetValue(calculation.MeterId, out var calculationMeter)
+                                    ? calculationMeter.Name
+                                    : "Licznik")
+                                · ilość:
+                                @(calculation.QuantityScaled / (decimal)Math.Pow(10, calculation.QuantityScale))
+                                @calculation.UnitCode
+                            </small>
+                        </div>
+
+                        <span class="utilities-status">@calculation.Status</span>
+                    </article>
+                }
+            </div>
+        </section>
+    }
+</section>
 
 @if (Model.CanManage)
 {
-<section class="panel top-gap">
-    <div class="section-header"><div><div class="eyebrow">BL-M2-009</div><h2>Umowy operatorów i taryfy</h2><p class="lead">Stawki mają jawny okres obowiązywania. System nie uzupełnia brakującej stawki wartością domyślną.</p></div></div>
-    <div class="split-grid">
-        <form asp-action="CreateContract" method="post" class="form-grid">
-            @Html.AntiForgeryToken()
-            <div class="field full"><label>Działka</label><select name="parcelId" required>@foreach(var p in Model.Parcels){<option value="@p.Id">@p.Name</option>}</select></div>
-            <div class="field"><label>Operator</label><input name="operatorName" required /></div><div class="field"><label>Medium</label><select name="medium"><option value="Electricity">Prąd</option><option value="Water">Woda</option><option value="Gas">Gaz</option><option value="Waste">Odpady</option></select></div>
-            <div class="field"><label>Nr umowy</label><input name="contractNumber" /></div><div class="field"><label>Punkt/PPE</label><input name="accountPoint" /></div>
-            <div class="field full"><label>Licznik (opcjonalny dla odpadów)</label><select name="meterId"><option value="">— bez licznika —</option>@foreach(var mtr in Model.Overview.Meters){<option value="@mtr.Id">@mtr.Name · @mtr.Medium</option>}</select></div>
-            <div class="field"><label>Harmonogram</label><input name="billingSchedule" value="Monthly" /></div><div class="field"><label>Opłata stała</label><input name="fixedCharge" type="number" step="0.01" min="0" value="0" /></div>
-            <div class="field"><label>Od</label><input name="validFrom" type="date" value="@today.ToString("yyyy-MM-dd")" required /></div><div class="field"><label>Do</label><input name="validTo" type="date" /></div>
-            <div class="field"><label>Waluta</label><input name="currencyCode" value="PLN" /></div><div class="full"><button class="btn btn-primary" type="submit">Dodaj umowę</button></div>
-        </form>
-        <form asp-action="CreateTariff" method="post" class="form-grid">
-            @Html.AntiForgeryToken()
-            <div class="field full"><label>Umowa</label><select name="contractId" required>@foreach(var c in Model.Overview.Contracts){<option value="@c.Id">@c.OperatorName · @c.Medium · @c.ContractNumber</option>}</select></div>
-            <div class="field"><label>Nazwa taryfy</label><input name="name" required /></div><div class="field"><label>Waluta</label><input name="currencyCode" value="PLN" /></div>
-            <div class="field"><label>Strefa</label><input name="zoneCode" value="ALL" /></div><div class="field"><label>Składnik</label><input name="componentCode" value="Consumption" /></div>
-            <div class="field"><label>Stawka / jednostkę</label><input name="ratePerUnit" type="number" step="0.000001" min="0" required /></div><div class="field"><label>Jednostka</label><input name="unitCode" value="kWh" /></div>
-            <div class="field"><label>Od</label><input name="validFrom" type="date" value="@today.ToString("yyyy-MM-dd")" required /></div><div class="field"><label>Do</label><input name="validTo" type="date" /></div>
-            <div class="full"><button class="btn btn-primary" type="submit">Dodaj taryfę</button></div>
-        </form>
-    </div>
-</section>
+    <section data-utilities-panel="advanced" hidden>
+        <div class="utilities-section-title">
+            <div>
+                <span>RZADZIEJ UŻYWANE</span>
+                <h2>Funkcje zaawansowane</h2>
+                <p>Alokacje kosztów, odpady i starszy plan pelletu pozostają dostępne, ale nie zajmują głównego ekranu.</p>
+            </div>
+        </div>
 
-<section class="split-grid top-gap">
-    <div class="panel">
-        <div class="section-header"><div><div class="eyebrow">BL-M2-010</div><h2>Prognoza kosztu</h2></div></div>
-        <form asp-action="CreateForecast" method="post" class="form-grid">@Html.AntiForgeryToken()
-            <div class="field full"><label>Umowa</label><select name="contractId" required>@foreach(var c in Model.Overview.Contracts){<option value="@c.Id">@c.OperatorName · @c.Medium</option>}</select></div>
-            <div class="field full"><label>Licznik</label><select name="meterId"><option value="">— prognoza z ilości ręcznej —</option>@foreach(var mtr in Model.Overview.Meters){<option value="@mtr.Id">@mtr.Name</option>}</select></div>
-            <div class="field"><label>Od</label><input name="periodFrom" type="date" value="@today.AddMonths(-1).ToString("yyyy-MM-dd")" required /></div><div class="field"><label>Do</label><input name="periodTo" type="date" value="@today.ToString("yyyy-MM-dd")" required /></div>
-            <div class="field"><label>Szacowane zużycie</label><input name="estimatedQuantity" type="number" step="0.001" min="0" value="0" /></div><div class="field"><label>Strefa</label><input name="zoneCode" value="ALL" /></div>
-            <div class="full"><button class="btn btn-secondary" type="submit">Oblicz prognozę</button></div>
-        </form>
-        <div class="data-list top-gap-small">@foreach(var f in Model.Overview.Forecasts.Take(6)){<div class="data-row"><span><strong>@Money(f.EstimatedAmountMinor,f.CurrencyCode)</strong><small>@f.PeriodFrom – @f.PeriodTo</small></span><span class="status-pill">@f.Status</span></div>}</div>
-    </div>
+        <details class="utilities-technical-details">
+            <summary>Alokacje kosztów mediów</summary>
 
-    <div class="panel">
-        <div class="section-header"><div><div class="eyebrow">BL-M2-011</div><h2>Faktura operatora</h2></div></div>
-        <form asp-action="CreateInvoice" method="post" class="form-grid">@Html.AntiForgeryToken()
-            <div class="field full"><label>Umowa</label><select name="contractId" required>@foreach(var c in Model.Overview.Contracts){<option value="@c.Id">@c.OperatorName · @c.Medium</option>}</select></div>
-            <div class="field"><label>Numer faktury</label><input name="invoiceNo" required /></div><div class="field"><label>Kwota</label><input name="totalAmount" type="number" step="0.01" min="0.01" required /></div>
-            <div class="field"><label>Okres od</label><input name="periodFrom" type="date" value="@today.AddMonths(-1).ToString("yyyy-MM-dd")" required /></div><div class="field"><label>Okres do</label><input name="periodTo" type="date" value="@today.ToString("yyyy-MM-dd")" required /></div>
-            <div class="field"><label>Wystawiona</label><input name="issuedOn" type="date" value="@today.ToString("yyyy-MM-dd")" required /></div><div class="field"><label>Termin</label><input name="dueDate" type="date" value="@today.AddDays(14).ToString("yyyy-MM-dd")" required /></div>
-            <div class="field"><label>Waluta</label><input name="currencyCode" value="PLN" /></div><div class="field"><label>Składnik</label><input name="componentCode" value="Consumption" /></div>
-            <div class="full"><button class="btn btn-primary" type="submit">Zarejestruj fakturę</button></div>
-        </form>
-    </div>
-</section>
+            <div class="utilities-technical-body utilities-two-columns">
+                <form asp-action="ManualAllocation"
+                      method="post"
+                      class="utilities-edit-grid">
+                    @Html.AntiForgeryToken()
 
-<section class="panel top-gap">
-    <div class="section-header"><div><div class="eyebrow">BL-M2-012..014</div><h2>Alokacje kosztów</h2><p class="lead">Różnica i koszt wspólny nie są automatycznie przypisywane lokatorom. Przed zatwierdzeniem musi istnieć jawna reguła.</p></div></div>
-    <div class="split-grid">
-        <form asp-action="ManualAllocation" method="post" class="form-grid">@Html.AntiForgeryToken()
-            <div class="field full"><label>Faktura mediów</label><select name="invoiceId" required>
-                @foreach (var i in Model.Overview.Invoices)
-                {
-                    var c = contractById.TryGetValue(i.UtilityContractId, out var ct) ? ct : null;
-                    <option value="@i.Id">@i.InvoiceNo · @(c?.Medium) · @Money(i.TotalAmountMinor, i.CurrencyCode)</option>
-                }
-            </select></div>
-            <div class="field"><label>Działka</label><select name="parcelId">@foreach(var p in Model.Parcels){<option value="@p.Id">@p.Name</option>}</select></div><div class="field"><label>Medium</label><select name="medium"><option>Water</option><option>Electricity</option><option>Gas</option><option>Waste</option></select></div>
-            <div class="field"><label>Cel 1</label><select name="targetId1">@foreach(var r in Model.Rooms){<option value="@r.Id">Pokój: @r.Name</option>}</select><input type="hidden" name="targetType1" value="Room" /></div><div class="field"><label>Kwota 1</label><input name="amount1" type="number" step="0.01" required /></div>
-            <div class="field"><label>Cel 2 (opcjonalnie)</label><select name="targetId2"><option value="">—</option>@foreach(var r in Model.Rooms){<option value="@r.Id">Pokój: @r.Name</option>}</select><input type="hidden" name="targetType2" value="Room" /></div><div class="field"><label>Kwota 2</label><input name="amount2" type="number" step="0.01" /></div>
-            <div class="field"><label>Cel 3 (opcjonalnie)</label><select name="targetId3"><option value="">—</option>@foreach(var r in Model.Rooms){<option value="@r.Id">Pokój: @r.Name</option>}</select><input type="hidden" name="targetType3" value="Room" /></div><div class="field"><label>Kwota 3</label><input name="amount3" type="number" step="0.01" /></div>
-            <div class="field full"><label>Notatka</label><input name="note" /></div><div class="full"><button class="btn btn-primary" type="submit">Zatwierdź pełną alokację</button></div>
-        </form>
-        <form asp-action="PerPersonAllocation" method="post" class="form-grid">@Html.AntiForgeryToken()
-            <div class="field full"><label>Faktura</label><select name="invoiceId" required>@foreach(var i in Model.Overview.Invoices){<option value="@i.Id">@i.InvoiceNo · @Money(i.TotalAmountMinor,i.CurrencyCode)</option>}</select></div>
-            <div class="field"><label>Działka</label><select name="parcelId">@foreach(var p in Model.Parcels){<option value="@p.Id">@p.Name</option>}</select></div><div class="field"><label>Medium</label><select name="medium"><option>Gas</option><option>Waste</option><option>Water</option></select></div>
-            <div class="field"><label>Budynek</label><select name="targetId">@foreach(var b in Model.Buildings){<option value="@b.Id">@b.Name</option>}</select><input type="hidden" name="targetType" value="Building" /></div><div class="field"><label>Liczba osób</label><input name="personCount" type="number" min="1" required /></div>
-            <div class="full"><button class="btn btn-secondary" type="submit">Zapisz regułę na osoby</button></div>
-        </form>
-    </div>
-</section>
+                    <label class="utilities-full">
+                        <span>Faktura</span>
+                        <select name="invoiceId" required>
+                            @foreach (var invoice in Model.Overview.Invoices)
+                            {
+                                var contract = contractById.TryGetValue(
+                                    invoice.UtilityContractId,
+                                    out var matchingContract)
+                                    ? matchingContract
+                                    : null;
 
-<section class="split-grid top-gap">
-    <div class="panel"><div class="section-header"><div><div class="eyebrow">Odpady</div><h2>Stawka na osobę</h2></div></div><form asp-action="CreateWasteRate" method="post" class="form-grid">@Html.AntiForgeryToken()<div class="field full"><label>Działka</label><select name="parcelId">@foreach(var p in Model.Parcels){<option value="@p.Id">@p.Name</option>}</select></div><div class="field"><label>Kwota/os.</label><input name="amountPerPerson" type="number" step="0.01" min="0" /></div><div class="field"><label>Waluta</label><input name="currencyCode" value="PLN" /></div><div class="field"><label>Od</label><input name="validFrom" type="date" value="@today.ToString("yyyy-MM-dd")" /></div><div class="field"><label>Do</label><input name="validTo" type="date" /></div><div class="field full checkbox-field"><label><input name="childAsAdult" type="checkbox" value="true" /> Dziecko liczone jak dorosły w tej regule</label></div><div class="full"><button class="btn btn-primary" type="submit">Dodaj stawkę</button></div></form></div>
-    <div class="panel"><div class="section-header"><div><div class="eyebrow">BL-M2-015</div><h2>Pellet · plan 12 miesięcy</h2></div></div><form asp-action="CreatePellet" method="post" class="form-grid">@Html.AntiForgeryToken()<div class="field full"><label>Budynek</label><select name="buildingId">@foreach(var b in Model.Buildings){<option value="@b.Id">@b.Name</option>}</select></div><div class="field"><label>Dostawca</label><input name="supplier" required /></div><div class="field"><label>Ilość</label><input name="quantity" type="number" step="0.001" min="0" required /></div><div class="field"><label>Jednostka</label><input name="unitCode" value="kg" /></div><div class="field"><label>Koszt całkowity</label><input name="totalAmount" type="number" step="0.01" min="0" required /></div><div class="field"><label>Waluta</label><input name="currencyCode" value="PLN" /></div><div class="field"><label>Dostawa</label><input name="deliveryDate" type="date" value="@today.ToString("yyyy-MM-dd")" /></div><div class="field"><label>Pierwszy miesiąc</label><input name="startPeriodKey" value="@today.ToString("yyyy-MM")" pattern="[0-9]{4}-[0-9]{2}" /></div><div class="full"><button class="btn btn-primary" type="submit">Utwórz plan 12 miesięcy</button></div></form></div>
-</section>
+                                <option value="@invoice.Id">
+                                    @invoice.InvoiceNo · @MediumLabel(contract?.Medium) · @Money(invoice.TotalAmountMinor, invoice.CurrencyCode)
+                                </option>
+                            }
+                        </select>
+                    </label>
 
-<section class="panel top-gap">
-    <div class="section-header"><div><div class="eyebrow">Audytowalne wyniki</div><h2>Faktury, porównania i kalkulacje</h2></div></div>
-    <div class="data-list">
-        @foreach(var invoice in Model.Overview.Invoices.Take(10))
-        {
-            var contract = contractById.TryGetValue(invoice.UtilityContractId, out var cc) ? cc : null;
-            var comparison = Model.Overview.Comparisons.FirstOrDefault(x => x.UtilityInvoiceId == invoice.Id);
-            <div class="data-row"><span><strong>@invoice.InvoiceNo · @Money(invoice.TotalAmountMinor, invoice.CurrencyCode)</strong><small>@contract?.OperatorName · @contract?.Medium · @invoice.PeriodFrom – @invoice.PeriodTo @if(comparison is not null){<text> · prognoza: @Money(comparison.ForecastAmountMinor, invoice.CurrencyCode), różnica: @Money(comparison.DifferenceMinor, invoice.CurrencyCode)</text>}</small></span><span class="status-pill">@invoice.Status</span></div>
-        }
-        @foreach(var calc in Model.Overview.Calculations.Take(6))
-        {
-            <div class="data-row"><span><strong>Kalkulacja podlicznika · @Money(calc.CostMinor, calc.CurrencyCode)</strong><small>@(meterById.TryGetValue(calc.MeterId,out var cm)?cm.Name:"Licznik") · ilość: @(calc.QuantityScaled/(decimal)Math.Pow(10,calc.QuantityScale)) @calc.UnitCode · odczyty źródłowe zachowane</small></span><span class="status-pill">@calc.Status</span></div>
-        }
-    </div>
-</section>
+                    <label>
+                        <span>Działka</span>
+                        <select name="parcelId">
+                            @foreach (var parcel in Model.Parcels)
+                            {
+                                <option value="@parcel.Id">@parcel.Name</option>
+                            }
+                        </select>
+                    </label>
+
+                    <label>
+                        <span>Medium</span>
+                        <select name="medium">
+                            <option value="Water">Woda</option>
+                            <option value="Electricity">Prąd</option>
+                            <option value="Gas">Gaz</option>
+                            <option value="Waste">Odpady</option>
+                        </select>
+                    </label>
+
+                    <label>
+                        <span>Cel 1</span>
+                        <select name="targetId1">
+                            @foreach (var room in Model.Rooms)
+                            {
+                                <option value="@room.Id">Pokój: @room.Name</option>
+                            }
+                        </select>
+                        <input type="hidden" name="targetType1" value="Room" />
+                    </label>
+
+                    <label>
+                        <span>Kwota 1</span>
+                        <input name="amount1" type="number" step="0.01" required />
+                    </label>
+
+                    <label>
+                        <span>Cel 2</span>
+                        <select name="targetId2">
+                            <option value="">—</option>
+                            @foreach (var room in Model.Rooms)
+                            {
+                                <option value="@room.Id">Pokój: @room.Name</option>
+                            }
+                        </select>
+                        <input type="hidden" name="targetType2" value="Room" />
+                    </label>
+
+                    <label>
+                        <span>Kwota 2</span>
+                        <input name="amount2" type="number" step="0.01" />
+                    </label>
+
+                    <label>
+                        <span>Cel 3</span>
+                        <select name="targetId3">
+                            <option value="">—</option>
+                            @foreach (var room in Model.Rooms)
+                            {
+                                <option value="@room.Id">Pokój: @room.Name</option>
+                            }
+                        </select>
+                        <input type="hidden" name="targetType3" value="Room" />
+                    </label>
+
+                    <label>
+                        <span>Kwota 3</span>
+                        <input name="amount3" type="number" step="0.01" />
+                    </label>
+
+                    <label class="utilities-full">
+                        <span>Notatka</span>
+                        <input name="note" />
+                    </label>
+
+                    <div class="utilities-full">
+                        <button class="btn btn-primary" type="submit">
+                            Zatwierdź alokację
+                        </button>
+                    </div>
+                </form>
+
+                <form asp-action="PerPersonAllocation"
+                      method="post"
+                      class="utilities-edit-grid">
+                    @Html.AntiForgeryToken()
+
+                    <label class="utilities-full">
+                        <span>Faktura</span>
+                        <select name="invoiceId" required>
+                            @foreach (var invoice in Model.Overview.Invoices)
+                            {
+                                <option value="@invoice.Id">
+                                    @invoice.InvoiceNo · @Money(invoice.TotalAmountMinor, invoice.CurrencyCode)
+                                </option>
+                            }
+                        </select>
+                    </label>
+
+                    <label>
+                        <span>Działka</span>
+                        <select name="parcelId">
+                            @foreach (var parcel in Model.Parcels)
+                            {
+                                <option value="@parcel.Id">@parcel.Name</option>
+                            }
+                        </select>
+                    </label>
+
+                    <label>
+                        <span>Medium</span>
+                        <select name="medium">
+                            <option value="Gas">Gaz</option>
+                            <option value="Waste">Odpady</option>
+                            <option value="Water">Woda</option>
+                        </select>
+                    </label>
+
+                    <label>
+                        <span>Budynek</span>
+                        <select name="targetId">
+                            @foreach (var building in Model.Buildings)
+                            {
+                                <option value="@building.Id">@building.Name</option>
+                            }
+                        </select>
+                        <input type="hidden" name="targetType" value="Building" />
+                    </label>
+
+                    <label>
+                        <span>Liczba osób</span>
+                        <input name="personCount" type="number" min="1" required />
+                    </label>
+
+                    <div class="utilities-full">
+                        <button class="btn btn-secondary" type="submit">
+                            Zapisz regułę na osoby
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </details>
+
+        <div class="utilities-two-columns">
+            <details class="utilities-technical-details" open>
+                <summary>Odpady — stawka na osobę</summary>
+
+                <div class="utilities-technical-body">
+                    <form asp-action="CreateWasteRate"
+                          method="post"
+                          class="utilities-edit-grid">
+                        @Html.AntiForgeryToken()
+
+                        <label class="utilities-full">
+                            <span>Działka</span>
+                            <select name="parcelId">
+                                @foreach (var parcel in Model.Parcels)
+                                {
+                                    <option value="@parcel.Id">@parcel.Name</option>
+                                }
+                            </select>
+                        </label>
+
+                        <label>
+                            <span>Kwota / os.</span>
+                            <input name="amountPerPerson"
+                                   type="number"
+                                   step="0.01"
+                                   min="0" />
+                        </label>
+
+                        <label>
+                            <span>Waluta</span>
+                            <input name="currencyCode" value="PLN" />
+                        </label>
+
+                        <label>
+                            <span>Od</span>
+                            <input name="validFrom"
+                                   type="date"
+                                   value="@today.ToString("yyyy-MM-dd")" />
+                        </label>
+
+                        <label>
+                            <span>Do</span>
+                            <input name="validTo" type="date" />
+                        </label>
+
+                        <label class="utilities-check utilities-full">
+                            <input name="childAsAdult"
+                                   type="checkbox"
+                                   value="true" />
+                            <span>Dziecko liczone jak dorosły.</span>
+                        </label>
+
+                        <div class="utilities-full">
+                            <button class="btn btn-primary" type="submit">
+                                Dodaj stawkę
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </details>
+
+            <details class="utilities-technical-details">
+                <summary>Pellet — starszy plan 12 miesięcy</summary>
+
+                <div class="utilities-technical-body">
+                    <form asp-action="CreatePellet"
+                          method="post"
+                          class="utilities-edit-grid">
+                        @Html.AntiForgeryToken()
+
+                        <label class="utilities-full">
+                            <span>Budynek</span>
+                            <select name="buildingId">
+                                @foreach (var building in Model.Buildings)
+                                {
+                                    <option value="@building.Id">@building.Name</option>
+                                }
+                            </select>
+                        </label>
+
+                        <label>
+                            <span>Dostawca</span>
+                            <input name="supplier" required />
+                        </label>
+
+                        <label>
+                            <span>Ilość</span>
+                            <input name="quantity"
+                                   type="number"
+                                   step="0.001"
+                                   min="0"
+                                   required />
+                        </label>
+
+                        <label>
+                            <span>Jednostka</span>
+                            <input name="unitCode" value="kg" />
+                        </label>
+
+                        <label>
+                            <span>Koszt całkowity</span>
+                            <input name="totalAmount"
+                                   type="number"
+                                   step="0.01"
+                                   min="0"
+                                   required />
+                        </label>
+
+                        <label>
+                            <span>Waluta</span>
+                            <input name="currencyCode" value="PLN" />
+                        </label>
+
+                        <label>
+                            <span>Dostawa</span>
+                            <input name="deliveryDate"
+                                   type="date"
+                                   value="@today.ToString("yyyy-MM-dd")" />
+                        </label>
+
+                        <label>
+                            <span>Pierwszy miesiąc</span>
+                            <input name="startPeriodKey"
+                                   value="@today.ToString("yyyy-MM")"
+                                   pattern="[0-9]{4}-[0-9]{2}" />
+                        </label>
+
+                        <div class="utilities-full">
+                            <button class="btn btn-primary" type="submit">
+                                Utwórz plan
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </details>
+        </div>
+    </section>
 }
+
+<script src="~/js/utilities-organized.js" asp-append-version="true"></script>
+<script src="~/js/submeter-tenant-settlement.js" asp-append-version="true"></script>

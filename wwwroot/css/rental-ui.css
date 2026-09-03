@@ -178,3 +178,80 @@
     .rental-annex-document{box-shadow:none;max-width:none;padding:0}
     .rental-annex-doc-actions{display:none}
 }
+
+
+/* podpisanie umowy + odczyt startowy */
+.rental-signing-meter {
+    margin-top: 4px;
+    padding: 10px;
+    border: 1px solid #cadfea;
+    border-radius: 9px;
+    background: #f7fbfe;
+}
+
+.rental-signing-meter-toggle {
+    display: grid !important;
+    grid-template-columns: auto 1fr;
+    gap: 8px !important;
+    align-items: flex-start;
+}
+
+.rental-signing-meter-toggle input {
+    width: auto !important;
+    min-height: auto !important;
+    margin-top: 3px;
+}
+
+.rental-signing-meter-toggle strong,
+.rental-signing-meter-toggle small {
+    display: block;
+}
+
+.rental-signing-meter-toggle strong {
+    color: #315d7d;
+    font-size: .68rem;
+}
+
+.rental-signing-meter-toggle small {
+    margin-top: 2px;
+    color: #71889a;
+    font-size: .58rem;
+    font-weight: 500;
+}
+
+.rental-signing-meter-fields {
+    display: grid;
+    grid-template-columns: 1.4fr 1fr .8fr;
+    gap: 7px;
+    margin-top: 9px;
+    padding-top: 9px;
+    border-top: 1px solid #dbe7ef;
+}
+
+.rental-signing-meter-fields[hidden] {
+    display: none !important;
+}
+
+@media (max-width: 850px) {
+    .submeter-reading-compare,
+    .submeter-form-grid,
+    .rental-signing-meter-fields {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .submeter-reading-arrow {
+        display: none;
+    }
+}
+
+@media (max-width: 580px) {
+    .submeter-tenant-head {
+        flex-direction: column;
+    }
+
+    .submeter-reading-compare,
+    .submeter-form-grid,
+    .rental-signing-meter-fields {
+        grid-template-columns: 1fr;
+    }
+}

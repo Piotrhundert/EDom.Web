@@ -1,0 +1,32 @@
+[
+  {
+    "id": "cd703e35-e8be-4cec-9eca-463b44bb4d4a",
+    "transferDirection": "CashToBank",
+    "householdId": "95fe82d1-5e7e-41da-abcb-801cffdc3fff",
+    "amountMinor": 50000,
+    "currencyCode": "PLN",
+    "transferredAtUtc": "2026-09-03T10:00:00Z",
+    "note": null,
+    "cashBeforeMinor": 57500,
+    "cashAfterMinor": 7500,
+    "bankBeforeMinor": 30000,
+    "bankAfterMinor": 80000,
+    "createdByUserAccountId": "3b460853-d5a8-4928-9fb8-3c88f6462e61",
+    "createdAtUtc": "2026-09-03T10:00:38.318445Z"
+  },
+  {
+    "id": "bb975e0b-68a4-4c58-924d-b258bf048ff1",
+    "transferDirection": "BankToCash",
+    "householdId": "95fe82d1-5e7e-41da-abcb-801cffdc3fff",
+    "amountMinor": 2500,
+    "currencyCode": "PLN",
+    "transferredAtUtc": "2026-09-03T10:04:00Z",
+    "note": null,
+    "cashBeforeMinor": 7500,
+    "cashAfterMinor": 10000,
+    "bankBeforeMinor": 80000,
+    "bankAfterMinor": 77500,
+    "createdByUserAccountId": "3b460853-d5a8-4928-9fb8-3c88f6462e61",
+    "createdAtUtc": "2026-09-03T10:05:24.2686576Z"
+  }
+]

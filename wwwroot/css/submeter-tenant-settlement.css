@@ -1,0 +1,323 @@
+/* PKG-015o-FEAT-01 — podliczniki pokoi → rozliczenie lokatora */
+
+.utilities-submeter-tenant {
+    margin-top: 12px;
+}
+
+.utilities-submeter-tenant[hidden] {
+    display: none !important;
+}
+
+[data-submeter-tenant-list] {
+    display: grid;
+    gap: 8px;
+}
+
+.submeter-tenant-card {
+    padding: 12px;
+    border: 1px solid #cbdfea;
+    border-radius: 11px;
+    background: linear-gradient(135deg, #fbfdff, #f5fafe);
+}
+
+.submeter-tenant-card.is-blocked {
+    border-color: #dde4e9;
+    background: #fafcfd;
+}
+
+.submeter-tenant-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: flex-start;
+}
+
+.submeter-tenant-head span,
+.submeter-tenant-head strong,
+.submeter-tenant-head small {
+    display: block;
+}
+
+.submeter-tenant-head span {
+    color: #4e7799;
+    font-size: .59rem;
+    font-weight: 900;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+}
+
+.submeter-tenant-head strong {
+    margin-top: 2px;
+    color: #294d69;
+    font-size: .76rem;
+}
+
+.submeter-tenant-head small {
+    margin-top: 2px;
+    color: #74889a;
+    font-size: .61rem;
+}
+
+.submeter-state {
+    padding: 5px 8px;
+    border-radius: 999px;
+    font-size: .58rem;
+    white-space: nowrap;
+}
+
+.submeter-state.is-ready {
+    background: #e8f6ed;
+    color: #39714d;
+}
+
+.submeter-state.is-done {
+    background: #e9f2fb;
+    color: #356b98;
+}
+
+.submeter-state.is-waiting {
+    background: #f1f3f5;
+    color: #74818c;
+}
+
+.submeter-reading-compare {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr 1.15fr;
+    gap: 8px;
+    align-items: center;
+    margin-top: 10px;
+}
+
+.submeter-reading-compare > div:not(.submeter-reading-arrow) {
+    padding: 8px 9px;
+    border: 1px solid #dce7ee;
+    border-radius: 8px;
+    background: #fff;
+}
+
+.submeter-reading-compare span,
+.submeter-reading-compare strong,
+.submeter-reading-compare small {
+    display: block;
+}
+
+.submeter-reading-compare span {
+    color: #798b99;
+    font-size: .56rem;
+}
+
+.submeter-reading-compare strong {
+    margin-top: 2px;
+    color: #36566e;
+    font-size: .68rem;
+}
+
+.submeter-reading-compare small {
+    margin-top: 2px;
+    color: #82929f;
+    font-size: .55rem;
+}
+
+.submeter-reading-arrow {
+    color: #7193ac;
+    font-size: 1rem;
+    font-weight: 900;
+}
+
+.submeter-consumption {
+    border-color: #bcd8e9 !important;
+    background: #f5fbff !important;
+}
+
+.submeter-consumption strong {
+    color: #24658f !important;
+    font-size: .76rem !important;
+}
+
+.submeter-tenant-card form {
+    margin-top: 9px;
+    padding-top: 9px;
+    border-top: 1px solid #dfe8ee;
+}
+
+.submeter-form-grid {
+    display: grid;
+    grid-template-columns: 180px minmax(260px, 1fr) minmax(220px, 1fr);
+    gap: 8px;
+    align-items: end;
+}
+
+.submeter-form-grid label {
+    display: grid;
+    gap: 4px;
+    color: #60798d;
+    font-size: .61rem;
+    font-weight: 800;
+}
+
+.submeter-form-grid label > small {
+    color: #81919e;
+    font-size: .55rem;
+    font-weight: 500;
+    line-height: 1.35;
+}
+
+.submeter-form-grid input {
+    width: 100%;
+    min-height: 36px;
+    padding: 6px 7px;
+    border: 1px solid #cadbe7;
+    border-radius: 7px;
+    background: #fff;
+}
+
+.submeter-rate-input {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 6px;
+    align-items: center;
+}
+
+.submeter-rate-input b {
+    color: #5a7488;
+    font-size: .6rem;
+}
+
+.submeter-form-summary {
+    min-height: 58px;
+    padding: 8px 9px;
+    border: 1px solid #d7e4ed;
+    border-radius: 8px;
+    background: #fff;
+}
+
+.submeter-form-summary span,
+.submeter-form-summary strong {
+    display: block;
+}
+
+.submeter-form-summary span {
+    color: #7a8b99;
+    font-size: .56rem;
+}
+
+.submeter-form-summary strong {
+    margin-top: 5px;
+    color: #335d7c;
+    font-size: .64rem;
+}
+
+.submeter-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 8px;
+}
+
+.submeter-block-reason,
+.submeter-generated-info {
+    margin-top: 9px;
+    padding: 8px 9px;
+    border-radius: 8px;
+    font-size: .62rem;
+}
+
+.submeter-block-reason {
+    border: 1px solid #e0e5e8;
+    background: #fff;
+    color: #75838e;
+}
+
+.submeter-generated-info {
+    border: 1px solid #c9dfec;
+    background: #f3f9fd;
+    color: #55748c;
+}
+
+.submeter-generated-info strong,
+.submeter-generated-info span {
+    display: block;
+}
+
+.submeter-generated-info strong {
+    color: #356987;
+}
+
+.submeter-generated-info span {
+    margin-top: 2px;
+}
+
+/* podpisanie umowy + odczyt startowy */
+.rental-signing-meter {
+    margin-top: 4px;
+    padding: 10px;
+    border: 1px solid #cadfea;
+    border-radius: 9px;
+    background: #f7fbfe;
+}
+
+.rental-signing-meter-toggle {
+    display: grid !important;
+    grid-template-columns: auto 1fr;
+    gap: 8px !important;
+    align-items: flex-start;
+}
+
+.rental-signing-meter-toggle input {
+    width: auto !important;
+    min-height: auto !important;
+    margin-top: 3px;
+}
+
+.rental-signing-meter-toggle strong,
+.rental-signing-meter-toggle small {
+    display: block;
+}
+
+.rental-signing-meter-toggle strong {
+    color: #315d7d;
+    font-size: .68rem;
+}
+
+.rental-signing-meter-toggle small {
+    margin-top: 2px;
+    color: #71889a;
+    font-size: .58rem;
+    font-weight: 500;
+}
+
+.rental-signing-meter-fields {
+    display: grid;
+    grid-template-columns: 1.4fr 1fr .8fr;
+    gap: 7px;
+    margin-top: 9px;
+    padding-top: 9px;
+    border-top: 1px solid #dbe7ef;
+}
+
+.rental-signing-meter-fields[hidden] {
+    display: none !important;
+}
+
+@media (max-width: 850px) {
+    .submeter-reading-compare,
+    .submeter-form-grid,
+    .rental-signing-meter-fields {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .submeter-reading-arrow {
+        display: none;
+    }
+}
+
+@media (max-width: 580px) {
+    .submeter-tenant-head {
+        flex-direction: column;
+    }
+
+    .submeter-reading-compare,
+    .submeter-form-grid,
+    .rental-signing-meter-fields {
+        grid-template-columns: 1fr;
+    }
+}

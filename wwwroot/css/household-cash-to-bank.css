@@ -234,3 +234,42 @@
         grid-column: auto;
     }
 }
+
+
+/* PKG-015n-FEAT-02 — dwukierunkowy transfer gotówka ↔ bank */
+.hf-cash-bank-mode-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 11px;
+}
+
+.hf-cash-bank-mode-actions .is-active {
+    box-shadow: 0 0 0 2px rgba(70, 117, 159, .15);
+}
+
+.hf-cash-bank-form-title {
+    margin-bottom: 9px;
+}
+
+.hf-cash-bank-form-title strong,
+.hf-cash-bank-form-title small {
+    display: block;
+}
+
+.hf-cash-bank-form-title strong {
+    color: #284f6f;
+    font-size: .75rem;
+}
+
+.hf-cash-bank-form-title small {
+    margin-top: 2px;
+    color: #71869a;
+    font-size: .62rem;
+}
+
+@media (max-width: 600px) {
+    .hf-cash-bank-mode-actions {
+        flex-direction: column;
+    }
+}

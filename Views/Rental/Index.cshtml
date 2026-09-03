@@ -1,10 +1,13 @@
 @model EDom.Application.Rental.RentalOverview
 @using EDom.Domain.Rental
+@using EDom.Web.Models
 @{
     ViewData["Title"] = "Najem";
     var today = DateOnly.FromDateTime(DateTime.Today);
     var signedCount = Model.Contracts.Count(x => x.Status == LeaseStatuses.Signed);
     var preparedCount = Model.Contracts.Count(x => x.Status == LeaseStatuses.Prepared);
+    var signingMeters = ViewData["SigningMeters"] as IReadOnlyList<RentalSigningMeterOptionViewModel>
+        ?? Array.Empty<RentalSigningMeterOptionViewModel>();
 }
 <link rel="stylesheet" href="~/css/rental-ui.css" asp-append-version="true" />
 
@@ -369,6 +372,66 @@
                                                 <label class="rental-full">Komentarz
                                                     <input name="comment" />
                                                 </label>
+
+                                                @{
+                                                    var roomSigningMeters = signingMeters
+                                                        .Where(x => string.Equals(
+                                                            x.RoomName,
+                                                            c.RoomName,
+                                                            StringComparison.OrdinalIgnoreCase))
+                                                        .ToArray();
+                                                }
+
+                                                @if (roomSigningMeters.Length > 0)
+                                                {
+                                                    <div class="rental-full rental-signing-meter"
+                                                         data-signing-meter-box>
+                                                        <label class="rental-signing-meter-toggle">
+                                                            <input name="addInitialMeterReading"
+                                                                   type="checkbox"
+                                                                   value="true"
+                                                                   data-signing-meter-toggle />
+                                                            <span>
+                                                                <strong>Zapisz odczyt podlicznika na dzień podpisania</strong>
+                                                                <small>
+                                                                    Ten stan będzie punktem startowym do późniejszego rozliczania zużycia lokatora.
+                                                                </small>
+                                                            </span>
+                                                        </label>
+
+                                                        <div class="rental-signing-meter-fields"
+                                                             data-signing-meter-fields
+                                                             hidden>
+                                                            <label>Podlicznik pokoju
+                                                                <select name="initialMeterId">
+                                                                    @foreach (var meter in roomSigningMeters)
+                                                                    {
+                                                                        <option value="@meter.MeterId">
+                                                                            @meter.MeterName · @meter.Medium · @meter.UnitCode
+                                                                        </option>
+                                                                    }
+                                                                </select>
+                                                            </label>
+
+                                                            <label>Stan w dniu podpisania
+                                                                <input name="initialMeterValue"
+                                                                       type="number"
+                                                                       step="0.001"
+                                                                       min="0"
+                                                                       placeholder="np. 1250,000" />
+                                                            </label>
+
+                                                            <label>Strefa
+                                                                <select name="initialMeterZoneCode">
+                                                                    <option value="ALL">Całość / jedna strefa</option>
+                                                                    <option value="DAY">Dzień</option>
+                                                                    <option value="NIGHT">Noc</option>
+                                                                </select>
+                                                            </label>
+                                                        </div>
+                                                    </div>
+                                                }
+
                                                 <div class="rental-full rental-form-actions">
                                                     <button class="btn btn-success" type="submit">Potwierdź podpisanie</button>
                                                 </div>
@@ -449,3 +512,21 @@
 </div>
 
 <script src="~/js/rental-ui.js" asp-append-version="true"></script>
+<script>
+(() => {
+    document.querySelectorAll('[data-signing-meter-box]').forEach(box => {
+        const toggle = box.querySelector('[data-signing-meter-toggle]');
+        const fields = box.querySelector('[data-signing-meter-fields]');
+        const value = box.querySelector('[name="initialMeterValue"]');
+
+        const sync = () => {
+            const enabled = Boolean(toggle?.checked);
+            if (fields) fields.hidden = !enabled;
+            if (value) value.required = enabled;
+        };
+
+        toggle?.addEventListener('change', sync);
+        sync();
+    });
+})();
+</script>
