@@ -1,0 +1,17 @@
+[
+  {
+    "id": "9de53949-b4f5-43d1-86bc-240265eded93",
+    "householdId": "95fe82d1-5e7e-41da-abcb-801cffdc3fff",
+    "contractId": "02584e4a-374f-4a36-8399-99cf09cef033",
+    "changedAtUtc": "2026-09-03T10:40:15.0338424Z",
+    "changedByUserAccountId": "3b460853-d5a8-4928-9fb8-3c88f6462e61",
+    "reason": "Edycja umowy w module Media",
+    "changes": [
+      {
+        "field": "ValidFrom",
+        "before": "2026-09-02",
+        "after": "2026-04-01"
+      }
+    ]
+  }
+]

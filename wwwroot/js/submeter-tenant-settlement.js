@@ -148,6 +148,23 @@
 
                                 <label>
                                     <span>Stawka za 1 ${esc(item.unitCode)}</span>
+
+                                    <div class="submeter-main-rate">
+                                        <span>
+                                            ${item.parentMeterName
+                                                ? `Licznik główny: ${esc(item.parentMeterName)}`
+                                                : "Brak przypisanego licznika głównego"}
+                                        </span>
+
+                                        <strong>
+                                            ${rateValue
+                                                ? `${esc(number(item.recommendedRatePerUnit, 6))} PLN/${esc(item.unitCode)}`
+                                                : "Brak stawki z taryfy"}
+                                        </strong>
+
+                                        <small>${esc(item.rateSource || "")}</small>
+                                    </div>
+
                                     <div class="submeter-rate-input">
                                         <input name="ratePerUnit"
                                                type="number"
@@ -155,14 +172,22 @@
                                                min="0.000001"
                                                value="${esc(rateValue)}"
                                                placeholder="np. 1,250000"
+                                               ${rateValue ? "readonly" : ""}
                                                required />
                                         <b>PLN/${esc(item.unitCode)}</b>
                                     </div>
-                                    <small>
-                                        ${rateValue
-                                            ? `Propozycja z taryfy: ${esc(number(item.recommendedRatePerUnit, 6))} PLN/${esc(item.unitCode)} · ${esc(item.rateSource || "")}`
-                                            : "Nie znaleziono jednoznacznej aktywnej stawki — wpisz stawkę ręcznie."}
-                                    </small>
+
+                                    ${rateValue
+                                        ? `
+                                            <label class="submeter-manual-rate-toggle">
+                                                <input type="checkbox"
+                                                       data-submeter-manual-rate />
+                                                <span>Użyj innej stawki ręcznie</span>
+                                            </label>`
+                                        : `
+                                            <small>
+                                                Nie znaleziono aktywnej taryfy licznika głównego — wpisz stawkę ręcznie.
+                                            </small>`}
                                 </label>
 
                                 <div class="submeter-form-summary">
@@ -191,6 +216,18 @@
         if (form) {
             const rateInput = form.querySelector('[name="ratePerUnit"]');
             const formula = form.querySelector("[data-submeter-formula]");
+            const manualRateToggle = form.querySelector("[data-submeter-manual-rate]");
+
+            manualRateToggle?.addEventListener("change", () => {
+                rateInput.readOnly = !manualRateToggle.checked;
+
+                if (!manualRateToggle.checked && rateValue) {
+                    rateInput.value = rateValue;
+                }
+
+                rateInput.focus();
+                syncFormula();
+            });
 
             const syncFormula = () => {
                 const rate = Number.parseFloat(

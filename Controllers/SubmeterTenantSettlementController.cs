@@ -134,6 +134,8 @@ public sealed class SubmeterTenantSettlementController(
                 previousValue = snapshot.PreviousValue,
                 currentValue = snapshot.CurrentValue,
                 consumption = snapshot.Consumption,
+                parentMeterId = snapshot.ParentMeterId,
+                parentMeterName = snapshot.ParentMeterName,
                 recommendedRatePerUnit = snapshot.RecommendedRatePerUnit,
                 rateSource = snapshot.RateSource,
                 alreadyGenerated = snapshot.AlreadyGenerated,
@@ -419,10 +421,12 @@ public sealed class SubmeterTenantSettlementController(
             currentValue = snapshot.CurrentValue,
             consumption = snapshot.Consumption,
             unitCode = snapshot.UnitCode,
+            parentMeterId = snapshot.ParentMeterId,
+            parentMeterName = snapshot.ParentMeterName,
             ratePerUnit,
             rateSource =
-                snapshot.RecommendedRatePerUnit.HasValue
-                && snapshot.RecommendedRatePerUnit.Value == ratePerUnit
+                snapshot.RecommendedRatePerUnit is decimal recommendedRateForAudit
+                && recommendedRateForAudit == ratePerUnit
                     ? snapshot.RateSource
                     : "ManualOverride",
             amountMinor,
@@ -484,8 +488,8 @@ public sealed class SubmeterTenantSettlementController(
                 CurrencyCode =
                     currency,
                 RateSource =
-                    snapshot.RecommendedRatePerUnit.HasValue
-                    && snapshot.RecommendedRatePerUnit.Value == ratePerUnit
+                    snapshot.RecommendedRatePerUnit is decimal recommendedRate
+                    && recommendedRate == ratePerUnit
                         ? snapshot.RateSource
                         : "ManualOverride",
                 CreatedAtUtc =
@@ -574,7 +578,7 @@ public sealed class SubmeterTenantSettlementController(
                     HasZone(
                         utilities,
                         x.Id,
-                        currentValue.Value.ZoneCode));
+                        currentValue.ZoneCode));
 
         if (previousReading is null)
         {
@@ -585,14 +589,14 @@ public sealed class SubmeterTenantSettlementController(
                 unitCode,
                 roomId,
                 roomName,
-                $"Brak wcześniejszego zatwierdzonego odczytu dla strefy {currentValue.Value.ZoneCode}.");
+                $"Brak wcześniejszego zatwierdzonego odczytu dla strefy {currentValue.ZoneCode}.");
         }
 
         var previousValue =
             ReadValue(
                 utilities,
                 previousReading.Id,
-                currentValue.Value.ZoneCode);
+                currentValue.ZoneCode);
 
         if (previousValue is null)
         {
@@ -607,8 +611,8 @@ public sealed class SubmeterTenantSettlementController(
         }
 
         var consumption =
-            currentValue.Value.Value
-            - previousValue.Value.Value;
+            currentValue.Value
+            - previousValue.Value;
 
         if (consumption < 0m)
         {
@@ -646,12 +650,34 @@ public sealed class SubmeterTenantSettlementController(
                            StringComparison.OrdinalIgnoreCase);
             });
 
+        var parentMeterId =
+            GetGuid(
+                meter,
+                "ParentMeterId");
+
+        var parentMeter =
+            parentMeterId == Guid.Empty
+                ? null
+                : utilities.Meters.FirstOrDefault(x =>
+                    GetGuid(x, "Id") == parentMeterId);
+
+        var parentMeterName =
+            parentMeter is null
+                ? ""
+                : GetString(
+                    parentMeter,
+                    "Name",
+                    "Licznik główny");
+
         var recommendedRate =
-            ResolveRecommendedRate(
-                utilities,
-                unitCode,
-                currentValue.Value.ZoneCode,
-                readingDate);
+            parentMeter is null
+                ? null
+                : ResolveMainMeterTariffRate(
+                    utilities,
+                    parentMeter,
+                    unitCode,
+                    currentValue.ZoneCode,
+                    readingDate);
 
         var alreadyGenerated =
             generated.FirstOrDefault(x =>
@@ -686,17 +712,24 @@ public sealed class SubmeterTenantSettlementController(
             CurrentReadingAtUtc:
                 currentReading.ReadingAtUtc,
             ZoneCode:
-                currentValue.Value.ZoneCode,
+                currentValue.ZoneCode,
             PreviousValue:
-                previousValue.Value.Value,
+                previousValue.Value,
             CurrentValue:
-                currentValue.Value.Value,
+                currentValue.Value,
             Consumption:
                 consumption,
+            ParentMeterId:
+                parentMeterId,
+            ParentMeterName:
+                parentMeterName,
             RecommendedRatePerUnit:
                 recommendedRate?.Rate,
             RateSource:
-                recommendedRate?.Source ?? "Brak automatycznej stawki",
+                recommendedRate?.Source
+                ?? (parentMeter is null
+                    ? "Brak przypisanego licznika głównego"
+                    : $"Brak aktywnej taryfy licznika głównego „{parentMeterName}”"),
             AlreadyGenerated:
                 alreadyGenerated is not null,
             GeneratedAmountMinor:
@@ -777,29 +810,80 @@ public sealed class SubmeterTenantSettlementController(
                 zoneCode,
                 StringComparison.OrdinalIgnoreCase));
 
-    private static RateSnapshot? ResolveRecommendedRate(
+    private static RateSnapshot? ResolveMainMeterTariffRate(
         object overview,
+        object parentMeter,
         string unitCode,
         string zoneCode,
         DateOnly date)
     {
+        var parentMeterId =
+            GetGuid(
+                parentMeter,
+                "Id");
+
+        if (parentMeterId == Guid.Empty)
+        {
+            return null;
+        }
+
+        // Najpierw ustalamy umowę operatora przypisaną do licznika głównego.
+        var contractIds =
+            WalkObjectGraph(
+                    overview,
+                    maxDepth: 4)
+                .Where(item =>
+                    item.GetType().Name.Contains(
+                        "Contract",
+                        StringComparison.OrdinalIgnoreCase))
+                .Where(item =>
+                    GetGuid(
+                        item,
+                        "MeterId",
+                        "MainMeterId") == parentMeterId)
+                .Select(item =>
+                    GetGuid(
+                        item,
+                        "Id",
+                        "ContractId",
+                        "UtilityContractId"))
+                .Where(id =>
+                    id != Guid.Empty)
+                .Distinct()
+                .ToHashSet();
+
+        // Jeżeli relacja umowa -> licznik jest modelowana odwrotnie,
+        // próbujemy również odczytać ContractId z samego licznika głównego.
+        var directContractId =
+            GetGuid(
+                parentMeter,
+                "UtilityContractId",
+                "ContractId");
+
+        if (directContractId != Guid.Empty)
+        {
+            contractIds.Add(
+                directContractId);
+        }
+
+        if (contractIds.Count == 0)
+        {
+            return null;
+        }
+
         var candidates =
             new List<(int Score, decimal Rate, string Source)>();
 
         foreach (var item in WalkObjectGraph(
                      overview,
-                     maxDepth: 4))
+                     maxDepth: 5))
         {
             var typeName =
                 item.GetType().Name;
 
-            var hasRate =
-                HasProperty(item, "RatePerUnit")
-                || HasProperty(item, "RateScaled")
-                || HasProperty(item, "UnitRate")
-                || HasProperty(item, "RateMinorPerUnit");
-
-            if (!hasRate
+            if (!typeName.Contains(
+                    "Tariff",
+                    StringComparison.OrdinalIgnoreCase)
                 && !typeName.Contains(
                     "Rate",
                     StringComparison.OrdinalIgnoreCase))
@@ -807,8 +891,23 @@ public sealed class SubmeterTenantSettlementController(
                 continue;
             }
 
+            var itemContractId =
+                GetGuid(
+                    item,
+                    "UtilityContractId",
+                    "ContractId");
+
+            // Stawka musi należeć do umowy licznika głównego.
+            if (itemContractId == Guid.Empty
+                || !contractIds.Contains(
+                    itemContractId))
+            {
+                continue;
+            }
+
             var rate =
-                TryReadRate(item);
+                TryReadRate(
+                    item);
 
             if (!rate.HasValue
                 || rate.Value <= 0m)
@@ -817,9 +916,12 @@ public sealed class SubmeterTenantSettlementController(
             }
 
             var candidateUnit =
-                GetString(item, "UnitCode");
+                GetString(
+                    item,
+                    "UnitCode");
 
-            if (!string.IsNullOrWhiteSpace(candidateUnit)
+            if (!string.IsNullOrWhiteSpace(
+                    candidateUnit)
                 && !string.Equals(
                     candidateUnit,
                     unitCode,
@@ -829,10 +931,14 @@ public sealed class SubmeterTenantSettlementController(
             }
 
             var validFrom =
-                GetDateOnly(item, "ValidFrom");
+                GetDateOnly(
+                    item,
+                    "ValidFrom");
 
             var validTo =
-                GetNullableDateOnly(item, "ValidTo");
+                GetNullableDateOnly(
+                    item,
+                    "ValidTo");
 
             if (validFrom.HasValue
                 && validFrom.Value > date)
@@ -847,9 +953,12 @@ public sealed class SubmeterTenantSettlementController(
             }
 
             var candidateZone =
-                GetString(item, "ZoneCode");
+                GetString(
+                    item,
+                    "ZoneCode");
 
-            if (!string.IsNullOrWhiteSpace(candidateZone)
+            if (!string.IsNullOrWhiteSpace(
+                    candidateZone)
                 && !string.Equals(
                     candidateZone,
                     zoneCode,
@@ -867,7 +976,7 @@ public sealed class SubmeterTenantSettlementController(
                     item,
                     "ComponentCode");
 
-            var score = 0;
+            var score = 100; // powiązanie z umową licznika głównego
 
             if (string.Equals(
                     candidateUnit,
@@ -882,16 +991,18 @@ public sealed class SubmeterTenantSettlementController(
                     zoneCode,
                     StringComparison.OrdinalIgnoreCase))
             {
-                score += 10;
+                score += 20;
             }
             else if (string.Equals(
                          candidateZone,
                          "ALL",
                          StringComparison.OrdinalIgnoreCase))
             {
-                score += 5;
+                score += 10;
             }
 
+            // Do podlicznika wybieramy przede wszystkim koszt zależny od zużycia,
+            // a nie opłatę stałą lub abonament.
             if (component.Contains(
                     "Consumption",
                     StringComparison.OrdinalIgnoreCase)
@@ -902,26 +1013,38 @@ public sealed class SubmeterTenantSettlementController(
                     "Variable",
                     StringComparison.OrdinalIgnoreCase))
             {
-                score += 10;
+                score += 30;
             }
 
-            if (validFrom.HasValue)
+            if (component.Contains(
+                    "Fixed",
+                    StringComparison.OrdinalIgnoreCase)
+                || component.Contains(
+                    "Subscription",
+                    StringComparison.OrdinalIgnoreCase)
+                || component.Contains(
+                    "Capacity",
+                    StringComparison.OrdinalIgnoreCase))
             {
-                score += 2;
+                score -= 50;
             }
 
             candidates.Add(
                 (
                     score,
                     rate.Value,
-                    $"{typeName}{(string.IsNullOrWhiteSpace(component) ? "" : $" · {component}")}"
+                    $"Taryfa licznika głównego „{GetString(parentMeter, "Name", "główny")}”" +
+                    (string.IsNullOrWhiteSpace(component)
+                        ? ""
+                        : $" · {component}")
                 ));
         }
 
-        var best = candidates
-            .OrderByDescending(x => x.Score)
-            .ThenByDescending(x => x.Rate)
-            .FirstOrDefault();
+        var best =
+            candidates
+                .OrderByDescending(x => x.Score)
+                .ThenByDescending(x => x.Rate)
+                .FirstOrDefault();
 
         return best.Rate > 0m
             ? new RateSnapshot(
@@ -1317,6 +1440,8 @@ public sealed class SubmeterTenantSettlementController(
         decimal PreviousValue,
         decimal CurrentValue,
         decimal Consumption,
+        Guid ParentMeterId,
+        string ParentMeterName,
         decimal? RecommendedRatePerUnit,
         string RateSource,
         bool AlreadyGenerated,
@@ -1350,6 +1475,8 @@ public sealed class SubmeterTenantSettlementController(
                 0m,
                 0m,
                 0m,
+                Guid.Empty,
+                "",
                 null,
                 "",
                 false,

@@ -321,3 +321,59 @@
         grid-template-columns: 1fr;
     }
 }
+
+
+/* PKG-015o-FEAT-02 — taryfa licznika głównego dla podliczników */
+.submeter-main-rate {
+    display: grid;
+    gap: 2px;
+    margin-bottom: 5px;
+    padding: 7px 8px;
+    border: 1px solid #c7ddec;
+    border-radius: 7px;
+    background: #f5faff;
+}
+
+.submeter-main-rate span,
+.submeter-main-rate strong,
+.submeter-main-rate small {
+    display: block;
+}
+
+.submeter-main-rate span {
+    color: #6b8497;
+    font-size: .55rem;
+}
+
+.submeter-main-rate strong {
+    color: #28658f;
+    font-size: .68rem;
+}
+
+.submeter-main-rate small {
+    color: #7e909e;
+    font-size: .54rem;
+}
+
+.submeter-rate-input input[readonly] {
+    background: #f3f6f8;
+    color: #46657c;
+    font-weight: 800;
+}
+
+.submeter-manual-rate-toggle {
+    display: grid !important;
+    grid-template-columns: auto 1fr;
+    gap: 6px !important;
+    align-items: center;
+    margin-top: 4px;
+    color: #687f92 !important;
+    font-size: .57rem !important;
+    font-weight: 700 !important;
+}
+
+.submeter-manual-rate-toggle input {
+    width: auto !important;
+    min-height: auto !important;
+    margin: 0;
+}
