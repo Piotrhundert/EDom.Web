@@ -465,3 +465,58 @@
         text-align: left;
     }
 }
+
+
+/* PKG-015q-FEAT-02-FIX-02 — woda: najpierw pełna płatność domu */
+.utility-water-history-action {
+    grid-column: 1 / -1;
+    padding-top: 7px;
+    border-top: 1px solid #e6edf2;
+}
+
+.utility-water-payment-state {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+    padding: 8px 9px;
+    border-radius: 8px;
+    font-size: .56rem;
+}
+
+.utility-water-payment-state strong,
+.utility-water-payment-state span {
+    display: block;
+}
+
+.utility-water-payment-state a {
+    color: #2e6f9f;
+    font-weight: 850;
+    text-decoration: none;
+}
+
+.utility-water-payment-state.is-warning {
+    border: 1px solid #ead9b7;
+    background: #fffaf1;
+    color: #745f39;
+}
+
+.utility-water-payment-state.is-ready {
+    border: 1px solid #bcdcc9;
+    background: #f2fbf5;
+    color: #356d49;
+}
+
+.utility-water-payment-state.is-done {
+    border: 1px solid #cadfeb;
+    background: #f4f9fc;
+    color: #4f7189;
+}
+
+.utility-water-payment-state .btn {
+    margin-left: auto;
+}
+
+[data-utility-invoice-history-list] article:has(.utility-water-history-action) {
+    grid-template-columns: 1.4fr repeat(3, .8fr);
+}

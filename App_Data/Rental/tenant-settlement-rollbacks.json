@@ -49,5 +49,22 @@
     "keptApprovedPayments": true,
     "reopenedAtUtc": "2026-09-03T10:21:41.4386022Z",
     "reopenedByUserAccountId": "3b460853-d5a8-4928-9fb8-3c88f6462e61"
+  },
+  {
+    "id": "2da91a17-1618-4b29-8381-55363331454b",
+    "householdId": "95fe82d1-5e7e-41da-abcb-801cffdc3fff",
+    "settlementId": "925ae9af-0e65-4a54-b04d-601afe07e10d",
+    "leaseContractId": "6139531c-2b2b-4a2d-8e7b-88416de54bf9",
+    "payerPersonId": "b8f23244-e4f2-43e2-ab6c-64b2c3cf675f",
+    "tenantName": "lokator lok",
+    "roomName": "Scinawska / Pok\u00F3j 1",
+    "periodKey": "2026-09",
+    "previousStatus": "Paid",
+    "reopenedStatus": "Draft",
+    "reason": "testtest",
+    "paidMinorAtRollback": 148250,
+    "keptApprovedPayments": true,
+    "reopenedAtUtc": "2026-09-04T09:54:43.8157884Z",
+    "reopenedByUserAccountId": "3b460853-d5a8-4928-9fb8-3c88f6462e61"
   }
 ]

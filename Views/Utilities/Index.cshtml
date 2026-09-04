@@ -1078,7 +1078,7 @@
                     <span>💧</span>
                     <div>
                         <strong>Woda / Aquanet</strong>
-                        <small>Cała FV z konta domu; część lokatorów wg podlicznika lub ręcznej kwoty.</small>
+                        <small>Najpierw 100% FV opłaca dom. Dopiero po płatności generujesz rozliczenie lokatorów.</small>
                     </div>
                     <b>Rozlicz FV →</b>
                 </button>
@@ -1211,8 +1211,8 @@
                         <div class="utility-invoice-subsection-title">
                             <strong>Podział faktury za wodę</strong>
                             <span>
-                                Cała faktura jest opłacana z Finansów domowych.
-                                Wyliczamy tylko część gospodarstwa i część lokatorów.
+                                Krok 1: rejestrujesz pełną FV Aquanet i opłacasz ją w Finansach domowych.
+                                Krok 2: po pełnej płatności osobnym przyciskiem generujesz rozliczenie lokatorów.
                             </span>
                         </div>
 
@@ -1344,18 +1344,18 @@
                     <section class="utility-invoice-preview"
                              data-utility-invoice-preview>
                         <div>
-                            <span>Cała FV</span>
+                            <span>Cała FV — płaci dom</span>
                             <strong data-preview-gross>0,00 PLN</strong>
                         </div>
 
                         <div>
-                            <span>Część gospodarstwa</span>
+                            <span>Koszt domu po odzyskaniu udziału lokatorów</span>
                             <strong data-preview-household>0,00 PLN</strong>
                             <small data-preview-household-note>—</small>
                         </div>
 
                         <div>
-                            <span>Do rozliczeń lokatorów</span>
+                            <span>Do odzyskania od lokatorów po opłaceniu FV</span>
                             <strong data-preview-tenants>0,00 PLN</strong>
                             <small data-preview-tenant-note>—</small>
                         </div>
@@ -1370,7 +1370,7 @@
 
                         <button type="submit"
                                 class="btn btn-primary">
-                            Zarejestruj FV i przygotuj rozliczenia
+                            Zarejestruj FV
                         </button>
                     </div>
                 </form>
@@ -1654,6 +1654,11 @@
         <details class="utilities-technical-details">
             <summary>Alokacje kosztów mediów</summary>
 
+            <div class="utilities-inline-note">
+                Prąd lokatorów nie jest dzielony z pełnej FV operatora.
+                Rozliczenie prądu dla pokoju powstaje wyłącznie z podlicznika.
+            </div>
+
             <div class="utilities-technical-body utilities-two-columns">
                 <form asp-action="ManualAllocation"
                       method="post"
@@ -1692,7 +1697,6 @@
                         <span>Medium</span>
                         <select name="medium">
                             <option value="Water">Woda</option>
-                            <option value="Electricity">Prąd</option>
                             <option value="Gas">Gaz</option>
                             <option value="Waste">Odpady</option>
                         </select>

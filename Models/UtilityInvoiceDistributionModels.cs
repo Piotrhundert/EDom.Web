@@ -23,6 +23,18 @@ public sealed class UtilityInvoiceDistributionRecord
     public int TenantPersons { get; set; }
     public long TenantAmountMinor { get; set; }
     public string? SettlementOperation { get; set; }
+
+    // Dane wejściowe zachowane do późniejszego rozliczenia lokatorów.
+    // Dla wody rozliczenie jest generowane dopiero po pełnym opłaceniu FV przez dom.
+    public DateOnly? PeriodFrom { get; set; }
+    public DateOnly? PeriodTo { get; set; }
+    public DateOnly? IssuedOn { get; set; }
+    public DateOnly? DueDate { get; set; }
+    public string? TotalConsumptionText { get; set; }
+    public string? TenantConsumptionText { get; set; }
+    public long? ManualTenantAmountMinor { get; set; }
+    public string? TenantOccupancyJson { get; set; }
+
     public DateTime CreatedAtUtc { get; set; }
     public Guid CreatedByUserAccountId { get; set; }
 }

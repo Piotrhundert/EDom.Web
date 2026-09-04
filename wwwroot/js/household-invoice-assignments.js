@@ -222,6 +222,124 @@
         return `<ol class="hf-invoice-timeline">${parts.join("")}</ol>`;
     }
 
+    const normalizeText = value =>
+        String(value ?? "")
+            .trim()
+            .replace(/\s+/g, " ")
+            .toLocaleLowerCase("pl-PL");
+
+    const parseMoneyMinor = value => {
+        const raw = String(value ?? "")
+            .replace(/\u00A0/g, " ")
+            .replace(/[A-Za-z]/g, "")
+            .replace(/\s/g, "")
+            .replace(",", ".")
+            .trim();
+
+        const major = Number.parseFloat(raw);
+
+        return Number.isFinite(major)
+            ? Math.round(major * 100)
+            : null;
+    };
+
+    const normalizeDate = value => {
+        const raw = String(value ?? "").trim();
+        if (!raw) return "";
+
+        // ISO / DateOnly: 2026-09-18
+        const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if (iso) {
+            return `${iso[1]}-${iso[2]}-${iso[3]}`;
+        }
+
+        // Widok PL: 18.09.2026
+        const pl = raw.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})/);
+        if (pl) {
+            return `${pl[3]}-${pl[2].padStart(2, "0")}-${pl[1].padStart(2, "0")}`;
+        }
+
+        return raw;
+    };
+
+    function findInvoiceStateForRow(row, states) {
+        const cells = Array.from(row.children);
+
+        const invoiceNo =
+            normalizeText(cells[0]?.textContent);
+
+        const supplier =
+            normalizeText(cells[1]?.textContent);
+
+        const grossMinor =
+            parseMoneyMinor(cells[3]?.textContent);
+
+        const dueDate =
+            normalizeDate(cells[6]?.textContent);
+
+        let candidates =
+            (states || []).filter(x =>
+                normalizeText(x.invoiceNo) === invoiceNo
+            );
+
+        if (candidates.length <= 1) {
+            return candidates[0] || null;
+        }
+
+        // Numer faktury nie jest globalnie unikalny.
+        // Najpierw rozróżniamy faktury po dostawcy.
+        const bySupplier =
+            candidates.filter(x =>
+                normalizeText(x.supplier) === supplier
+            );
+
+        if (bySupplier.length === 1) {
+            return bySupplier[0];
+        }
+
+        if (bySupplier.length > 0) {
+            candidates = bySupplier;
+        }
+
+        // Jeśli ten sam dostawca użył ponownie tego samego numeru,
+        // zawężamy po kwocie brutto.
+        if (grossMinor !== null) {
+            const byGross =
+                candidates.filter(x =>
+                    Number(x.grossMinor) === grossMinor
+                );
+
+            if (byGross.length === 1) {
+                return byGross[0];
+            }
+
+            if (byGross.length > 0) {
+                candidates = byGross;
+            }
+        }
+
+        // Ostatni bezpieczny wyróżnik to termin płatności.
+        if (dueDate) {
+            const byDueDate =
+                candidates.filter(x =>
+                    normalizeDate(x.dueDate) === dueDate
+                );
+
+            if (byDueDate.length === 1) {
+                return byDueDate[0];
+            }
+
+            if (byDueDate.length > 0) {
+                candidates = byDueDate;
+            }
+        }
+
+        // Nie zgadujemy, jeśli nadal istnieje więcej niż jedna faktura.
+        return candidates.length === 1
+            ? candidates[0]
+            : null;
+    }
+
     function decorateInvoiceTable(data) {
         const section = document.querySelector("#hf-invoices");
         const table = section?.querySelector(".hf-status-table");
@@ -251,9 +369,18 @@
 
         table.querySelectorAll("tbody tr").forEach(row => {
             const cells = Array.from(row.children);
-            const invoiceNo = (cells[0]?.textContent || "").trim();
-            const invoice = states.find(x => String(x.invoiceNo || "").trim() === invoiceNo);
-            if (!invoice) return;
+            const invoice =
+                findInvoiceStateForRow(
+                    row,
+                    states
+                );
+
+            if (!invoice) {
+                // Jeżeli nie da się jednoznacznie dopasować faktury,
+                // zostawiamy jej oryginalny status z widoku serwera,
+                // zamiast kopiować stan innej faktury o tym samym numerze.
+                return;
+            }
 
             const related = assignments.filter(x => String(x.invoiceId) === String(invoice.id));
             const process = processState(invoice, related);

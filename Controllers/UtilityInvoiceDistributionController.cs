@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Text.Json;
+using EDom.Application.HouseholdFinance;
 using EDom.Application.Households;
 using EDom.Application.Rental;
 using EDom.Application.Utilities;
@@ -23,12 +24,13 @@ public sealed class UtilityInvoiceDistributionController(
     IUtilitiesService utilitiesService,
     IRentalService rentalService,
     ITenantSettlementService settlementService,
+    IHouseholdFinanceService householdFinanceService,
     IHouseholdFamilyService familyService,
     EDomDbContext db,
     IWebHostEnvironment environment) : Controller
 {
     private const string PackageVersion =
-        "PKG-015q-FEAT-02";
+        "PKG-015q-FEAT-02-FIX-02";
 
     [HttpGet("Data")]
     public async Task<IActionResult> Data(
@@ -215,32 +217,103 @@ public sealed class UtilityInvoiceDistributionController(
             new UtilityInvoiceDistributionStore(
                 environment.ContentRootPath);
 
-        var history =
-            (await store.GetAsync(
+        var distributionRecords =
+            await store.GetAsync(
                 current.HouseholdId,
-                cancellationToken))
-            .Where(x =>
-                string.Equals(
-                    x.RecordType,
-                    "Summary",
-                    StringComparison.OrdinalIgnoreCase))
-            .Take(8)
-            .Select(x => new
-            {
-                x.Id,
-                x.InvoiceNo,
-                x.Medium,
-                x.PeriodKey,
-                x.GrossAmountMinor,
-                x.HouseholdShareMinor,
-                x.TenantShareMinor,
-                x.HouseholdPersonCount,
-                x.TenantPersonCount,
-                x.CurrencyCode,
-                x.AllocationMode,
-                x.CreatedAtUtc
-            })
-            .ToArray();
+                cancellationToken);
+
+        var householdFinance =
+            await householdFinanceService.GetOverviewAsync(
+                current.HouseholdId,
+                current.PersonId,
+                true,
+                cancellationToken);
+
+        var history =
+            distributionRecords
+                .Where(x =>
+                    string.Equals(
+                        x.RecordType,
+                        "Summary",
+                        StringComparison.OrdinalIgnoreCase))
+                .Take(12)
+                .Select(x =>
+                {
+                    var householdInvoice =
+                        householdFinance.Invoices
+                            .Where(i =>
+                                string.Equals(
+                                    i.InvoiceNo?.Trim(),
+                                    x.InvoiceNo.Trim(),
+                                    StringComparison.OrdinalIgnoreCase)
+                                && i.GrossMinor == x.GrossAmountMinor)
+                            .OrderByDescending(i =>
+                                string.Equals(
+                                    i.Supplier?.Trim(),
+                                    utilities.Contracts
+                                        .FirstOrDefault(c =>
+                                            c.Id == x.UtilityContractId)
+                                        ?.OperatorName?.Trim(),
+                                    StringComparison.OrdinalIgnoreCase))
+                            .FirstOrDefault();
+
+                    var tenantCharges =
+                        distributionRecords.Count(r =>
+                            r.UtilityInvoiceId == x.UtilityInvoiceId
+                            && string.Equals(
+                                r.RecordType,
+                                "TenantCharge",
+                                StringComparison.OrdinalIgnoreCase));
+
+                    var pendingCorrections =
+                        distributionRecords.Count(r =>
+                            r.UtilityInvoiceId == x.UtilityInvoiceId
+                            && string.Equals(
+                                r.RecordType,
+                                "PendingCorrection",
+                                StringComparison.OrdinalIgnoreCase));
+
+                    return new
+                    {
+                        x.Id,
+                        x.UtilityInvoiceId,
+                        x.InvoiceNo,
+                        x.Medium,
+                        x.PeriodKey,
+                        x.GrossAmountMinor,
+                        x.HouseholdShareMinor,
+                        x.TenantShareMinor,
+                        x.HouseholdPersonCount,
+                        x.TenantPersonCount,
+                        x.CurrencyCode,
+                        x.AllocationMode,
+                        x.CreatedAtUtc,
+                        householdInvoiceId =
+                            householdInvoice?.Id,
+                        paidMinor =
+                            householdInvoice?.PaidMinor ?? 0,
+                        remainingMinor =
+                            householdInvoice?.RemainingMinor
+                            ?? x.GrossAmountMinor,
+                        paymentStatus =
+                            householdInvoice?.Status
+                            ?? "Nie znaleziono w Finansach domowych",
+                        isFullyPaid =
+                            householdInvoice is not null
+                            && householdInvoice.RemainingMinor <= 0,
+                        tenantCharges,
+                        pendingCorrections,
+                        canGenerateWater =
+                            string.Equals(
+                                x.Medium,
+                                "Water",
+                                StringComparison.OrdinalIgnoreCase)
+                            && x.TenantShareMinor > 0
+                            && householdInvoice is not null
+                            && householdInvoice.RemainingMinor <= 0
+                    };
+                })
+                .ToArray();
 
         return Json(new
         {
@@ -597,210 +670,215 @@ public sealed class UtilityInvoiceDistributionController(
                 new UtilityInvoiceDistributionStore(
                     environment.ContentRootPath);
 
-            var tenantAmounts =
-                AllocateTenantAmounts(
-                    tenantShareMinor,
-                    weightedTenants);
-
             var createdCharges = 0;
             var skippedCharges = 0;
             var correctionCharges = 0;
+            var pendingCorrections = 0;
 
-            foreach (var tenant in weightedTenants)
+            // WAŻNE: dla WODY nie tworzymy tutaj żadnego obciążenia lokatora.
+            // Najpierw całą FV opłaca gospodarstwo. Rozliczenie lokatorów
+            // uruchamia administrator ręcznie dopiero po RemainingMinor == 0.
+            if (!string.Equals(
+                    normalizedMedium,
+                    "Water",
+                    StringComparison.OrdinalIgnoreCase))
             {
-                if (!tenantAmounts.TryGetValue(
-                        tenant.ContractId,
-                        out var tenantAmountMinor)
-                    || tenantAmountMinor <= 0)
+                var tenantAmounts =
+                    AllocateTenantAmounts(
+                        tenantShareMinor,
+                        weightedTenants);
+
+                foreach (var tenant in weightedTenants)
                 {
-                    continue;
-                }
-
-                if (await store.TenantChargeExistsAsync(
-                        current.HouseholdId,
-                        invoice.Id,
-                        tenant.ContractId,
-                        cancellationToken))
-                {
-                    skippedCharges++;
-                    continue;
-                }
-
-                var settlementOverview =
-                    await settlementService.GetOverviewAsync(
-                        rentalActor,
-                        cancellationToken);
-
-                var settlement =
-                    FindSettlement(
-                        settlementOverview.Settlements,
-                        tenant.ContractId,
-                        periodKey);
-
-                if (settlement is null)
-                {
-                    await settlementService.BuildDraftAsync(
-                        rentalActor,
-                        new(
+                    if (!tenantAmounts.TryGetValue(
                             tenant.ContractId,
-                            periodKey),
-                        cancellationToken);
+                            out var tenantAmountMinor)
+                        || tenantAmountMinor <= 0)
+                    {
+                        continue;
+                    }
 
-                    settlementOverview =
+                    if (await store.TenantChargeExistsAsync(
+                            current.HouseholdId,
+                            invoice.Id,
+                            tenant.ContractId,
+                            cancellationToken))
+                    {
+                        skippedCharges++;
+                        continue;
+                    }
+
+                    var settlementOverview =
                         await settlementService.GetOverviewAsync(
                             rentalActor,
                             cancellationToken);
 
-                    settlement =
+                    var settlement =
                         FindSettlement(
                             settlementOverview.Settlements,
                             tenant.ContractId,
                             periodKey);
-                }
 
-                if (settlement is null)
-                {
-                    throw new InvalidOperationException(
-                        $"Nie udało się przygotować rozliczenia {tenant.TenantName} za {periodKey}.");
-                }
-
-                var settlementId =
-                    GetGuid(
-                        settlement,
-                        "Id");
-
-                var settlementStatus =
-                    GetString(
-                        settlement,
-                        "Status");
-
-                var sourceType =
-                    normalizedMedium == "Water"
-                        ? "WaterInvoice"
-                        : "WasteInvoice";
-
-                var snapshot =
-                    JsonSerializer.Serialize(
-                        new
-                        {
-                            source =
-                                "UtilityInvoiceDistribution",
-                            package =
-                                PackageVersion,
-                            utilityInvoiceId =
-                                invoice.Id,
-                            utilityContractId =
-                                contract.Id,
-                            invoiceNo =
-                                invoiceNo.Trim(),
-                            medium =
-                                normalizedMedium,
-                            periodFrom,
-                            periodTo,
-                            periodKey,
-                            grossAmountMinor =
-                                grossMinor,
-                            householdShareMinor,
-                            tenantShareMinor,
-                            householdPersonCount =
-                                householdPersons.Length,
-                            tenantPersonCount,
-                            tenantPersons =
-                                tenant.Persons,
-                            tenantAmountMinor,
-                            allocationMode =
-                                resolvedAllocationMode
-                        });
-
-                string settlementOperation;
-
-                if (IsEditableSettlementStatus(
-                        settlementStatus))
-                {
-                    await settlementService.AddManualLineAsync(
-                        rentalActor,
-                        new(
-                            settlementId,
-                            "Adjustment",
-                            tenantAmountMinor,
-                            currency,
-                            sourceType,
-                            null,
-                            snapshot),
-                        cancellationToken);
-
-                    settlementOperation =
-                        "Line";
-
-                    createdCharges++;
-                }
-                else
-                {
-                    await settlementService.CorrectSettlementAsync(
-                        rentalActor,
-                        new(
-                            settlementId,
-                            tenantAmountMinor,
-                            $"{MediumLabel(normalizedMedium)} — udział z FV {invoiceNo.Trim()} ({periodKey})."),
-                        cancellationToken);
-
-                    settlementOperation =
-                        "Correction";
-
-                    correctionCharges++;
-                }
-
-                await store.AddAsync(
-                    new UtilityInvoiceDistributionRecord
+                    if (settlement is null)
                     {
-                        Id =
-                            Guid.NewGuid(),
-                        RecordType =
-                            "TenantCharge",
-                        HouseholdId =
-                            current.HouseholdId,
-                        UtilityInvoiceId =
-                            invoice.Id,
-                        UtilityContractId =
-                            contract.Id,
-                        InvoiceNo =
-                            invoiceNo.Trim(),
-                        Medium =
-                            normalizedMedium,
-                        PeriodKey =
-                            periodKey,
-                        GrossAmountMinor =
-                            grossMinor,
-                        HouseholdShareMinor =
-                            householdShareMinor,
-                        TenantShareMinor =
-                            tenantShareMinor,
-                        HouseholdPersonCount =
-                            householdPersons.Length,
-                        TenantPersonCount =
-                            tenantPersonCount,
-                        CurrencyCode =
-                            currency,
-                        AllocationMode =
-                            resolvedAllocationMode,
-                        LeaseContractId =
-                            tenant.ContractId,
-                        SettlementId =
-                            settlementId,
-                        TenantName =
-                            tenant.TenantName,
-                        TenantPersons =
-                            tenant.Persons,
-                        TenantAmountMinor =
-                            tenantAmountMinor,
-                        SettlementOperation =
-                            settlementOperation,
-                        CreatedAtUtc =
-                            DateTime.UtcNow,
-                        CreatedByUserAccountId =
-                            current.UserAccountId
-                    },
-                    cancellationToken);
+                        await settlementService.BuildDraftAsync(
+                            rentalActor,
+                            new(
+                                tenant.ContractId,
+                                periodKey),
+                            cancellationToken);
+
+                        settlementOverview =
+                            await settlementService.GetOverviewAsync(
+                                rentalActor,
+                                cancellationToken);
+
+                        settlement =
+                            FindSettlement(
+                                settlementOverview.Settlements,
+                                tenant.ContractId,
+                                periodKey);
+                    }
+
+                    if (settlement is null)
+                    {
+                        throw new InvalidOperationException(
+                            $"Nie udało się przygotować rozliczenia {tenant.TenantName} za {periodKey}.");
+                    }
+
+                    var settlementId =
+                        GetGuid(
+                            settlement,
+                            "Id");
+
+                    var settlementStatus =
+                        GetString(
+                            settlement,
+                            "Status");
+
+                    var sourceType =
+                        "WasteInvoice";
+
+                    var snapshot =
+                        JsonSerializer.Serialize(
+                            new
+                            {
+                                source =
+                                    "UtilityInvoiceDistribution",
+                                package =
+                                    PackageVersion,
+                                utilityInvoiceId =
+                                    invoice.Id,
+                                utilityContractId =
+                                    contract.Id,
+                                invoiceNo =
+                                    invoiceNo.Trim(),
+                                medium =
+                                    normalizedMedium,
+                                periodFrom,
+                                periodTo,
+                                periodKey,
+                                grossAmountMinor =
+                                    grossMinor,
+                                householdShareMinor,
+                                tenantShareMinor,
+                                householdPersonCount =
+                                    householdPersons.Length,
+                                tenantPersonCount,
+                                tenantPersons =
+                                    tenant.Persons,
+                                tenantAmountMinor,
+                                allocationMode =
+                                    resolvedAllocationMode
+                            });
+
+                    string settlementOperation;
+
+                    if (IsEditableSettlementStatus(
+                            settlementStatus))
+                    {
+                        await settlementService.AddManualLineAsync(
+                            rentalActor,
+                            new(
+                                settlementId,
+                                "Adjustment",
+                                tenantAmountMinor,
+                                currency,
+                                sourceType,
+                                null,
+                                snapshot),
+                            cancellationToken);
+
+                        settlementOperation =
+                            "Line";
+
+                        createdCharges++;
+                    }
+                    else
+                    {
+                        settlementOperation =
+                            "PendingCorrection";
+
+                        pendingCorrections++;
+                    }
+
+                    await store.AddAsync(
+                        new UtilityInvoiceDistributionRecord
+                        {
+                            Id =
+                                Guid.NewGuid(),
+                            RecordType =
+                                string.Equals(
+                                    settlementOperation,
+                                    "PendingCorrection",
+                                    StringComparison.OrdinalIgnoreCase)
+                                    ? "PendingCorrection"
+                                    : "TenantCharge",
+                            HouseholdId =
+                                current.HouseholdId,
+                            UtilityInvoiceId =
+                                invoice.Id,
+                            UtilityContractId =
+                                contract.Id,
+                            InvoiceNo =
+                                invoiceNo.Trim(),
+                            Medium =
+                                normalizedMedium,
+                            PeriodKey =
+                                periodKey,
+                            GrossAmountMinor =
+                                grossMinor,
+                            HouseholdShareMinor =
+                                householdShareMinor,
+                            TenantShareMinor =
+                                tenantShareMinor,
+                            HouseholdPersonCount =
+                                householdPersons.Length,
+                            TenantPersonCount =
+                                tenantPersonCount,
+                            CurrencyCode =
+                                currency,
+                            AllocationMode =
+                                resolvedAllocationMode,
+                            LeaseContractId =
+                                tenant.ContractId,
+                            SettlementId =
+                                settlementId,
+                            TenantName =
+                                tenant.TenantName,
+                            TenantPersons =
+                                tenant.Persons,
+                            TenantAmountMinor =
+                                tenantAmountMinor,
+                            SettlementOperation =
+                                settlementOperation,
+                            CreatedAtUtc =
+                                DateTime.UtcNow,
+                            CreatedByUserAccountId =
+                                current.UserAccountId
+                        },
+                        cancellationToken);
+                }
             }
 
             if (!await store.SummaryExistsAsync(
@@ -841,6 +919,30 @@ public sealed class UtilityInvoiceDistributionController(
                             currency,
                         AllocationMode =
                             resolvedAllocationMode,
+                        PeriodFrom =
+                            periodFrom,
+                        PeriodTo =
+                            periodTo,
+                        IssuedOn =
+                            issuedOn,
+                        DueDate =
+                            dueDate,
+                        TotalConsumptionText =
+                            totalConsumption,
+                        TenantConsumptionText =
+                            tenantConsumption,
+                        ManualTenantAmountMinor =
+                            string.Equals(
+                                resolvedAllocationMode,
+                                "WaterManualTenantAmount",
+                                StringComparison.OrdinalIgnoreCase)
+                            && TryParseFlexibleDecimal(
+                                manualTenantAmount,
+                                out var savedManualTenantMajor)
+                                ? ToMinor(savedManualTenantMajor)
+                                : null,
+                        TenantOccupancyJson =
+                            tenantOccupancyJson,
                         CreatedAtUtc =
                             DateTime.UtcNow,
                         CreatedByUserAccountId =
@@ -853,9 +955,10 @@ public sealed class UtilityInvoiceDistributionController(
                 normalizedMedium switch
                 {
                     "Water" =>
-                        $"Zarejestrowano FV za wodę {grossMajor:N2} {currency}. " +
-                        $"Część gospodarstwa: {householdShareMinor / 100m:N2} {currency}; " +
-                        $"część lokatorów: {tenantShareMinor / 100m:N2} {currency}.",
+                        $"Zarejestrowano całą FV za wodę {grossMajor:N2} {currency}. " +
+                        $"Teraz opłać 100% faktury w Finansach domowych. " +
+                        $"Po pełnym opłaceniu będzie można ręcznie wygenerować rozliczenie lokatorów " +
+                        $"na kwotę {tenantShareMinor / 100m:N2} {currency}.",
                     "Waste" =>
                         $"Zarejestrowano opłatę za odpady {grossMajor:N2} {currency}. " +
                         $"Podział: {householdPersons.Length} osób gospodarstwa + {tenantPersonCount} osób lokatorów.",
@@ -883,9 +986,13 @@ public sealed class UtilityInvoiceDistributionController(
                 tenantPersonCount,
                 createdCharges,
                 correctionCharges,
+                pendingCorrections,
                 skippedCharges,
                 message =
                     message
+                    + (pendingCorrections > 0
+                        ? $" {pendingCorrections} obciążenie(a) lokatora oczekuje na korektę, ponieważ jego rozliczenie jest już opublikowane. Cofnij takie rozliczenie do projektu i uruchom podział tej FV ponownie."
+                        : "")
                     + " Fakturę opłacasz w Finansach domowych jak każdą inną FV."
             });
         }
@@ -897,6 +1004,405 @@ public sealed class UtilityInvoiceDistributionController(
                     $"[{PackageVersion}] {ex.Message}"
             });
         }
+    }
+
+    [HttpPost("Water/Generate")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> GenerateWater(
+        Guid utilityInvoiceId,
+        CancellationToken cancellationToken)
+    {
+        var current =
+            await access.GetCurrentAsync(
+                cancellationToken);
+
+        if (current is null)
+        {
+            return Unauthorized();
+        }
+
+        if (!await CanManageAsync(
+                current.HouseholdId,
+                cancellationToken))
+        {
+            return Forbid();
+        }
+
+        try
+        {
+            var store =
+                new UtilityInvoiceDistributionStore(
+                    environment.ContentRootPath);
+
+            var summary =
+                await store.GetSummaryAsync(
+                    current.HouseholdId,
+                    utilityInvoiceId,
+                    cancellationToken);
+
+            if (summary is null
+                || !string.Equals(
+                    summary.Medium,
+                    "Water",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException(
+                    "Nie znaleziono zarejestrowanej faktury za wodę do rozliczenia.");
+            }
+
+            if (summary.TenantShareMinor <= 0)
+            {
+                throw new InvalidOperationException(
+                    "Ta faktura nie ma części przeznaczonej do rozliczenia z lokatorami.");
+            }
+
+            // Warunek biznesowy użytkownika:
+            // całą FV za wodę najpierw opłaca gospodarstwo.
+            var finance =
+                await householdFinanceService.GetOverviewAsync(
+                    current.HouseholdId,
+                    current.PersonId,
+                    true,
+                    cancellationToken);
+
+            var householdInvoice =
+                finance.Invoices
+                    .Where(i =>
+                        string.Equals(
+                            i.InvoiceNo?.Trim(),
+                            summary.InvoiceNo.Trim(),
+                            StringComparison.OrdinalIgnoreCase)
+                        && i.GrossMinor == summary.GrossAmountMinor)
+                    .OrderBy(i =>
+                        i.RemainingMinor)
+                    .FirstOrDefault();
+
+            if (householdInvoice is null)
+            {
+                throw new InvalidOperationException(
+                    "Nie znaleziono tej FV za wodę w Finansach domowych.");
+            }
+
+            if (householdInvoice.RemainingMinor > 0)
+            {
+                throw new InvalidOperationException(
+                    $"Najpierw opłać całą FV za wodę w Finansach domowych. " +
+                    $"Pozostało do zapłaty: {householdInvoice.RemainingMinor / 100m:N2} {householdInvoice.CurrencyCode}.");
+            }
+
+            var periodFrom =
+                summary.PeriodFrom
+                ?? PeriodStart(
+                    summary.PeriodKey);
+
+            var periodTo =
+                summary.PeriodTo
+                ?? PeriodEnd(
+                    summary.PeriodKey);
+
+            var rentalActor =
+                CreateRentalActor(
+                    current);
+
+            var rental =
+                await rentalService.GetOverviewAsync(
+                    rentalActor,
+                    cancellationToken);
+
+            var eligibleTenants =
+                BuildEligibleTenants(
+                    rental.Contracts,
+                    periodFrom,
+                    periodTo);
+
+            var occupancy =
+                ParseOccupancy(
+                    summary.TenantOccupancyJson);
+
+            var weightedTenants =
+                eligibleTenants
+                    .Select(x =>
+                        new TenantWeight(
+                            x.ContractId,
+                            x.TenantName,
+                            x.RoomName,
+                            Math.Max(
+                                1,
+                                occupancy.TryGetValue(
+                                    x.ContractId,
+                                    out var persons)
+                                    ? persons
+                                    : 1)))
+                    .ToArray();
+
+            if (weightedTenants.Length == 0)
+            {
+                throw new InvalidOperationException(
+                    "Brak aktywnych lokatorów obejmujących okres tej faktury.");
+            }
+
+            var tenantAmounts =
+                AllocateTenantAmounts(
+                    summary.TenantShareMinor,
+                    weightedTenants);
+
+            var createdCharges = 0;
+            var skippedCharges = 0;
+            var pendingCorrections = 0;
+
+            foreach (var tenant in weightedTenants)
+            {
+                if (!tenantAmounts.TryGetValue(
+                        tenant.ContractId,
+                        out var tenantAmountMinor)
+                    || tenantAmountMinor <= 0)
+                {
+                    continue;
+                }
+
+                if (await store.TenantChargeExistsAsync(
+                        current.HouseholdId,
+                        summary.UtilityInvoiceId,
+                        tenant.ContractId,
+                        cancellationToken))
+                {
+                    skippedCharges++;
+                    continue;
+                }
+
+                var settlementOverview =
+                    await settlementService.GetOverviewAsync(
+                        rentalActor,
+                        cancellationToken);
+
+                var settlement =
+                    FindSettlement(
+                        settlementOverview.Settlements,
+                        tenant.ContractId,
+                        summary.PeriodKey);
+
+                if (settlement is null)
+                {
+                    await settlementService.BuildDraftAsync(
+                        rentalActor,
+                        new(
+                            tenant.ContractId,
+                            summary.PeriodKey),
+                        cancellationToken);
+
+                    settlementOverview =
+                        await settlementService.GetOverviewAsync(
+                            rentalActor,
+                            cancellationToken);
+
+                    settlement =
+                        FindSettlement(
+                            settlementOverview.Settlements,
+                            tenant.ContractId,
+                            summary.PeriodKey);
+                }
+
+                if (settlement is null)
+                {
+                    throw new InvalidOperationException(
+                        $"Nie udało się przygotować rozliczenia {tenant.TenantName} za {summary.PeriodKey}.");
+                }
+
+                var settlementId =
+                    GetGuid(
+                        settlement,
+                        "Id");
+
+                var settlementStatus =
+                    GetString(
+                        settlement,
+                        "Status");
+
+                var snapshot =
+                    JsonSerializer.Serialize(
+                        new
+                        {
+                            source =
+                                "WaterInvoiceAfterHouseholdPayment",
+                            package =
+                                PackageVersion,
+                            utilityInvoiceId =
+                                summary.UtilityInvoiceId,
+                            utilityContractId =
+                                summary.UtilityContractId,
+                            householdInvoiceId =
+                                householdInvoice.Id,
+                            invoiceNo =
+                                summary.InvoiceNo,
+                            medium =
+                                "Water",
+                            periodFrom,
+                            periodTo,
+                            periodKey =
+                                summary.PeriodKey,
+                            grossAmountMinor =
+                                summary.GrossAmountMinor,
+                            householdPaidFullInvoice =
+                                true,
+                            paidMinor =
+                                householdInvoice.PaidMinor,
+                            remainingMinor =
+                                householdInvoice.RemainingMinor,
+                            tenantShareMinor =
+                                summary.TenantShareMinor,
+                            tenantPersons =
+                                tenant.Persons,
+                            tenantAmountMinor,
+                            allocationMode =
+                                summary.AllocationMode,
+                            totalConsumption =
+                                summary.TotalConsumptionText,
+                            tenantConsumption =
+                                summary.TenantConsumptionText
+                        });
+
+                string operation;
+
+                if (IsEditableSettlementStatus(
+                        settlementStatus))
+                {
+                    await settlementService.AddManualLineAsync(
+                        rentalActor,
+                        new(
+                            settlementId,
+                            "Adjustment",
+                            tenantAmountMinor,
+                            summary.CurrencyCode,
+                            "WaterInvoice",
+                            null,
+                            snapshot),
+                        cancellationToken);
+
+                    operation =
+                        "Line";
+
+                    createdCharges++;
+                }
+                else
+                {
+                    // Nie obchodzimy MFA dla opublikowanego rozliczenia.
+                    operation =
+                        "PendingCorrection";
+
+                    pendingCorrections++;
+                }
+
+                await store.AddAsync(
+                    new UtilityInvoiceDistributionRecord
+                    {
+                        Id =
+                            Guid.NewGuid(),
+                        RecordType =
+                            operation == "PendingCorrection"
+                                ? "PendingCorrection"
+                                : "TenantCharge",
+                        HouseholdId =
+                            current.HouseholdId,
+                        UtilityInvoiceId =
+                            summary.UtilityInvoiceId,
+                        UtilityContractId =
+                            summary.UtilityContractId,
+                        InvoiceNo =
+                            summary.InvoiceNo,
+                        Medium =
+                            "Water",
+                        PeriodKey =
+                            summary.PeriodKey,
+                        GrossAmountMinor =
+                            summary.GrossAmountMinor,
+                        HouseholdShareMinor =
+                            summary.HouseholdShareMinor,
+                        TenantShareMinor =
+                            summary.TenantShareMinor,
+                        HouseholdPersonCount =
+                            summary.HouseholdPersonCount,
+                        TenantPersonCount =
+                            summary.TenantPersonCount,
+                        CurrencyCode =
+                            summary.CurrencyCode,
+                        AllocationMode =
+                            summary.AllocationMode,
+                        LeaseContractId =
+                            tenant.ContractId,
+                        SettlementId =
+                            settlementId,
+                        TenantName =
+                            tenant.TenantName,
+                        TenantPersons =
+                            tenant.Persons,
+                        TenantAmountMinor =
+                            tenantAmountMinor,
+                        SettlementOperation =
+                            operation,
+                        PeriodFrom =
+                            periodFrom,
+                        PeriodTo =
+                            periodTo,
+                        CreatedAtUtc =
+                            DateTime.UtcNow,
+                        CreatedByUserAccountId =
+                            current.UserAccountId
+                    },
+                    cancellationToken);
+            }
+
+            return Json(new
+            {
+                ok = true,
+                createdCharges,
+                skippedCharges,
+                pendingCorrections,
+                message =
+                    $"FV za wodę jest w pełni opłacona przez gospodarstwo. " +
+                    $"Wygenerowano {createdCharges} pozycję(e) rozliczenia lokatorów " +
+                    $"na łączną kwotę {summary.TenantShareMinor / 100m:N2} {summary.CurrencyCode}."
+                    + (pendingCorrections > 0
+                        ? $" {pendingCorrections} pozycja(e) oczekuje na korektę, ponieważ rozliczenie lokatora jest już opublikowane."
+                        : "")
+            });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new
+            {
+                message =
+                    $"[{PackageVersion}] {ex.Message}"
+            });
+        }
+    }
+
+    private static DateOnly PeriodStart(
+        string periodKey)
+    {
+        if (DateOnly.TryParse(
+                $"{periodKey}-01",
+                out var start))
+        {
+            return start;
+        }
+
+        return DateOnly.FromDateTime(
+            DateTime.Today);
+    }
+
+    private static DateOnly PeriodEnd(
+        string periodKey)
+    {
+        var start =
+            PeriodStart(
+                periodKey);
+
+        return new DateOnly(
+            start.Year,
+            start.Month,
+            DateTime.DaysInMonth(
+                start.Year,
+                start.Month));
     }
 
     private async Task<bool> CanManageAsync(

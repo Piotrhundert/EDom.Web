@@ -50,6 +50,37 @@ public sealed class UtilityInvoiceDistributionStore
         }
     }
 
+    public async Task<UtilityInvoiceDistributionRecord?> GetSummaryAsync(
+        Guid householdId,
+        Guid utilityInvoiceId,
+        CancellationToken cancellationToken)
+    {
+        await Gate.WaitAsync(cancellationToken);
+
+        try
+        {
+            var all =
+                await LoadUnsafeAsync(
+                    cancellationToken);
+
+            return all
+                .Where(x =>
+                    x.HouseholdId == householdId
+                    && x.UtilityInvoiceId == utilityInvoiceId
+                    && string.Equals(
+                        x.RecordType,
+                        "Summary",
+                        StringComparison.OrdinalIgnoreCase))
+                .OrderByDescending(x =>
+                    x.CreatedAtUtc)
+                .FirstOrDefault();
+        }
+        finally
+        {
+            Gate.Release();
+        }
+    }
+
     public async Task<bool> TenantChargeExistsAsync(
         Guid householdId,
         Guid utilityInvoiceId,

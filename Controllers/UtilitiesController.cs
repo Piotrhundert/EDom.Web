@@ -567,6 +567,16 @@ public sealed class UtilitiesController(
         => ExecuteAsync(
             async actor =>
             {
+                if (string.Equals(
+                        medium,
+                        "Electricity",
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new InvalidOperationException(
+                        "Pełnej faktury za prąd nie można alokować na pokoje/lokatorów. " +
+                        "Prąd lokatora jest rozliczany wyłącznie z jego podlicznika.");
+                }
+
                 var items =
                     new List<AllocationInput>
                     {

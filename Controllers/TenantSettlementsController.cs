@@ -1,11 +1,14 @@
+using System.Data.Common;
 using System.Security.Cryptography;
 using EDom.Application.Collaboration;
 using EDom.Application.Rental;
 using EDom.Domain.Authorization;
+using EDom.Infrastructure.Persistence;
 using EDom.Web.Authorization;
 using EDom.Web.Infrastructure;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace EDom.Web.Controllers;
 
@@ -14,14 +17,57 @@ namespace EDom.Web.Controllers;
 public sealed class TenantSettlementsController(
     WebAccessService access,
     ITenantSettlementService settlementService,
-    ICollaborationService collaborationService) : Controller
+    ICollaborationService collaborationService,
+    EDomDbContext db) : Controller
 {
     [HttpGet("")]
     public async Task<IActionResult> Index(CancellationToken cancellationToken)
     {
-        var actor = await GetActorAsync(cancellationToken); if (actor is null) return Forbid();
-        var model = await settlementService.GetOverviewAsync(actor, cancellationToken);
-        if (!model.CanManage && !model.IsTenant && model.Settlements.Count == 0) return Forbid();
+        var actor = await GetActorAsync(cancellationToken);
+        if (actor is null)
+        {
+            return Forbid();
+        }
+
+        var model =
+            await settlementService.GetOverviewAsync(
+                actor,
+                cancellationToken);
+
+        if (!model.CanManage
+            && !model.IsTenant
+            && model.Settlements.Count == 0)
+        {
+            return Forbid();
+        }
+
+        if (model.CanManage)
+        {
+            var changed = false;
+
+            foreach (var settlement in model.Settlements)
+            {
+                if (!IsEditableSettlementStatus(
+                        settlement.Status))
+                {
+                    continue;
+                }
+
+                changed |=
+                    await RemoveInvoiceElectricityFromTenantSettlementAsync(
+                        settlement.Id,
+                        cancellationToken);
+            }
+
+            if (changed)
+            {
+                model =
+                    await settlementService.GetOverviewAsync(
+                        actor,
+                        cancellationToken);
+            }
+        }
+
         return View(model);
     }
 
@@ -31,10 +77,39 @@ public sealed class TenantSettlementsController(
         {
             await settlementService.BuildDraftAsync(
                 actor,
-                new(leaseContractId, periodKey),
+                new(
+                    leaseContractId,
+                    periodKey),
                 cancellationToken);
 
-            return "Przeliczono projekt miesięcznego rozliczenia lokatora.";
+            var overview =
+                await settlementService.GetOverviewAsync(
+                    actor,
+                    cancellationToken);
+
+            var settlement =
+                overview.Settlements.FirstOrDefault(x =>
+                    x.LeaseContractId == leaseContractId
+                    && string.Equals(
+                        x.PeriodKey,
+                        periodKey,
+                        StringComparison.OrdinalIgnoreCase));
+
+            var removedInvoiceElectricity = false;
+
+            if (settlement is not null
+                && IsEditableSettlementStatus(
+                    settlement.Status))
+            {
+                removedInvoiceElectricity =
+                    await RemoveInvoiceElectricityFromTenantSettlementAsync(
+                        settlement.Id,
+                        cancellationToken);
+            }
+
+            return removedInvoiceElectricity
+                ? "Przeliczono projekt. Usunięto koszt prądu pochodzący z pełnej FV — prąd lokatora jest liczony wyłącznie z podlicznika."
+                : "Przeliczono projekt miesięcznego rozliczenia lokatora.";
         }, cancellationToken);
 
     [HttpPost("Line"), ValidateAntiForgeryToken]
@@ -218,7 +293,7 @@ public sealed class TenantSettlementsController(
                 new(
                     submissionId,
                     approvedAmount.HasValue
-                        ? ToMinor(approvedAmount.Value)
+                        ? ToMinor(approvedAmount.GetValueOrDefault())
                         : null,
                     reason),
                 cancellationToken);
@@ -319,7 +394,7 @@ public sealed class TenantSettlementsController(
                     scaled,
                     scale,
                     maxAmount.HasValue
-                        ? ToMinor(maxAmount.Value)
+                        ? ToMinor(maxAmount.GetValueOrDefault())
                         : null,
                     validFrom,
                     validTo),
@@ -361,6 +436,353 @@ public sealed class TenantSettlementsController(
 
             return "Utworzono jawną korektę opłaty za opóźnienie; pierwotny zapis pozostał w historii.";
         }, cancellationToken);
+
+    private static bool IsEditableSettlementStatus(
+        string? status) =>
+        status is
+            "Draft"
+            or "AwaitingData"
+            or "ReadyForApproval";
+
+    private async Task<bool> RemoveInvoiceElectricityFromTenantSettlementAsync(
+        Guid settlementId,
+        CancellationToken cancellationToken)
+    {
+        var connection =
+            db.Database.GetDbConnection();
+
+        var closeWhenDone =
+            connection.State
+            != System.Data.ConnectionState.Open;
+
+        if (closeWhenDone)
+        {
+            await connection.OpenAsync(
+                cancellationToken);
+        }
+
+        await using var transaction =
+            await connection.BeginTransactionAsync(
+                cancellationToken);
+
+        try
+        {
+            if (!await HasTenantSettlementSchemaAsync(
+                    connection,
+                    transaction,
+                    cancellationToken))
+            {
+                await transaction.RollbackAsync(
+                    cancellationToken);
+
+                return false;
+            }
+
+            var settlementIdValue =
+                settlementId.ToString("D");
+
+            int removed;
+
+            await using (var delete =
+                         connection.CreateCommand())
+            {
+                delete.Transaction =
+                    transaction;
+
+                // Zasada e-dom:
+                // LineType=Electricity może zostać w rozliczeniu lokatora
+                // tylko wtedy, gdy jego źródłem jest podlicznik / wyliczenie
+                // z odczytów licznika.
+                //
+                // Pełna FV operatora i alokacja całej FV są usuwane z draftu.
+                delete.CommandText =
+                    """
+                    DELETE FROM "TenantSettlementLines"
+                    WHERE "TenantSettlementId" = $settlementId
+                      AND "LineType" = 'Electricity'
+                      AND NOT (
+                            COALESCE("SourceType",'') LIKE '%Submeter%'
+                         OR COALESCE("SourceType",'') LIKE '%MeterReading%'
+                         OR COALESCE("SourceType",'') LIKE '%Calculation%'
+                         OR COALESCE("CalculationSnapshotJson",'') LIKE '%Submeter%'
+                      );
+                    """;
+
+                AddParameter(
+                    delete,
+                    "$settlementId",
+                    settlementIdValue);
+
+                removed =
+                    await delete.ExecuteNonQueryAsync(
+                        cancellationToken);
+            }
+
+            if (removed <= 0)
+            {
+                await transaction.CommitAsync(
+                    cancellationToken);
+
+                return false;
+            }
+
+            long currentPeriodMinor;
+
+            await using (var sum =
+                         connection.CreateCommand())
+            {
+                sum.Transaction =
+                    transaction;
+
+                sum.CommandText =
+                    """
+                    SELECT COALESCE(SUM("AmountMinor"), 0)
+                    FROM "TenantSettlementLines"
+                    WHERE "TenantSettlementId" = $settlementId;
+                    """;
+
+                AddParameter(
+                    sum,
+                    "$settlementId",
+                    settlementIdValue);
+
+                currentPeriodMinor =
+                    Convert.ToInt64(
+                        await sum.ExecuteScalarAsync(
+                            cancellationToken)
+                        ?? 0L);
+            }
+
+            long previousBalanceMinor;
+
+            await using (var previous =
+                         connection.CreateCommand())
+            {
+                previous.Transaction =
+                    transaction;
+
+                previous.CommandText =
+                    """
+                    SELECT COALESCE("PreviousBalanceMinor", 0)
+                    FROM "TenantSettlements"
+                    WHERE "Id" = $settlementId
+                    LIMIT 1;
+                    """;
+
+                AddParameter(
+                    previous,
+                    "$settlementId",
+                    settlementIdValue);
+
+                previousBalanceMinor =
+                    Convert.ToInt64(
+                        await previous.ExecuteScalarAsync(
+                            cancellationToken)
+                        ?? 0L);
+            }
+
+            // Sprawdzamy, czy po usunięciu błędnej FV pozostał prawidłowy
+            // koszt prądu z podlicznika.
+            long validElectricityCount;
+
+            await using (var valid =
+                         connection.CreateCommand())
+            {
+                valid.Transaction =
+                    transaction;
+
+                valid.CommandText =
+                    """
+                    SELECT COUNT(1)
+                    FROM "TenantSettlementLines"
+                    WHERE "TenantSettlementId" = $settlementId
+                      AND (
+                            COALESCE("SourceType",'') LIKE '%SubmeterElectricity%'
+                         OR (
+                                "LineType" = 'Electricity'
+                            AND (
+                                   COALESCE("SourceType",'') LIKE '%Submeter%'
+                                OR COALESCE("SourceType",'') LIKE '%MeterReading%'
+                                OR COALESCE("SourceType",'') LIKE '%Calculation%'
+                                OR COALESCE("CalculationSnapshotJson",'') LIKE '%Submeter%'
+                            )
+                         )
+                      );
+                    """;
+
+                AddParameter(
+                    valid,
+                    "$settlementId",
+                    settlementIdValue);
+
+                validElectricityCount =
+                    Convert.ToInt64(
+                        await valid.ExecuteScalarAsync(
+                            cancellationToken)
+                        ?? 0L);
+            }
+
+            await using (var update =
+                         connection.CreateCommand())
+            {
+                update.Transaction =
+                    transaction;
+
+                var hasVersion =
+                    await TableHasColumnAsync(
+                        connection,
+                        transaction,
+                        "TenantSettlements",
+                        "Version",
+                        cancellationToken);
+
+                var setVersion =
+                    hasVersion
+                        ? """, "Version" = "Version" + 1"""
+                        : "";
+
+                // Jeżeli pełna FV była jedynym "źródłem prądu", projekt
+                // wraca do AwaitingData. Po wygenerowaniu podlicznika można
+                // go ponownie przeliczyć / zatwierdzić.
+                update.CommandText =
+                    $"""
+                    UPDATE "TenantSettlements"
+                    SET "CurrentPeriodMinor" = $current,
+                        "TotalDueMinor" = $total,
+                        "Status" = CASE
+                            WHEN $validElectricityCount = 0
+                                 AND "Status" IN ('Draft','ReadyForApproval')
+                            THEN 'AwaitingData'
+                            ELSE "Status"
+                        END
+                        {setVersion}
+                    WHERE "Id" = $settlementId;
+                    """;
+
+                AddParameter(
+                    update,
+                    "$current",
+                    currentPeriodMinor);
+
+                AddParameter(
+                    update,
+                    "$total",
+                    checked(
+                        currentPeriodMinor
+                        + previousBalanceMinor));
+
+                AddParameter(
+                    update,
+                    "$validElectricityCount",
+                    validElectricityCount);
+
+                AddParameter(
+                    update,
+                    "$settlementId",
+                    settlementIdValue);
+
+                await update.ExecuteNonQueryAsync(
+                    cancellationToken);
+            }
+
+            await transaction.CommitAsync(
+                cancellationToken);
+
+            return true;
+        }
+        catch
+        {
+            await transaction.RollbackAsync(
+                cancellationToken);
+
+            throw;
+        }
+        finally
+        {
+            if (closeWhenDone)
+            {
+                await connection.CloseAsync();
+            }
+        }
+    }
+
+    private static async Task<bool> HasTenantSettlementSchemaAsync(
+        DbConnection connection,
+        DbTransaction transaction,
+        CancellationToken cancellationToken)
+    {
+        var lines =
+            await TableHasColumnAsync(
+                connection,
+                transaction,
+                "TenantSettlementLines",
+                "CalculationSnapshotJson",
+                cancellationToken);
+
+        var settlements =
+            await TableHasColumnAsync(
+                connection,
+                transaction,
+                "TenantSettlements",
+                "CurrentPeriodMinor",
+                cancellationToken);
+
+        return lines
+               && settlements;
+    }
+
+    private static async Task<bool> TableHasColumnAsync(
+        DbConnection connection,
+        DbTransaction transaction,
+        string tableName,
+        string columnName,
+        CancellationToken cancellationToken)
+    {
+        await using var command =
+            connection.CreateCommand();
+
+        command.Transaction =
+            transaction;
+
+        command.CommandText =
+            $"PRAGMA table_info(\"{tableName.Replace("\"", "\"\"")}\");";
+
+        await using var reader =
+            await command.ExecuteReaderAsync(
+                cancellationToken);
+
+        while (await reader.ReadAsync(
+                   cancellationToken))
+        {
+            if (string.Equals(
+                    reader.GetString(1),
+                    columnName,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static void AddParameter(
+        DbCommand command,
+        string name,
+        object value)
+    {
+        var parameter =
+            command.CreateParameter();
+
+        parameter.ParameterName =
+            name;
+
+        parameter.Value =
+            value;
+
+        command.Parameters.Add(
+            parameter);
+    }
 
     private async Task<IActionResult> ExecuteAsync(
         Func<RentalActor, Task<string>> operation,

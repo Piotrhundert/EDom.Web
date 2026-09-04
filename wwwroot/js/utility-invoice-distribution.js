@@ -538,7 +538,7 @@
         if (subtitle) {
             subtitle.textContent =
                 medium === "Water"
-                    ? "Cała FV zostaje w Finansach domowych; udział lokatorów trafia do ich rozliczeń."
+                    ? "Krok 1: zarejestruj pełną FV. Krok 2: opłać ją w Finansach domowych. Krok 3: wygeneruj rozliczenie lokatorów."
                     : medium === "Gas"
                         ? "100% FV pozostaje kosztem gospodarstwa; lokatorów nie obciążamy gazem."
                         : "Koszt dzielimy przez wszystkie osoby, a udział lokatorów trafia do ich rozliczeń.";
@@ -799,35 +799,171 @@
             false;
 
         historyList.innerHTML =
-            history.map(item => `
-                <article>
-                    <div>
-                        <strong>
-                            ${esc(mediumLabel(item.medium))}
-                            · FV ${esc(item.invoiceNo)}
-                        </strong>
-                        <small>
-                            ${esc(item.periodKey)}
-                            · ${esc(dateTime(item.createdAtUtc))}
-                        </small>
-                    </div>
+            history.map(item => {
+                let waterAction = "";
 
-                    <div>
-                        <span>Cała FV</span>
-                        <strong>${esc(minorMoney(item.grossAmountMinor))}</strong>
-                    </div>
+                if (item.medium === "Water") {
+                    if (!item.householdInvoiceId) {
+                        waterAction = `
+                            <div class="utility-water-payment-state is-warning">
+                                Nie znaleziono FV w Finansach domowych.
+                            </div>`;
+                    } else if (!item.isFullyPaid) {
+                        waterAction = `
+                            <div class="utility-water-payment-state is-warning">
+                                <strong>Najpierw opłać całą FV</strong>
+                                <span>
+                                    Zapłacono ${esc(minorMoney(item.paidMinor))},
+                                    pozostało ${esc(minorMoney(item.remainingMinor))}
+                                </span>
+                                <a href="/HouseholdFinance#hf-invoices">
+                                    Przejdź do Finansów domowych →
+                                </a>
+                            </div>`;
+                    } else if (Number(item.tenantShareMinor || 0) <= 0) {
+                        waterAction = `
+                            <div class="utility-water-payment-state is-done">
+                                FV opłacona · brak kwoty do rozliczenia lokatorów
+                            </div>`;
+                    } else if (Number(item.tenantCharges || 0) > 0
+                               && Number(item.pendingCorrections || 0) === 0) {
+                        waterAction = `
+                            <div class="utility-water-payment-state is-done">
+                                <strong>FV opłacona przez dom</strong>
+                                <span>
+                                    Rozliczenie lokatorów już wygenerowane.
+                                </span>
+                            </div>`;
+                    } else {
+                        waterAction = `
+                            <div class="utility-water-payment-state is-ready">
+                                <strong>FV opłacona w całości</strong>
+                                <span>
+                                    Możesz teraz wygenerować ${esc(minorMoney(item.tenantShareMinor))}
+                                    do rozliczeń lokatorów.
+                                </span>
+                                <button type="button"
+                                        class="btn btn-primary btn-sm"
+                                        data-generate-water
+                                        data-utility-invoice-id="${esc(item.utilityInvoiceId)}">
+                                    Generuj rozliczenie lokatorów
+                                </button>
+                            </div>`;
+                    }
+                }
 
-                    <div>
-                        <span>Gospodarstwo</span>
-                        <strong>${esc(minorMoney(item.householdShareMinor))}</strong>
-                    </div>
+                return `
+                    <article>
+                        <div>
+                            <strong>
+                                ${esc(mediumLabel(item.medium))}
+                                · FV ${esc(item.invoiceNo)}
+                            </strong>
+                            <small>
+                                ${esc(item.periodKey)}
+                                · ${esc(dateTime(item.createdAtUtc))}
+                            </small>
+                        </div>
 
-                    <div>
-                        <span>Lokatorzy</span>
-                        <strong>${esc(minorMoney(item.tenantShareMinor))}</strong>
-                    </div>
-                </article>
-            `).join("");
+                        <div>
+                            <span>Cała FV — płaci dom</span>
+                            <strong>${esc(minorMoney(item.grossAmountMinor))}</strong>
+                        </div>
+
+                        <div>
+                            <span>Koszt domu po rozliczeniu</span>
+                            <strong>${esc(minorMoney(item.householdShareMinor))}</strong>
+                        </div>
+
+                        <div>
+                            <span>Do odzyskania od lokatorów</span>
+                            <strong>${esc(minorMoney(item.tenantShareMinor))}</strong>
+                        </div>
+
+                        ${waterAction
+                            ? `<div class="utility-water-history-action">${waterAction}</div>`
+                            : ""}
+                    </article>
+                `;
+            }).join("");
+
+        historyList
+            .querySelectorAll("[data-generate-water]")
+            .forEach(button => {
+                button.addEventListener("click", async () => {
+                    const invoiceId =
+                        button.dataset.utilityInvoiceId;
+
+                    if (!invoiceId) {
+                        return;
+                    }
+
+                    if (!window.confirm(
+                            "FV za wodę jest opłacona przez dom. Wygenerować teraz należności za wodę dla lokatorów?"
+                        )) {
+                        return;
+                    }
+
+                    const token =
+                        form?.querySelector(
+                            'input[name="__RequestVerificationToken"]'
+                        )?.value;
+
+                    const body =
+                        new FormData();
+
+                    body.append(
+                        "utilityInvoiceId",
+                        invoiceId
+                    );
+
+                    if (token) {
+                        body.append(
+                            "__RequestVerificationToken",
+                            token
+                        );
+                    }
+
+                    button.disabled = true;
+
+                    try {
+                        const response =
+                            await fetch(
+                                `${endpoint}/Water/Generate`,
+                                {
+                                    method: "POST",
+                                    body,
+                                    credentials: "same-origin"
+                                }
+                            );
+
+                        const result =
+                            await response.json()
+                                .catch(() => ({}));
+
+                        if (!response.ok) {
+                            throw new Error(
+                                result.message
+                                || "Nie udało się wygenerować rozliczenia lokatorów."
+                            );
+                        }
+
+                        window.alert(
+                            result.message
+                            || "Rozliczenie lokatorów zostało wygenerowane."
+                        );
+
+                        window.location.reload();
+                    } catch (error) {
+                        window.alert(
+                            error.message
+                            || "Nie udało się wygenerować rozliczenia lokatorów."
+                        );
+
+                        button.disabled = false;
+                    }
+                });
+            });
     }
 
     async function loadData() {
@@ -1041,13 +1177,13 @@
 
             const confirmText =
                 currentMedium === "Water"
-                    ? `Zarejestrować całą FV za wodę ${money(gross)} i dopisać wyliczoną część do rozliczeń lokatorów?`
+                    ? `Zarejestrować całą FV za wodę ${money(gross)}? Rozliczenie lokatorów NIE zostanie jeszcze utworzone. Najpierw dom musi opłacić 100% FV w Finansach domowych.`
                     : currentMedium === "Waste"
                         ? `Zarejestrować opłatę za odpady ${money(gross)} i podzielić ją przez wszystkie osoby?`
                         : `Zarejestrować FV za gaz ${money(gross)} jako koszt gospodarstwa / Domu 1?`;
 
             if (!window.confirm(
-                    `${confirmText} Sama płatność FV zostanie wykonana później w Finansach domowych.`
+                    `${confirmText} Sama płatność FV zostanie wykonana w Finansach domowych.`
                 )) {
                 return;
             }
