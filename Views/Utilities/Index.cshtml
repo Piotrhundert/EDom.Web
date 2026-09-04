@@ -52,6 +52,7 @@
 
 <link rel="stylesheet" href="~/css/utilities-organized.css" asp-append-version="true" />
 <link rel="stylesheet" href="~/css/submeter-tenant-settlement.css" asp-append-version="true" />
+<link rel="stylesheet" href="~/css/utility-invoice-distribution.css" asp-append-version="true" />
 
 <section class="utilities-hero">
     <div>
@@ -447,17 +448,65 @@
 
     @if (Model.CanManage)
     {
-        <section class="utilities-card utilities-contract-create" data-contract-create-panel hidden>
+        <div class="utilities-contract-medium-picker" data-contract-medium-picker>
+            <button type="button"
+                    class="utilities-medium-choice water"
+                    data-contract-medium-choice="Water">
+                <span>💧</span>
+                <strong>Umowa na wodę</strong>
+                <small>
+                    @Model.Overview.Contracts.Count(x => x.Medium == "Water") zapisanych
+                </small>
+                <b>Dodaj / wpisz dane →</b>
+            </button>
+
+            <button type="button"
+                    class="utilities-medium-choice gas"
+                    data-contract-medium-choice="Gas">
+                <span>◉</span>
+                <strong>Umowa na gaz</strong>
+                <small>
+                    @Model.Overview.Contracts.Count(x => x.Medium == "Gas") zapisanych
+                </small>
+                <b>Dodaj / wpisz dane →</b>
+            </button>
+
+            <button type="button"
+                    class="utilities-medium-choice waste"
+                    data-contract-medium-choice="Waste">
+                <span>♻</span>
+                <strong>Umowa / deklaracja za śmieci</strong>
+                <small>
+                    @Model.Overview.Contracts.Count(x => x.Medium == "Waste") zapisanych
+                </small>
+                <b>Dodaj / wpisz dane →</b>
+            </button>
+        </div>
+
+        <section class="utilities-card utilities-contract-create"
+                 data-contract-create-panel
+                 hidden>
             <div class="utilities-card-head">
                 <div>
                     <span>NOWA UMOWA</span>
-                    <h3>Dodaj umowę operatora</h3>
+                    <h3 data-contract-create-title>Dodaj umowę operatora</h3>
+                    <p data-contract-create-subtitle>
+                        Wybierz rodzaj medium i uzupełnij dane z umowy lub rachunku.
+                    </p>
                 </div>
+
+                <button type="button"
+                        class="utilities-close"
+                        data-contract-create-close
+                        aria-label="Zamknij">
+                    ×
+                </button>
             </div>
 
             <form asp-action="CreateContract"
                   method="post"
-                  class="utilities-edit-grid">
+                  class="utilities-edit-grid"
+                  data-contract-create-form>
                 @Html.AntiForgeryToken()
 
                 <label>
@@ -471,43 +520,57 @@
                 </label>
 
                 <label>
-                    <span>Operator</span>
-                    <input name="operatorName" required />
-                </label>
-
-                <label>
-                    <span>Medium</span>
-                    <select name="medium">
-                        <option value="Electricity">Prąd</option>
+                    <span>Rodzaj medium</span>
+                    <select name="medium"
+                            data-contract-medium>
                         <option value="Water">Woda</option>
                         <option value="Gas">Gaz</option>
-                        <option value="Waste">Odpady</option>
+                        <option value="Waste">Odpady / śmieci</option>
+                        <option value="Electricity">Prąd</option>
                     </select>
                 </label>
 
                 <label>
-                    <span>Numer umowy</span>
-                    <input name="contractNumber" />
+                    <span data-contract-operator-label>Operator / dostawca</span>
+                    <input name="operatorName"
+                           data-contract-operator
+                           placeholder="np. Aquanet"
+                           required />
                 </label>
 
                 <label>
-                    <span>Punkt / PPE</span>
-                    <input name="accountPoint" />
+                    <span data-contract-number-label>Numer umowy</span>
+                    <input name="contractNumber"
+                           data-contract-number
+                           placeholder="np. 12345678" />
                 </label>
 
                 <label>
-                    <span>Licznik</span>
-                    <select name="meterId">
-                        <option value="">— bez licznika —</option>
+                    <span data-contract-point-label>Numer klienta / punkt poboru</span>
+                    <input name="accountPoint"
+                           data-contract-point />
+                </label>
+
+                <label data-contract-meter-field>
+                    <span>Główny licznik</span>
+                    <select name="meterId"
+                            data-contract-meter>
+                        <option value="">— bez przypisania licznika —</option>
                         @foreach (var meter in Model.Overview.Meters)
                         {
-                            <option value="@meter.Id">@meter.Name · @MediumLabel(meter.Medium)</option>
+                            <option value="@meter.Id"
+                                    data-meter-medium="@meter.Medium">
+                                @meter.Name · @MediumLabel(meter.Medium) · @meter.UnitCode
+                            </option>
                         }
                     </select>
+                    <small data-contract-meter-help>
+                        Umowę operatora najlepiej powiązać z licznikiem głównym.
+                    </small>
                 </label>
 
                 <label>
-                    <span>Harmonogram</span>
+                    <span>Cykl rozliczeń</span>
                     <select name="billingSchedule">
                         <option value="Monthly">Miesięczny</option>
                         <option value="BiMonthly">Co 2 miesiące</option>
@@ -517,16 +580,17 @@
                 </label>
 
                 <label>
-                    <span>Opłata stała</span>
+                    <span data-contract-fixed-label>Opłata stała / abonament</span>
                     <input name="fixedCharge"
-                           type="number"
-                           step="0.01"
-                           min="0"
-                           value="0" />
+                           type="text"
+                           inputmode="decimal"
+                           value="0"
+                           placeholder="0,00" />
+                    <small>Możesz wpisać np. 12,50 albo 12.50.</small>
                 </label>
 
                 <label>
-                    <span>Od</span>
+                    <span>Umowa obowiązuje od</span>
                     <input name="validFrom"
                            type="date"
                            value="@today.ToString("yyyy-MM-dd")"
@@ -534,18 +598,39 @@
                 </label>
 
                 <label>
-                    <span>Do</span>
-                    <input name="validTo" type="date" />
+                    <span>Umowa obowiązuje do</span>
+                    <input name="validTo"
+                           type="date" />
+                    <small>Puste pole = bezterminowo.</small>
                 </label>
 
                 <label>
                     <span>Waluta</span>
-                    <input name="currencyCode" value="PLN" maxlength="3" />
+                    <input name="currencyCode"
+                           value="PLN"
+                           maxlength="3" />
                 </label>
 
-                <div class="utilities-full">
-                    <button class="btn btn-primary" type="submit">
-                        Zapisz umowę
+                <div class="utilities-contract-create-info utilities-full"
+                     data-contract-create-info>
+                    <strong>Woda</strong>
+                    <span>
+                        Wpisz operatora, numer umowy / klienta i przypisz główny licznik wody.
+                        Po zapisaniu taryfę podstawową ustawisz w „Podgląd / edycja”.
+                    </span>
+                </div>
+
+                <div class="utilities-full utilities-form-actions">
+                    <button type="button"
+                            class="btn btn-secondary"
+                            data-contract-create-cancel>
+                        Anuluj
+                    </button>
+
+                    <button class="btn btn-primary"
+                            type="submit"
+                            data-contract-create-submit>
+                        Zapisz umowę na wodę
                     </button>
                 </div>
             </form>
@@ -959,6 +1044,350 @@
             <p>Faktury operatorów, prognozy i wyniki rozliczeń są razem, ale poza ekranem szybkich odczytów.</p>
         </div>
     </div>
+
+    @if (Model.CanManage)
+    {
+        <section class="utility-invoice-flow"
+                 data-utility-invoice-flow>
+            <div class="utility-invoice-flow-head">
+                <div>
+                    <span>ROZLICZENIE FV MEDIÓW</span>
+                    <h3>Jedna faktura → koszt gospodarstwa + ewentualne rozliczenia lokatorów</h3>
+                    <p>
+                        Całą fakturę operatora opłacasz później w Finansach domowych.
+                        Tutaj e-dom wylicza tylko, jaka część kosztu pozostaje po stronie gospodarstwa
+                        i jaka ma zostać odzyskana od lokatorów.
+                    </p>
+                </div>
+            </div>
+
+            <div class="utility-invoice-medium-grid">
+                <a class="utility-invoice-medium-card electricity"
+                   href="/Utilities/OperatorInvoice">
+                    <span>⚡</span>
+                    <div>
+                        <strong>Prąd</strong>
+                        <small>Pełna FV operatora → Finanse domowe. Lokatorzy rozliczani z podliczników.</small>
+                    </div>
+                    <b>Rozlicz FV →</b>
+                </a>
+
+                <button type="button"
+                        class="utility-invoice-medium-card water"
+                        data-utility-invoice-medium="Water">
+                    <span>💧</span>
+                    <div>
+                        <strong>Woda / Aquanet</strong>
+                        <small>Cała FV z konta domu; część lokatorów wg podlicznika lub ręcznej kwoty.</small>
+                    </div>
+                    <b>Rozlicz FV →</b>
+                </button>
+
+                <button type="button"
+                        class="utility-invoice-medium-card gas"
+                        data-utility-invoice-medium="Gas">
+                    <span>◉</span>
+                    <div>
+                        <strong>Gaz — Dom 1</strong>
+                        <small>100% kosztu pozostaje po stronie gospodarstwa. Dom 2 rozlicza pellet.</small>
+                    </div>
+                    <b>Rozlicz FV →</b>
+                </button>
+
+                <button type="button"
+                        class="utility-invoice-medium-card waste"
+                        data-utility-invoice-medium="Waste">
+                    <span>♻</span>
+                    <div>
+                        <strong>Śmieci / odpady</strong>
+                        <small>Podział przez wszystkie osoby; udział lokatorów trafia do ich rozliczeń.</small>
+                    </div>
+                    <b>Rozlicz FV →</b>
+                </button>
+            </div>
+
+            <section class="utility-invoice-workspace"
+                     data-utility-invoice-workspace
+                     hidden>
+                <div class="utility-invoice-workspace-head">
+                    <div>
+                        <span data-utility-invoice-kicker>MEDIA</span>
+                        <h3 data-utility-invoice-title>Rozliczenie faktury</h3>
+                        <p data-utility-invoice-subtitle>—</p>
+                    </div>
+
+                    <button type="button"
+                            class="utilities-close"
+                            data-utility-invoice-close
+                            aria-label="Zamknij">
+                        ×
+                    </button>
+                </div>
+
+                <form data-utility-invoice-form>
+                    @Html.AntiForgeryToken()
+
+                    <input type="hidden"
+                           name="medium"
+                           data-utility-invoice-medium-input />
+
+                    <input type="hidden"
+                           name="allocationMode"
+                           value="WaterByConsumption"
+                           data-utility-invoice-allocation-mode />
+
+                    <input type="hidden"
+                           name="tenantOccupancyJson"
+                           data-utility-tenant-occupancy-json />
+
+                    <div class="utility-invoice-common-grid">
+                        <label>
+                            <span>Umowa operatora</span>
+                            <select name="contractId"
+                                    data-utility-invoice-contract
+                                    required>
+                            </select>
+                        </label>
+
+                        <label>
+                            <span>Numer faktury</span>
+                            <input name="invoiceNo"
+                                   required />
+                        </label>
+
+                        <label>
+                            <span>Kwota brutto całej FV</span>
+                            <div class="utility-money-input">
+                                <input name="grossAmount"
+                                       type="text"
+                                       inputmode="decimal"
+                                       placeholder="0,00"
+                                       required />
+                                <b>PLN</b>
+                            </div>
+                        </label>
+
+                        <label>
+                            <span>Waluta</span>
+                            <input name="currencyCode"
+                                   value="PLN"
+                                   maxlength="3" />
+                        </label>
+
+                        <label>
+                            <span>Okres od</span>
+                            <input name="periodFrom"
+                                   type="date"
+                                   value="@today.AddMonths(-1).ToString("yyyy-MM-dd")"
+                                   required />
+                        </label>
+
+                        <label>
+                            <span>Okres do</span>
+                            <input name="periodTo"
+                                   type="date"
+                                   value="@today.ToString("yyyy-MM-dd")"
+                                   required />
+                        </label>
+
+                        <label>
+                            <span>Data wystawienia</span>
+                            <input name="issuedOn"
+                                   type="date"
+                                   value="@today.ToString("yyyy-MM-dd")"
+                                   required />
+                        </label>
+
+                        <label>
+                            <span>Termin płatności</span>
+                            <input name="dueDate"
+                                   type="date"
+                                   value="@today.AddDays(14).ToString("yyyy-MM-dd")"
+                                   required />
+                        </label>
+                    </div>
+
+                    <section data-utility-water-fields hidden>
+                        <div class="utility-invoice-subsection-title">
+                            <strong>Podział faktury za wodę</strong>
+                            <span>
+                                Cała faktura jest opłacana z Finansów domowych.
+                                Wyliczamy tylko część gospodarstwa i część lokatorów.
+                            </span>
+                        </div>
+
+                        <div class="utility-water-mode">
+                            <label>
+                                <input type="radio"
+                                       name="waterMode"
+                                       value="WaterByConsumption"
+                                       checked
+                                       data-water-mode />
+                                <span>
+                                    <strong>Według zużycia z podlicznika</strong>
+                                    <small>Udział lokatorów = koszt FV × zużycie lokatorów / zużycie całkowite.</small>
+                                </span>
+                            </label>
+
+                            <label>
+                                <input type="radio"
+                                       name="waterMode"
+                                       value="ManualTenantAmount"
+                                       data-water-mode />
+                                <span>
+                                    <strong>Ręczna kwota lokatorów</strong>
+                                    <small>Użyj, jeśli rozliczenie Aquanetu wymaga własnej korekty.</small>
+                                </span>
+                            </label>
+                        </div>
+
+                        <div class="utility-invoice-common-grid"
+                             data-water-consumption-fields>
+                            <label>
+                                <span>Zużycie całkowite z FV</span>
+                                <div class="utility-money-input">
+                                    <input name="totalConsumption"
+                                           type="text"
+                                           inputmode="decimal"
+                                           placeholder="np. 35,000" />
+                                    <b>m³</b>
+                                </div>
+                            </label>
+
+                            <label>
+                                <span>Podlicznik części wynajmowanej</span>
+                                <select data-water-submeter>
+                                    <option value="">— wybierz / wpisz zużycie ręcznie —</option>
+                                </select>
+                                <small data-water-submeter-info>
+                                    Ostatnie dwa zatwierdzone odczyty mogą automatycznie podpowiedzieć zużycie.
+                                </small>
+                            </label>
+
+                            <label>
+                                <span>Zużycie lokatorów</span>
+                                <div class="utility-money-input">
+                                    <input name="tenantConsumption"
+                                           type="text"
+                                           inputmode="decimal"
+                                           placeholder="np. 12,000" />
+                                    <b>m³</b>
+                                </div>
+                            </label>
+                        </div>
+
+                        <div class="utility-invoice-common-grid"
+                             data-water-manual-fields
+                             hidden>
+                            <label>
+                                <span>Łączna kwota przypisana lokatorom</span>
+                                <div class="utility-money-input">
+                                    <input name="manualTenantAmount"
+                                           type="text"
+                                           inputmode="decimal"
+                                           placeholder="0,00" />
+                                    <b>PLN</b>
+                                </div>
+                            </label>
+                        </div>
+                    </section>
+
+                    <section data-utility-gas-fields hidden>
+                        <div class="utility-info-box">
+                            <strong>Gaz → wyłącznie Dom 1 / gospodarstwo</strong>
+                            <span>
+                                Nie generujemy żadnej należności lokatora.
+                                100% faktury pozostaje kosztem gospodarstwa.
+                                Dom 2 jest rozliczany przez istniejący moduł pelletu.
+                            </span>
+                        </div>
+                    </section>
+
+                    <section data-utility-waste-fields hidden>
+                        <div class="utility-info-box">
+                            <strong>Odpady → koszt na osobę</strong>
+                            <span>
+                                Kwota faktury zostanie podzielona przez wszystkich domowników i osoby wynajmujące.
+                                Udział lokatorów zostanie automatycznie dopisany do ich rozliczeń.
+                            </span>
+                        </div>
+                    </section>
+
+                    <section class="utility-people-section"
+                             data-utility-people-section
+                             hidden>
+                        <div class="utility-invoice-subsection-title">
+                            <strong>Osoby uwzględnione w podziale</strong>
+                            <span>
+                                Domownicy są pobierani z gospodarstwa. Przy każdym lokatorze możesz zmienić liczbę osób,
+                                jeśli w pokoju mieszka więcej niż jedna osoba.
+                            </span>
+                        </div>
+
+                        <div class="utility-people-summary">
+                            <div>
+                                <span>Domownicy</span>
+                                <strong data-household-person-count>0</strong>
+                                <small>wszyscy domownicy gospodarstwa</small>
+                            </div>
+
+                            <div>
+                                <span>Osoby lokatorów</span>
+                                <strong data-tenant-person-count>0</strong>
+                                <small>w aktywnych umowach z okresu FV</small>
+                            </div>
+                        </div>
+
+                        <div data-utility-tenant-list></div>
+                    </section>
+
+                    <section class="utility-invoice-preview"
+                             data-utility-invoice-preview>
+                        <div>
+                            <span>Cała FV</span>
+                            <strong data-preview-gross>0,00 PLN</strong>
+                        </div>
+
+                        <div>
+                            <span>Część gospodarstwa</span>
+                            <strong data-preview-household>0,00 PLN</strong>
+                            <small data-preview-household-note>—</small>
+                        </div>
+
+                        <div>
+                            <span>Do rozliczeń lokatorów</span>
+                            <strong data-preview-tenants>0,00 PLN</strong>
+                            <small data-preview-tenant-note>—</small>
+                        </div>
+                    </section>
+
+                    <div class="utility-invoice-actions">
+                        <button type="button"
+                                class="btn btn-secondary"
+                                data-utility-invoice-cancel>
+                            Anuluj
+                        </button>
+
+                        <button type="submit"
+                                class="btn btn-primary">
+                            Zarejestruj FV i przygotuj rozliczenia
+                        </button>
+                    </div>
+                </form>
+            </section>
+
+            <section class="utility-invoice-history"
+                     data-utility-invoice-history
+                     hidden>
+                <div class="utility-invoice-subsection-title">
+                    <strong>Ostatnie rozliczone faktury mediów</strong>
+                    <span>Podsumowanie podziału kosztu; sama płatność pozostaje w Finansach domowych.</span>
+                </div>
+
+                <div data-utility-invoice-history-list></div>
+            </section>
+        </section>
+    }
 
     <div class="utilities-action-cards">
         <a class="utilities-action-card"
@@ -1533,3 +1962,4 @@
 
 <script src="~/js/utilities-organized.js" asp-append-version="true"></script>
 <script src="~/js/submeter-tenant-settlement.js" asp-append-version="true"></script>
+<script src="~/js/utility-invoice-distribution.js" asp-append-version="true"></script>

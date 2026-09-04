@@ -13,5 +13,45 @@
         "after": "2026-04-01"
       }
     ]
+  },
+  {
+    "id": "8c0ffcf5-135e-48f1-a72b-8775f126e146",
+    "householdId": "95fe82d1-5e7e-41da-abcb-801cffdc3fff",
+    "contractId": "709355e1-3fd6-4837-907a-f6f345b1dc69",
+    "changedAtUtc": "2026-09-04T07:03:33.8583734Z",
+    "changedByUserAccountId": "3b460853-d5a8-4928-9fb8-3c88f6462e61",
+    "reason": "Zmiana taryfy podstawowej umowy",
+    "changes": [
+      {
+        "field": "BaseTariffRate",
+        "before": "0",
+        "after": "1"
+      },
+      {
+        "field": "BaseTariffUnit",
+        "before": "",
+        "after": "m3"
+      }
+    ]
+  },
+  {
+    "id": "daae8cc8-a346-4c9e-9403-ac738b0a1d16",
+    "householdId": "95fe82d1-5e7e-41da-abcb-801cffdc3fff",
+    "contractId": "5383c253-e1e5-4bdf-b857-265fc7ab7ba5",
+    "changedAtUtc": "2026-09-04T08:54:26.9891634Z",
+    "changedByUserAccountId": "3b460853-d5a8-4928-9fb8-3c88f6462e61",
+    "reason": "Zmiana taryfy podstawowej umowy",
+    "changes": [
+      {
+        "field": "BaseTariffRate",
+        "before": "0",
+        "after": "1"
+      },
+      {
+        "field": "BaseTariffUnit",
+        "before": "",
+        "after": "m3"
+      }
+    ]
   }
 ]

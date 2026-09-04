@@ -1,0 +1,467 @@
+/* PKG-015q-FEAT-02 — rozliczenia FV mediów */
+
+.utility-invoice-flow {
+    margin-bottom: 12px;
+    padding: 13px;
+    border: 1px solid #d4e3ed;
+    border-radius: 12px;
+    background: #f9fcfe;
+}
+
+.utility-invoice-flow-head {
+    margin-bottom: 10px;
+}
+
+.utility-invoice-flow-head > div > span,
+.utility-invoice-workspace-head > div > span {
+    color: #547b9a;
+    font-size: .6rem;
+    font-weight: 900;
+    letter-spacing: .05em;
+}
+
+.utility-invoice-flow-head h3,
+.utility-invoice-workspace-head h3 {
+    margin: 2px 0;
+    color: #274760;
+    font-size: .83rem;
+}
+
+.utility-invoice-flow-head p,
+.utility-invoice-workspace-head p {
+    max-width: 900px;
+    margin: 0;
+    color: #728799;
+    font-size: .62rem;
+    line-height: 1.45;
+}
+
+.utility-invoice-medium-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.utility-invoice-medium-card {
+    display: grid;
+    grid-template-columns: 38px 1fr;
+    gap: 4px 9px;
+    align-items: center;
+    min-width: 0;
+    padding: 10px;
+    border: 1px solid #d9e5ed;
+    border-radius: 9px;
+    background: #fff;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.utility-invoice-medium-card:hover {
+    border-color: #9dc3df;
+    box-shadow: 0 3px 12px rgba(40, 78, 108, .08);
+}
+
+.utility-invoice-medium-card > span {
+    grid-row: 1 / 3;
+    display: grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 9px;
+    background: #eef6fb;
+    font-size: 1rem;
+}
+
+.utility-invoice-medium-card strong,
+.utility-invoice-medium-card small,
+.utility-invoice-medium-card b {
+    display: block;
+}
+
+.utility-invoice-medium-card strong {
+    color: #2d4f68;
+    font-size: .68rem;
+}
+
+.utility-invoice-medium-card small {
+    color: #778a99;
+    font-size: .55rem;
+    line-height: 1.35;
+}
+
+.utility-invoice-medium-card b {
+    grid-column: 2;
+    color: #326f9f;
+    font-size: .56rem;
+}
+
+.utility-invoice-workspace {
+    margin-top: 11px;
+    padding: 12px;
+    border: 1px solid #c9deeb;
+    border-radius: 10px;
+    background: #fff;
+}
+
+.utility-invoice-workspace[hidden],
+[data-utility-water-fields][hidden],
+[data-utility-gas-fields][hidden],
+[data-utility-waste-fields][hidden],
+[data-utility-people-section][hidden],
+[data-water-consumption-fields][hidden],
+[data-water-manual-fields][hidden],
+.utility-invoice-history[hidden] {
+    display: none !important;
+}
+
+.utility-invoice-workspace-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    align-items: flex-start;
+    padding-bottom: 9px;
+    border-bottom: 1px solid #e1e9ef;
+}
+
+.utility-invoice-common-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 7px;
+    margin-top: 10px;
+}
+
+.utility-invoice-common-grid label {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+    color: #60778a;
+    font-size: .58rem;
+    font-weight: 850;
+}
+
+.utility-invoice-common-grid input,
+.utility-invoice-common-grid select {
+    width: 100%;
+    min-height: 36px;
+    padding: 6px 7px;
+    border: 1px solid #cbdce7;
+    border-radius: 7px;
+    background: #fff;
+    color: #29475e;
+    font: inherit;
+}
+
+.utility-invoice-common-grid label > small {
+    color: #81909d;
+    font-size: .53rem;
+    font-weight: 500;
+}
+
+.utility-money-input {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 5px;
+    align-items: center;
+}
+
+.utility-money-input b {
+    color: #607a8e;
+    font-size: .58rem;
+}
+
+.utility-invoice-subsection-title {
+    margin-top: 12px;
+}
+
+.utility-invoice-subsection-title strong,
+.utility-invoice-subsection-title span {
+    display: block;
+}
+
+.utility-invoice-subsection-title strong {
+    color: #355e7b;
+    font-size: .67rem;
+}
+
+.utility-invoice-subsection-title span {
+    margin-top: 2px;
+    color: #7a8c9b;
+    font-size: .56rem;
+}
+
+.utility-water-mode {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 7px;
+    margin-top: 8px;
+}
+
+.utility-water-mode label {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 7px;
+    padding: 8px;
+    border: 1px solid #dae5ed;
+    border-radius: 8px;
+    background: #fafcfd;
+    cursor: pointer;
+}
+
+.utility-water-mode input {
+    margin-top: 2px;
+}
+
+.utility-water-mode strong,
+.utility-water-mode small {
+    display: block;
+}
+
+.utility-water-mode strong {
+    color: #405f75;
+    font-size: .61rem;
+}
+
+.utility-water-mode small {
+    margin-top: 2px;
+    color: #7b8c99;
+    font-size: .53rem;
+    line-height: 1.35;
+}
+
+.utility-info-box {
+    display: grid;
+    gap: 3px;
+    margin-top: 10px;
+    padding: 9px 10px;
+    border: 1px solid #d5e4ed;
+    border-radius: 8px;
+    background: #f6fbfe;
+}
+
+.utility-info-box strong {
+    color: #315f80;
+    font-size: .64rem;
+}
+
+.utility-info-box span {
+    color: #718697;
+    font-size: .56rem;
+    line-height: 1.45;
+}
+
+.utility-people-summary {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 7px;
+    margin-top: 8px;
+}
+
+.utility-people-summary > div {
+    padding: 8px;
+    border: 1px solid #dbe6ed;
+    border-radius: 8px;
+    background: #fff;
+}
+
+.utility-people-summary span,
+.utility-people-summary strong,
+.utility-people-summary small {
+    display: block;
+}
+
+.utility-people-summary span {
+    color: #778b99;
+    font-size: .54rem;
+}
+
+.utility-people-summary strong {
+    margin-top: 2px;
+    color: #2e6389;
+    font-size: .78rem;
+}
+
+.utility-people-summary small {
+    color: #83919d;
+    font-size: .52rem;
+}
+
+[data-utility-tenant-list] {
+    display: grid;
+    gap: 5px;
+    margin-top: 7px;
+}
+
+.utility-tenant-row {
+    display: grid;
+    grid-template-columns: 1fr 125px 130px;
+    gap: 8px;
+    align-items: center;
+    padding: 7px 8px;
+    border: 1px solid #e0e8ee;
+    border-radius: 8px;
+    background: #fff;
+}
+
+.utility-tenant-row strong,
+.utility-tenant-row small,
+.utility-tenant-row [data-tenant-share] span {
+    display: block;
+}
+
+.utility-tenant-row > div:first-child > strong {
+    color: #3d5b70;
+    font-size: .62rem;
+}
+
+.utility-tenant-row > div:first-child > small {
+    margin-top: 2px;
+    color: #81909c;
+    font-size: .52rem;
+}
+
+.utility-tenant-row label {
+    display: grid;
+    gap: 3px;
+    color: #758999;
+    font-size: .53rem;
+    font-weight: 800;
+}
+
+.utility-tenant-row input {
+    width: 100%;
+    min-height: 31px;
+    padding: 5px 6px;
+    border: 1px solid #cbdce7;
+    border-radius: 6px;
+}
+
+.utility-tenant-row [data-tenant-share] {
+    text-align: right;
+}
+
+.utility-tenant-row [data-tenant-share] span {
+    color: #7c8d9a;
+    font-size: .52rem;
+}
+
+.utility-tenant-row [data-tenant-share] strong {
+    color: #2f6388;
+    font-size: .64rem;
+}
+
+.utility-invoice-preview {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 7px;
+    margin-top: 11px;
+}
+
+.utility-invoice-preview > div {
+    min-height: 65px;
+    padding: 8px 9px;
+    border: 1px solid #d6e3ec;
+    border-radius: 8px;
+    background: #f9fcfe;
+}
+
+.utility-invoice-preview span,
+.utility-invoice-preview strong,
+.utility-invoice-preview small {
+    display: block;
+}
+
+.utility-invoice-preview span {
+    color: #758999;
+    font-size: .54rem;
+}
+
+.utility-invoice-preview strong {
+    margin-top: 3px;
+    color: #2e5f82;
+    font-size: .76rem;
+}
+
+.utility-invoice-preview small {
+    margin-top: 3px;
+    color: #81909c;
+    font-size: .52rem;
+}
+
+.utility-invoice-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 7px;
+    margin-top: 9px;
+}
+
+.utility-invoice-history {
+    margin-top: 11px;
+    padding-top: 10px;
+    border-top: 1px solid #dfe8ee;
+}
+
+[data-utility-invoice-history-list] {
+    display: grid;
+    gap: 5px;
+    margin-top: 7px;
+}
+
+[data-utility-invoice-history-list] article {
+    display: grid;
+    grid-template-columns: 1.4fr repeat(3, .8fr);
+    gap: 8px;
+    align-items: center;
+    padding: 7px 8px;
+    border: 1px solid #e0e8ee;
+    border-radius: 8px;
+    background: #fff;
+}
+
+[data-utility-invoice-history-list] strong,
+[data-utility-invoice-history-list] small,
+[data-utility-invoice-history-list] span {
+    display: block;
+}
+
+[data-utility-invoice-history-list] strong {
+    color: #3d5b70;
+    font-size: .59rem;
+}
+
+[data-utility-invoice-history-list] small,
+[data-utility-invoice-history-list] span {
+    color: #80909d;
+    font-size: .51rem;
+}
+
+@media (max-width: 1050px) {
+    .utility-invoice-medium-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .utility-invoice-common-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+@media (max-width: 700px) {
+    .utility-invoice-medium-grid,
+    .utility-invoice-common-grid,
+    .utility-water-mode,
+    .utility-people-summary,
+    .utility-invoice-preview {
+        grid-template-columns: 1fr;
+    }
+
+    .utility-tenant-row,
+    [data-utility-invoice-history-list] article {
+        grid-template-columns: 1fr;
+    }
+
+    .utility-tenant-row [data-tenant-share] {
+        text-align: left;
+    }
+}

@@ -403,19 +403,49 @@ public sealed class PropertyController(
             MeterTypes.Sub,
             StringComparison.OrdinalIgnoreCase);
 
-        if (!locationId.HasValue || locationId.GetValueOrDefault() == Guid.Empty)
+        if (!locationId.HasValue
+            || locationId.GetValueOrDefault() == Guid.Empty)
         {
             return new(
                 "Wybierz lokalizację licznika.",
                 null);
         }
 
-        var resolvedLocationId = locationId.GetValueOrDefault();
+        var resolvedLocationId =
+            locationId.GetValueOrDefault();
 
+        var isParcel =
+            string.Equals(
+                locationType,
+                "Parcel",
+                StringComparison.OrdinalIgnoreCase);
+
+        var isBuilding =
+            string.Equals(
+                locationType,
+                "Building",
+                StringComparison.OrdinalIgnoreCase);
+
+        var isRoom =
+            string.Equals(
+                locationType,
+                "Room",
+                StringComparison.OrdinalIgnoreCase);
+
+        if (!isParcel
+            && !isBuilding
+            && !isRoom)
+        {
+            return new(
+                "Nieobsługiwany typ lokalizacji licznika.",
+                null);
+        }
+
+        // Licznik główny pozostaje na poziomie działki albo domu.
         if (!isSub)
         {
-            if (!string.Equals(locationType, "Parcel", StringComparison.OrdinalIgnoreCase)
-                && !string.Equals(locationType, "Building", StringComparison.OrdinalIgnoreCase))
+            if (!isParcel
+                && !isBuilding)
             {
                 return new(
                     "Licznik główny można przypisać do całej działki albo konkretnego domu/budynku.",
@@ -423,103 +453,207 @@ public sealed class PropertyController(
             }
 
             var locationExists =
-                (string.Equals(locationType, "Parcel", StringComparison.OrdinalIgnoreCase)
-                 && overview.Parcels.Any(x => x.Id == resolvedLocationId))
-                || (string.Equals(locationType, "Building", StringComparison.OrdinalIgnoreCase)
-                    && overview.Buildings.Any(x => x.Id == resolvedLocationId));
+                (isParcel
+                 && overview.Parcels.Any(x =>
+                     x.Id == resolvedLocationId))
+                || (isBuilding
+                    && overview.Buildings.Any(x =>
+                        x.Id == resolvedLocationId));
 
             if (!locationExists)
             {
-                return new("Wybrana lokalizacja licznika głównego nie istnieje.", null);
+                return new(
+                    "Wybrana lokalizacja licznika głównego nie istnieje.",
+                    null);
             }
 
-            return new(null, null);
-        }
-
-        if (!string.Equals(locationType, "Room", StringComparison.OrdinalIgnoreCase))
-        {
             return new(
-                "Podlicznik służy wyłącznie do rozliczeń lokatorów i musi być przypisany do konkretnego pokoju/lokalu do wynajmu.",
+                null,
                 null);
         }
 
-        var room = overview.Rooms.FirstOrDefault(x => x.Id == resolvedLocationId);
-        if (room is null)
+        // Podlicznik może być:
+        // - techniczny: przypisany do działki lub domu,
+        // - lokatorski: przypisany do pokoju/lokalu do wynajmu.
+        Guid? targetParcelId = null;
+        Guid? targetBuildingId = null;
+
+        if (isParcel)
         {
-            return new("Nie znaleziono wybranego pomieszczenia.", null);
+            var parcel =
+                overview.Parcels.FirstOrDefault(x =>
+                    x.Id == resolvedLocationId);
+
+            if (parcel is null)
+            {
+                return new(
+                    "Nie znaleziono wybranej działki.",
+                    null);
+            }
+
+            targetParcelId =
+                parcel.Id;
+        }
+        else if (isBuilding)
+        {
+            var building =
+                overview.Buildings.FirstOrDefault(x =>
+                    x.Id == resolvedLocationId);
+
+            if (building is null)
+            {
+                return new(
+                    "Nie znaleziono wybranego domu/budynku.",
+                    null);
+            }
+
+            targetParcelId =
+                building.ParcelId;
+
+            targetBuildingId =
+                building.Id;
+        }
+        else
+        {
+            var room =
+                overview.Rooms.FirstOrDefault(x =>
+                    x.Id == resolvedLocationId);
+
+            if (room is null)
+            {
+                return new(
+                    "Nie znaleziono wybranego pomieszczenia.",
+                    null);
+            }
+
+            if (!room.IsRentable)
+            {
+                return new(
+                    "Podlicznik przypisany do pokoju może służyć do rozliczeń lokatora tylko wtedy, gdy pomieszczenie jest oznaczone „Do wynajmu”.",
+                    null);
+            }
+
+            var building =
+                overview.Buildings.FirstOrDefault(x =>
+                    x.Id == room.BuildingId);
+
+            if (building is null)
+            {
+                return new(
+                    "Nie znaleziono budynku dla wybranego pokoju.",
+                    null);
+            }
+
+            targetParcelId =
+                building.ParcelId;
+
+            targetBuildingId =
+                building.Id;
         }
 
-        if (!room.IsRentable)
+        if (!parentMeterId.HasValue
+            || parentMeterId.GetValueOrDefault() == Guid.Empty)
         {
             return new(
-                "Podlicznik można przypisać wyłącznie do pomieszczenia oznaczonego „Do wynajmu”.",
+                "Podlicznik musi wskazywać aktywny licznik główny tego samego medium.",
                 null);
         }
 
-        if (!parentMeterId.HasValue)
-        {
-            return new(
-                "Podlicznik musi wskazywać licznik główny tego samego medium.",
-                null);
-        }
+        var resolvedParentMeterId =
+            parentMeterId.GetValueOrDefault();
 
-        var resolvedParentMeterId = parentMeterId.GetValueOrDefault();
-        if (resolvedParentMeterId == Guid.Empty)
-        {
-            return new(
-                "Podlicznik musi wskazywać licznik główny tego samego medium.",
-                null);
-        }
+        var resolvedCurrentMeterId =
+            currentMeterId.GetValueOrDefault();
 
-        var resolvedCurrentMeterId = currentMeterId.GetValueOrDefault();
         if (resolvedCurrentMeterId != Guid.Empty
             && resolvedParentMeterId == resolvedCurrentMeterId)
         {
-            return new("Licznik nie może być własnym licznikiem nadrzędnym.", null);
-        }
-
-        var parent = overview.Meters.FirstOrDefault(
-            x => x.Id == resolvedParentMeterId);
-        if (parent is null)
-        {
-            return new("Nie znaleziono wybranego licznika głównego.", null);
-        }
-
-        if (!string.Equals(parent.MeterType, MeterTypes.Main, StringComparison.OrdinalIgnoreCase))
-        {
-            return new("Licznikiem nadrzędnym może być wyłącznie licznik główny.", null);
-        }
-
-        if (!string.Equals(parent.Status, MeterStatuses.Active, StringComparison.OrdinalIgnoreCase))
-        {
-            return new("Licznik główny musi być aktywny.", null);
-        }
-
-        if (!string.Equals(parent.Medium, medium, StringComparison.OrdinalIgnoreCase))
-        {
-            return new("Licznik główny i podlicznik muszą mieć to samo medium.", null);
-        }
-
-        var building = overview.Buildings.FirstOrDefault(x => x.Id == room.BuildingId);
-        if (building is null)
-        {
-            return new("Nie znaleziono budynku dla wybranego pokoju.", null);
-        }
-
-        var sameBranch =
-            (string.Equals(parent.LocationType, "Parcel", StringComparison.OrdinalIgnoreCase)
-             && parent.LocationId == building.ParcelId)
-            || (string.Equals(parent.LocationType, "Building", StringComparison.OrdinalIgnoreCase)
-                && parent.LocationId == building.Id);
-
-        if (!sameBranch)
-        {
             return new(
-                "Wybrany licznik główny nie obejmuje domu, w którym znajduje się ten pokój. Wybierz licznik główny tej działki albo tego budynku.",
+                "Licznik nie może być własnym licznikiem nadrzędnym.",
                 null);
         }
 
-        return new(null, parentMeterId);
+        var parent =
+            overview.Meters.FirstOrDefault(x =>
+                x.Id == resolvedParentMeterId);
+
+        if (parent is null)
+        {
+            return new(
+                "Nie znaleziono wybranego licznika głównego.",
+                null);
+        }
+
+        if (!string.Equals(
+                parent.MeterType,
+                MeterTypes.Main,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return new(
+                "Licznikiem nadrzędnym może być wyłącznie licznik główny.",
+                null);
+        }
+
+        if (!string.Equals(
+                parent.Status,
+                MeterStatuses.Active,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return new(
+                "Licznik główny musi być aktywny.",
+                null);
+        }
+
+        if (!string.Equals(
+                parent.Medium,
+                medium,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return new(
+                "Licznik główny i podlicznik muszą mieć to samo medium.",
+                null);
+        }
+
+        // Zasięg:
+        // główny na działce obejmuje działkę, wszystkie jej domy i pokoje;
+        // główny na domu obejmuje ten dom i jego pokoje.
+        var parentOnParcel =
+            string.Equals(
+                parent.LocationType,
+                "Parcel",
+                StringComparison.OrdinalIgnoreCase);
+
+        var parentOnBuilding =
+            string.Equals(
+                parent.LocationType,
+                "Building",
+                StringComparison.OrdinalIgnoreCase);
+
+        var sameBranch =
+            (parentOnParcel
+             && targetParcelId.HasValue
+             && parent.LocationId == targetParcelId.Value)
+            || (parentOnBuilding
+                && targetBuildingId.HasValue
+                && parent.LocationId == targetBuildingId.Value);
+
+        if (!sameBranch)
+        {
+            var targetDescription =
+                isParcel
+                    ? "tej działki"
+                    : isBuilding
+                        ? "tego domu"
+                        : "domu, w którym znajduje się ten pokój";
+
+            return new(
+                $"Wybrany licznik główny nie obejmuje {targetDescription}. Wybierz licznik główny właściwej działki albo właściwego domu.",
+                null);
+        }
+
+        return new(
+            null,
+            parentMeterId);
     }
 
     private async Task<PropertyActor?> GetActorAsync(

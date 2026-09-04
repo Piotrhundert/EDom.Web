@@ -126,25 +126,288 @@
 
     syncReadingMeter();
 
-    // Dodawanie umowy.
+    // Dodawanie umowy — szybki wybór medium.
     const createToggle =
         root.querySelector("[data-contract-create-toggle]");
 
     const createPanel =
         root.querySelector("[data-contract-create-panel]");
 
+    const createForm =
+        root.querySelector("[data-contract-create-form]");
+
+    const mediumSelect =
+        root.querySelector("[data-contract-medium]");
+
+    const meterField =
+        root.querySelector("[data-contract-meter-field]");
+
+    const contractMeterSelect =
+        root.querySelector("[data-contract-meter]");
+
+    const createTitle =
+        root.querySelector("[data-contract-create-title]");
+
+    const createSubtitle =
+        root.querySelector("[data-contract-create-subtitle]");
+
+    const operatorLabel =
+        root.querySelector("[data-contract-operator-label]");
+
+    const operatorInput =
+        root.querySelector("[data-contract-operator]");
+
+    const numberLabel =
+        root.querySelector("[data-contract-number-label]");
+
+    const pointLabel =
+        root.querySelector("[data-contract-point-label]");
+
+    const fixedLabel =
+        root.querySelector("[data-contract-fixed-label]");
+
+    const info =
+        root.querySelector("[data-contract-create-info]");
+
+    const submitCreate =
+        root.querySelector("[data-contract-create-submit]");
+
+    const configs = {
+        Water: {
+            title: "Umowa na wodę",
+            subtitle: "Dane operatora, numer klienta i główny licznik wody.",
+            operatorLabel: "Operator wodociągowy",
+            operatorPlaceholder: "np. Aquanet",
+            numberLabel: "Numer umowy",
+            pointLabel: "Numer klienta / punkt poboru",
+            fixedLabel: "Opłata stała / abonament",
+            button: "Zapisz umowę na wodę",
+            infoTitle: "Woda",
+            infoText:
+                "Powiąż umowę z głównym licznikiem wody. Taryfę za m³ ustawisz po zapisaniu w Podgląd / edycja."
+        },
+        Gas: {
+            title: "Umowa na gaz",
+            subtitle: "Dane sprzedawcy / operatora i główny licznik gazu.",
+            operatorLabel: "Operator / sprzedawca gazu",
+            operatorPlaceholder: "np. PGNiG / ORLEN",
+            numberLabel: "Numer umowy",
+            pointLabel: "Numer klienta / punkt poboru",
+            fixedLabel: "Opłata stała / abonament",
+            button: "Zapisz umowę na gaz",
+            infoTitle: "Gaz",
+            infoText:
+                "Powiąż umowę z głównym licznikiem gazu. Stawkę podstawową ustawisz po zapisaniu umowy."
+        },
+        Waste: {
+            title: "Umowa / deklaracja za śmieci",
+            subtitle: "Dane gminy, miasta albo firmy odbierającej odpady.",
+            operatorLabel: "Gmina / operator odpadów",
+            operatorPlaceholder: "np. Miasto Poznań / operator",
+            numberLabel: "Numer umowy / deklaracji",
+            pointLabel: "Numer konta / identyfikator płatnika",
+            fixedLabel: "Stała opłata miesięczna",
+            button: "Zapisz dane odpadów",
+            infoTitle: "Odpady / śmieci",
+            infoText:
+                "Odpady nie wymagają licznika. Stawkę na osobę możesz prowadzić osobno w sekcji Zaawansowane → Odpady."
+        },
+        Electricity: {
+            title: "Umowa na prąd",
+            subtitle: "Dane operatora energii i główny licznik prądu.",
+            operatorLabel: "Operator / sprzedawca energii",
+            operatorPlaceholder: "np. Enea",
+            numberLabel: "Numer umowy",
+            pointLabel: "PPE / numer klienta",
+            fixedLabel: "Opłata stała / abonament",
+            button: "Zapisz umowę na prąd",
+            infoTitle: "Prąd",
+            infoText:
+                "Powiąż umowę z głównym licznikiem prądu. Taryfę podstawową ustawisz w Podgląd / edycja."
+        }
+    };
+
+    const filterMeters = medium => {
+        if (!contractMeterSelect) return;
+
+        const waste = medium === "Waste";
+
+        if (meterField) {
+            meterField.hidden = waste;
+        }
+
+        let firstMatching = "";
+
+        Array.from(contractMeterSelect.options).forEach(option => {
+            if (!option.value) {
+                option.hidden = false;
+                return;
+            }
+
+            const matches =
+                option.dataset.meterMedium === medium;
+
+            option.hidden = !matches;
+            option.disabled = !matches;
+
+            if (matches && !firstMatching) {
+                firstMatching = option.value;
+            }
+        });
+
+        if (waste) {
+            contractMeterSelect.value = "";
+            contractMeterSelect.disabled = true;
+        } else {
+            contractMeterSelect.disabled = false;
+
+            const selected =
+                contractMeterSelect.selectedOptions?.[0];
+
+            if (!selected
+                || selected.disabled
+                || selected.hidden) {
+                contractMeterSelect.value =
+                    firstMatching || "";
+            }
+        }
+    };
+
+    const applyContractMedium = medium => {
+        const config =
+            configs[medium]
+            || configs.Water;
+
+        if (mediumSelect) {
+            mediumSelect.value = medium;
+        }
+
+        if (createTitle) {
+            createTitle.textContent =
+                config.title;
+        }
+
+        if (createSubtitle) {
+            createSubtitle.textContent =
+                config.subtitle;
+        }
+
+        if (operatorLabel) {
+            operatorLabel.textContent =
+                config.operatorLabel;
+        }
+
+        if (operatorInput) {
+            operatorInput.placeholder =
+                config.operatorPlaceholder;
+        }
+
+        if (numberLabel) {
+            numberLabel.textContent =
+                config.numberLabel;
+        }
+
+        if (pointLabel) {
+            pointLabel.textContent =
+                config.pointLabel;
+        }
+
+        if (fixedLabel) {
+            fixedLabel.textContent =
+                config.fixedLabel;
+        }
+
+        if (submitCreate) {
+            submitCreate.textContent =
+                config.button;
+        }
+
+        if (info) {
+            info.innerHTML = `
+                <strong>${esc(config.infoTitle)}</strong>
+                <span>${esc(config.infoText)}</span>
+            `;
+        }
+
+        filterMeters(medium);
+    };
+
+    const openCreatePanel = medium => {
+        if (!createPanel) return;
+
+        createPanel.hidden = false;
+
+        applyContractMedium(
+            medium
+            || mediumSelect?.value
+            || "Water"
+        );
+
+        createPanel.scrollIntoView({
+            behavior: "smooth",
+            block: "nearest"
+        });
+
+        window.setTimeout(
+            () => operatorInput?.focus(),
+            250
+        );
+    };
+
     createToggle?.addEventListener("click", () => {
         if (!createPanel) return;
 
-        createPanel.hidden = !createPanel.hidden;
-
-        if (!createPanel.hidden) {
-            createPanel.scrollIntoView({
-                behavior: "smooth",
-                block: "nearest"
-            });
+        if (createPanel.hidden) {
+            openCreatePanel(
+                mediumSelect?.value
+                || "Water"
+            );
+        } else {
+            createPanel.hidden = true;
         }
     });
+
+    root.querySelectorAll("[data-contract-medium-choice]")
+        .forEach(button => {
+            button.addEventListener("click", () => {
+                openCreatePanel(
+                    button.dataset.contractMediumChoice
+                    || "Water"
+                );
+            });
+        });
+
+    mediumSelect?.addEventListener(
+        "change",
+        () => applyContractMedium(
+            mediumSelect.value
+        )
+    );
+
+    const closeCreate = () => {
+        if (createPanel) {
+            createPanel.hidden = true;
+        }
+    };
+
+    root.querySelector("[data-contract-create-close]")
+        ?.addEventListener(
+            "click",
+            closeCreate
+        );
+
+    root.querySelector("[data-contract-create-cancel]")
+        ?.addEventListener(
+            "click",
+            closeCreate
+        );
+
+    if (createForm && mediumSelect) {
+        applyContractMedium(
+            mediumSelect.value
+            || "Water"
+        );
+    }
 
     // Podgląd / edycja umów.
     const workspace =
@@ -297,6 +560,14 @@
 
     function fillBaseTariffForm(contract, tariff) {
         if (!baseTariffForm) return;
+
+        const tariffSubmit =
+            baseTariffForm.querySelector("[data-base-tariff-submit]");
+
+        if (tariffSubmit) {
+            tariffSubmit.disabled = false;
+            tariffSubmit.removeAttribute("aria-busy");
+        }
 
         baseTariffForm.querySelector("[data-base-tariff-contract-id]").value =
             contract?.id || "";
@@ -570,6 +841,7 @@
             baseTariffForm.querySelector('button[type="submit"]');
 
         submit.disabled = true;
+        submit.setAttribute("aria-busy", "true");
 
         try {
             const body =
@@ -605,6 +877,8 @@
 
             await loadContract(contractId);
 
+            submit.disabled = false;
+            submit.removeAttribute("aria-busy");
             baseTariffForm.hidden = true;
         } catch (error) {
             window.alert(
@@ -613,6 +887,7 @@
             );
 
             submit.disabled = false;
+            submit.removeAttribute("aria-busy");
         }
     });
 

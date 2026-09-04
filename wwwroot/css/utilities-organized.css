@@ -990,3 +990,107 @@
         flex-direction: column;
     }
 }
+
+
+/* PKG-015q-FEAT-01 — szybkie wprowadzanie umów Woda / Gaz / Odpady */
+.utilities-contract-medium-picker {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 9px;
+    margin-bottom: 11px;
+}
+
+.utilities-medium-choice {
+    display: grid;
+    grid-template-columns: 38px 1fr;
+    gap: 3px 10px;
+    align-items: center;
+    padding: 11px 12px;
+    border: 1px solid #d5e3ed;
+    border-radius: 11px;
+    background: #fff;
+    text-align: left;
+    cursor: pointer;
+    transition: border-color .15s ease, box-shadow .15s ease, transform .15s ease;
+}
+
+.utilities-medium-choice:hover {
+    border-color: #9fc3dd;
+    box-shadow: 0 4px 14px rgba(39, 76, 105, .08);
+    transform: translateY(-1px);
+}
+
+.utilities-medium-choice > span {
+    grid-row: 1 / 4;
+    display: grid;
+    place-items: center;
+    width: 38px;
+    height: 38px;
+    border-radius: 9px;
+    background: #eef6fb;
+    font-size: 1rem;
+}
+
+.utilities-medium-choice strong,
+.utilities-medium-choice small,
+.utilities-medium-choice b {
+    display: block;
+}
+
+.utilities-medium-choice strong {
+    color: #2c4d66;
+    font-size: .71rem;
+}
+
+.utilities-medium-choice small {
+    color: #7b8e9d;
+    font-size: .57rem;
+}
+
+.utilities-medium-choice b {
+    margin-top: 2px;
+    color: #3170a2;
+    font-size: .58rem;
+}
+
+.utilities-medium-choice.water > span {
+    background: #edf8fd;
+}
+
+.utilities-medium-choice.gas > span {
+    background: #f8f4ec;
+}
+
+.utilities-medium-choice.waste > span {
+    background: #eef8f1;
+}
+
+.utilities-contract-create-info {
+    display: grid;
+    gap: 3px;
+    padding: 9px 10px;
+    border: 1px solid #d5e5ef;
+    border-radius: 8px;
+    background: #f6fbfe;
+}
+
+.utilities-contract-create-info strong {
+    color: #315f80;
+    font-size: .64rem;
+}
+
+.utilities-contract-create-info span {
+    color: #708698;
+    font-size: .58rem;
+    line-height: 1.45;
+}
+
+[data-contract-meter-field][hidden] {
+    display: none !important;
+}
+
+@media (max-width: 850px) {
+    .utilities-contract-medium-picker {
+        grid-template-columns: 1fr;
+    }
+}

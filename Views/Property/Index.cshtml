@@ -150,7 +150,7 @@
                                 {
                                     <span class="property-attached-meter">
                                         <b>@meter.Name</b>
-                                        <small>@(meter.MeterType == MeterTypes.Sub ? "Podlicznik · rozliczenia lokatorów" : "Licznik główny") · @meter.Medium · @meter.UnitCode</small>
+                                        <small>@(meter.MeterType == MeterTypes.Sub ? (string.Equals(meter.LocationType, "Room", StringComparison.OrdinalIgnoreCase) ? "Podlicznik · rozliczenia lokatorów" : "Podlicznik techniczny") : "Licznik główny") · @meter.Medium · @meter.UnitCode</small>
                                     </span>
                                 }
                             </div>
@@ -207,7 +207,7 @@
                                                 {
                                                     <span class="property-attached-meter">
                                                         <b>@meter.Name</b>
-                                                        <small>@(meter.MeterType == MeterTypes.Sub ? "Podlicznik · rozliczenia lokatorów" : "Licznik główny") · @meter.Medium · @meter.UnitCode</small>
+                                                        <small>@(meter.MeterType == MeterTypes.Sub ? (string.Equals(meter.LocationType, "Room", StringComparison.OrdinalIgnoreCase) ? "Podlicznik · rozliczenia lokatorów" : "Podlicznik techniczny") : "Licznik główny") · @meter.Medium · @meter.UnitCode</small>
                                                     </span>
                                                 }
                                             </div>
@@ -255,7 +255,7 @@
                                                                 {
                                                                     <span class="property-room-meter">
                                                                         <strong>@meter.Name</strong>
-                                                                        <small>@(meter.MeterType == MeterTypes.Sub ? "Podlicznik · rozliczenia lokatora" : "Licznik") · @meter.Medium · @meter.UnitCode</small>
+                                                                        <small>@(meter.MeterType == MeterTypes.Sub ? (string.Equals(meter.LocationType, "Room", StringComparison.OrdinalIgnoreCase) ? "Podlicznik · rozliczenia lokatora" : "Podlicznik techniczny") : "Licznik") · @meter.Medium · @meter.UnitCode</small>
                                                                     </span>
                                                                 }
                                                             </div>
@@ -612,7 +612,7 @@
                 <div>
                     <div class="property-section-kicker">Media i pomiary</div>
                     <h2>Liczniki i podliczniki</h2>
-                    <p>Liczniki główne przypisujesz do działki lub domu. Podliczniki są wyłącznie do rozliczeń lokatorów i przypisujesz je do konkretnego pokoju/lokalu do wynajmu.</p>
+                    <p>Liczniki główne przypisujesz do działki lub domu. Podlicznik może być techniczny dla działki/domu albo lokatorski dla konkretnego pokoju/lokalu do wynajmu.</p>
                 </div>
                 <span class="property-count-badge">@meterCount liczników</span>
             </div>
@@ -752,30 +752,30 @@
                                             <select data-meter-location
                                                     data-current-location-type="@meter.LocationType"
                                                     data-current-location-id="@meter.LocationId">
-                                                <optgroup label="Działki — dla liczników głównych">
+                                                <optgroup label="Działki — licznik główny lub podlicznik techniczny">
                                                     @foreach (var p in Model.Parcels)
                                                     {
                                                         <option value="@p.Id"
                                                                 data-location-type="Parcel"
                                                                 data-parcel-id="@p.Id"
-                                                                data-allowed-type="Main">
+                                                                data-allowed-type="Main,Sub">
                                                             Działka: @p.Name
                                                         </option>
                                                     }
                                                 </optgroup>
-                                                <optgroup label="Domy / budynki — dla liczników głównych">
+                                                <optgroup label="Domy / budynki — licznik główny lub podlicznik techniczny">
                                                     @foreach (var b in Model.Buildings)
                                                     {
                                                         <option value="@b.Id"
                                                                 data-location-type="Building"
                                                                 data-building-id="@b.Id"
                                                                 data-parcel-id="@b.ParcelId"
-                                                                data-allowed-type="Main">
+                                                                data-allowed-type="Main,Sub">
                                                             Dom: @b.Name
                                                         </option>
                                                     }
                                                 </optgroup>
-                                                <optgroup label="Pokoje/lokale do wynajmu — tylko podliczniki">
+                                                <optgroup label="Pokoje/lokale do wynajmu — podliczniki lokatorów">
                                                     @foreach (var r in Model.Rooms.Where(x => x.IsRentable))
                                                     {
                                                         var rb = Model.Buildings.FirstOrDefault(x => x.Id == r.BuildingId);
@@ -792,7 +792,7 @@
                                             <input type="hidden" name="locationType" data-meter-location-type />
                                             <input type="hidden" name="locationId" data-meter-location-id />
                                             <small class="property-field-help">
-                                                Podlicznik jest przeznaczony wyłącznie do rozliczeń lokatora i musi wskazywać pomieszczenie oznaczone „Do wynajmu”.
+                                                Podlicznik techniczny może być przypisany do działki lub domu. Jeśli przypiszesz go do pokoju/lokalu „Do wynajmu”, będzie mógł służyć do rozliczeń lokatora.
                                             </small>
                                         </div>
 
@@ -812,7 +812,7 @@
                                                     </option>
                                                 }
                                             </select>
-                                            <small class="property-field-help">Dla licznika głównego pole jest automatycznie wyłączone. Podlicznik może wskazać tylko licznik główny tego samego medium.</small>
+                                            <small class="property-field-help">Dla licznika głównego pole jest automatycznie wyłączone. Podlicznik wskazuje aktywny licznik główny tego samego medium i z tej samej działki/gałęzi domu.</small>
                                         </div>
 
                                         <div class="full property-meter-unit-warning">
@@ -840,7 +840,7 @@
                     <div class="property-meter-rule-note">
                         <strong>Zasada e-dom:</strong>
                         licznik główny może obejmować całą działkę albo konkretny dom.
-                        Podliczniki są tylko do rozliczeń lokatorów i muszą być przypisane do pokoju/lokalu oznaczonego „Do wynajmu”.
+                        Podlicznik możesz przypisać do działki, domu albo — dla rozliczeń lokatora — do pokoju/lokalu oznaczonego „Do wynajmu”.
                     </div>
                     <form asp-action="Meter" method="post" class="property-form-grid property-form-grid-four" id="meter-form">
                         @Html.AntiForgeryToken()
@@ -869,30 +869,30 @@
                         <div class="field">
                             <label>Lokalizacja</label>
                             <select data-meter-location>
-                                <optgroup label="Działki — dla liczników głównych">
+                                <optgroup label="Działki — licznik główny lub podlicznik techniczny">
                                     @foreach (var p in Model.Parcels)
                                     {
                                         <option value="@p.Id"
                                                 data-location-type="Parcel"
                                                 data-parcel-id="@p.Id"
-                                                data-allowed-type="Main">
+                                                data-allowed-type="Main,Sub">
                                             Działka: @p.Name
                                         </option>
                                     }
                                 </optgroup>
-                                <optgroup label="Domy / budynki — dla liczników głównych">
+                                <optgroup label="Domy / budynki — licznik główny lub podlicznik techniczny">
                                     @foreach (var b in Model.Buildings)
                                     {
                                         <option value="@b.Id"
                                                 data-location-type="Building"
                                                 data-building-id="@b.Id"
                                                 data-parcel-id="@b.ParcelId"
-                                                data-allowed-type="Main">
+                                                data-allowed-type="Main,Sub">
                                             Dom: @b.Name
                                         </option>
                                     }
                                 </optgroup>
-                                <optgroup label="Pokoje/lokale do wynajmu — tylko podliczniki">
+                                <optgroup label="Pokoje/lokale do wynajmu — podliczniki lokatorów">
                                     @foreach (var r in Model.Rooms.Where(x => x.IsRentable))
                                     {
                                         var rb = Model.Buildings.FirstOrDefault(x => x.Id == r.BuildingId);
@@ -909,7 +909,7 @@
                             <input type="hidden" name="LocationType" data-meter-location-type />
                             <input type="hidden" name="LocationId" data-meter-location-id />
                             <small class="property-field-help">
-                                Główny: działka lub dom. Podlicznik: wyłącznie pokój/lokal do wynajmu.
+                                Główny: działka lub dom. Podlicznik: działka, dom albo pokój/lokal do wynajmu.
                             </small>
                         </div>
                         <div class="field">
@@ -1145,7 +1145,12 @@
             let selected = null;
 
             Array.from(location.options).forEach(option => {
-                const visible = option.dataset.allowedType === wantedType;
+                const allowedTypes = (option.dataset.allowedType || '')
+                    .split(',')
+                    .map(value => value.trim())
+                    .filter(Boolean);
+
+                const visible = allowedTypes.includes(wantedType);
                 option.hidden = !visible;
                 option.disabled = !visible;
 

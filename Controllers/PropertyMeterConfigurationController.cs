@@ -165,7 +165,12 @@ public sealed class PropertyMeterConfigurationController(
             await transaction.CommitAsync(cancellationToken);
 
             TempData["Success"] = meterType == MeterTypes.Sub
-                ? $"Zapisano podlicznik „{name}” jako licznik do rozliczeń lokatora."
+                ? string.Equals(
+                        locationType,
+                        "Room",
+                        StringComparison.OrdinalIgnoreCase)
+                    ? $"Zapisano podlicznik „{name}” dla pokoju/lokalu — może być używany do rozliczeń lokatora."
+                    : $"Zapisano podlicznik techniczny „{name}” dla {(string.Equals(locationType, "Parcel", StringComparison.OrdinalIgnoreCase) ? "działki" : "domu")}."
                 : $"Zapisano licznik główny „{name}”.";
         }
         catch (Exception ex)

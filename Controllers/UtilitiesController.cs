@@ -241,7 +241,7 @@ public sealed class UtilitiesController(
             cancellationToken);
 
     [HttpPost("Contract/Create"), ValidateAntiForgeryToken]
-    public Task<IActionResult> CreateContract(
+    public async Task<IActionResult> CreateContract(
         Guid parcelId,
         Guid meterId,
         string operatorName,
@@ -251,33 +251,116 @@ public sealed class UtilitiesController(
         string billingSchedule,
         DateOnly validFrom,
         DateOnly? validTo,
-        decimal fixedCharge,
+        string fixedCharge,
         string currencyCode,
         CancellationToken cancellationToken)
-        => ExecuteAsync(
-            async actor =>
-            {
-                await utilitiesService.CreateContractAsync(
-                    actor,
-                    new(
-                        parcelId,
-                        operatorName,
-                        medium,
-                        contractNumber,
-                        accountPoint,
-                        billingSchedule,
-                        validFrom,
-                        validTo,
-                        ToMinor(fixedCharge),
-                        currencyCode,
-                        meterId == Guid.Empty
-                            ? Array.Empty<Guid>()
-                            : [meterId]),
-                    cancellationToken);
-
-                return "Dodano umowę operatora.";
-            },
+    {
+        var actor = await GetActorAsync(
             cancellationToken);
+
+        if (actor is null)
+        {
+            return Forbid();
+        }
+
+        try
+        {
+            operatorName = (operatorName ?? string.Empty).Trim();
+            medium = (medium ?? string.Empty).Trim();
+
+            if (operatorName.Length < 2)
+            {
+                throw new InvalidOperationException(
+                    "Podaj nazwę operatora / dostawcy.");
+            }
+
+            if (medium is not ("Electricity" or "Water" or "Gas" or "Waste"))
+            {
+                throw new InvalidOperationException(
+                    "Nieobsługiwany rodzaj medium.");
+            }
+
+            if (validTo.HasValue
+                && validTo.Value < validFrom)
+            {
+                throw new InvalidOperationException(
+                    "Data końca umowy nie może być wcześniejsza niż data początku.");
+            }
+
+            if (!TryParseFlexibleDecimal(
+                    fixedCharge,
+                    out var parsedFixedCharge)
+                || parsedFixedCharge < 0m)
+            {
+                throw new InvalidOperationException(
+                    $"Nie udało się odczytać opłaty stałej „{fixedCharge}”. " +
+                    "Podaj 0 lub kwotę, np. 12,50 albo 12.50.");
+            }
+
+            var normalizedCurrency =
+                string.IsNullOrWhiteSpace(currencyCode)
+                    ? "PLN"
+                    : currencyCode.Trim().ToUpperInvariant();
+
+            if (normalizedCurrency.Length != 3)
+            {
+                normalizedCurrency = "PLN";
+            }
+
+            // Odpady nie wymagają licznika.
+            var meterIds =
+                medium == "Waste"
+                || meterId == Guid.Empty
+                    ? Array.Empty<Guid>()
+                    : [meterId];
+
+            await utilitiesService.CreateContractAsync(
+                actor,
+                new(
+                    parcelId,
+                    operatorName,
+                    medium,
+                    string.IsNullOrWhiteSpace(contractNumber)
+                        ? null
+                        : contractNumber.Trim(),
+                    string.IsNullOrWhiteSpace(accountPoint)
+                        ? null
+                        : accountPoint.Trim(),
+                    string.IsNullOrWhiteSpace(billingSchedule)
+                        ? "Monthly"
+                        : billingSchedule.Trim(),
+                    validFrom,
+                    validTo,
+                    ToMinor(parsedFixedCharge),
+                    normalizedCurrency,
+                    meterIds),
+                cancellationToken);
+
+            var mediumLabel =
+                medium switch
+                {
+                    "Water" => "wodę",
+                    "Gas" => "gaz",
+                    "Waste" => "odpady / śmieci",
+                    "Electricity" => "prąd",
+                    _ => "medium"
+                };
+
+            TempData["Success"] =
+                $"Dodano umowę na {mediumLabel} z operatorem „{operatorName}”.";
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
+        catch (Exception ex)
+        {
+            TempData["Error"] =
+                ex.Message;
+        }
+
+        return RedirectToAction(nameof(Index));
+    }
 
     [HttpPost("Tariff/Create"), ValidateAntiForgeryToken]
     public async Task<IActionResult> CreateTariff(
@@ -1290,6 +1373,47 @@ public sealed class UtilitiesController(
                 current.HouseholdId,
                 CorrelationIdMiddleware.Get(HttpContext),
                 DateTime.UtcNow);
+    }
+
+    private static bool TryParseFlexibleDecimal(
+        string? value,
+        out decimal result)
+    {
+        result = 0m;
+
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return false;
+        }
+
+        var normalized =
+            value.Trim()
+                .Replace("\u00A0", "")
+                .Replace(" ", "");
+
+        const System.Globalization.NumberStyles styles =
+            System.Globalization.NumberStyles.AllowLeadingSign
+            | System.Globalization.NumberStyles.AllowDecimalPoint;
+
+        if (decimal.TryParse(
+                normalized,
+                styles,
+                System.Globalization.CultureInfo.GetCultureInfo("pl-PL"),
+                out result))
+        {
+            return true;
+        }
+
+        if (decimal.TryParse(
+                normalized,
+                styles,
+                System.Globalization.CultureInfo.InvariantCulture,
+                out result))
+        {
+            return true;
+        }
+
+        return false;
     }
 
     private static long ToMinor(
