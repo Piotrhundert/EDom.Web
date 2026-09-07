@@ -485,6 +485,15 @@
                 medium;
         }
 
+        if (allocationModeInput) {
+            allocationModeInput.value =
+                medium === "Water"
+                    ? "WaterByPersons"
+                    : medium === "Waste"
+                        ? "WasteByPersons"
+                        : "GasHouseholdOnly";
+        }
+
         const hasContract =
             populateContracts(
                 medium
@@ -635,62 +644,19 @@
 
         if (currentMedium
             === "Water") {
-            const mode =
-                allocationModeInput?.value
-                || "WaterByConsumption";
+            const allPersons =
+                householdCount
+                + tenantCount;
 
-            if (mode
-                === "ManualTenantAmount") {
-                tenantPool =
-                    Math.max(
-                        0,
-                        parseNumber(
-                            formValue(
-                                "manualTenantAmount"
-                            )
-                        )
-                    );
-            } else {
-                const totalConsumption =
-                    Math.max(
-                        0,
-                        parseNumber(
-                            formValue(
-                                "totalConsumption"
-                            )
-                        )
-                    );
-
-                const tenantConsumption =
-                    Math.max(
-                        0,
-                        parseNumber(
-                            formValue(
-                                "tenantConsumption"
-                            )
-                        )
-                    );
-
-                if (totalConsumption > 0) {
-                    tenantPool =
-                        gross
-                        * Math.min(
-                            tenantConsumption,
-                            totalConsumption
-                        )
-                        / totalConsumption;
-                }
-            }
-
-            if (tenantCount === 0) {
-                tenantPool = 0;
-            }
+            const perPerson =
+                allPersons > 0
+                    ? gross
+                      / allPersons
+                    : 0;
 
             tenantPool =
-                Math.min(
-                    gross,
-                    tenantPool
-                );
+                perPerson
+                * tenantCount;
 
             householdPool =
                 gross
@@ -698,16 +664,12 @@
 
             if (previewHouseholdNote) {
                 previewHouseholdNote.textContent =
-                    householdCount > 0
-                        ? `${householdCount} domowników · średnio ${money(householdPool / householdCount)} / os. (informacyjnie)`
-                        : "brak domowników";
+                    `${householdCount} osób × ${money(perPerson)}`;
             }
 
             if (previewTenantNote) {
                 previewTenantNote.textContent =
-                    tenantCount > 0
-                        ? `${tenantCount} osób lokatorów`
-                        : "brak lokatorów w okresie FV";
+                    `${tenantCount} osób × ${money(perPerson)} · należność powstanie dopiero po pełnym opłaceniu FV`;
             }
         }
 
@@ -1177,7 +1139,7 @@
 
             const confirmText =
                 currentMedium === "Water"
-                    ? `Zarejestrować całą FV za wodę ${money(gross)}? Rozliczenie lokatorów NIE zostanie jeszcze utworzone. Najpierw dom musi opłacić 100% FV w Finansach domowych.`
+                    ? `Zarejestrować całą FV za wodę ${money(gross)} i wyliczyć udział według liczby osób? Rozliczenie lokatorów NIE zostanie jeszcze utworzone. Najpierw dom musi opłacić 100% FV w Finansach domowych.`
                     : currentMedium === "Waste"
                         ? `Zarejestrować opłatę za odpady ${money(gross)} i podzielić ją przez wszystkie osoby?`
                         : `Zarejestrować FV za gaz ${money(gross)} jako koszt gospodarstwa / Domu 1?`;

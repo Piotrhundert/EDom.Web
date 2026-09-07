@@ -19,21 +19,82 @@
         TenantSettlementStatuses.PaidLate => "Opłacone po terminie",
         _ => status
     };
-    string LinePl(string type) => type switch
+    string LinePl(string type, string? sourceType)
     {
-        TenantSettlementLineTypes.Rent => "Czynsz",
-        TenantSettlementLineTypes.Electricity => "Prąd",
-        TenantSettlementLineTypes.Water => "Woda / ścieki",
-        TenantSettlementLineTypes.Gas => "Gaz",
-        TenantSettlementLineTypes.Waste => "Odpady",
-        TenantSettlementLineTypes.Pellet => "Pellet / ogrzewanie",
-        TenantSettlementLineTypes.Asset => "Sprzęt",
-        TenantSettlementLineTypes.Repair => "Naprawa",
-        TenantSettlementLineTypes.LateFee => "Opłata za opóźnienie",
-        TenantSettlementLineTypes.Correction => "Korekta",
-        TenantSettlementLineTypes.Adjustment => "Inna pozycja",
-        _ => type
-    };
+        var source = sourceType ?? "";
+
+        if (source.StartsWith("SubmeterElectricityDistribution", StringComparison.OrdinalIgnoreCase))
+            return "Przesył / dystrybucja prądu";
+        if (source.StartsWith("SubmeterElectricityEnergy", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(source, "SubmeterElectricity", StringComparison.OrdinalIgnoreCase))
+            return "Prąd — podlicznik";
+        if (string.Equals(source, "WaterInvoice", StringComparison.OrdinalIgnoreCase))
+            return "Woda / ścieki";
+        if (string.Equals(source, "WasteInvoice", StringComparison.OrdinalIgnoreCase))
+            return "Śmieci / odpady";
+
+        return type switch
+        {
+            TenantSettlementLineTypes.Rent => "Czynsz",
+            TenantSettlementLineTypes.Electricity => "Prąd",
+            TenantSettlementLineTypes.Water => "Woda / ścieki",
+            TenantSettlementLineTypes.Gas => "Gaz",
+            TenantSettlementLineTypes.Waste => "Śmieci / odpady",
+            TenantSettlementLineTypes.Pellet => "Pellet / ogrzewanie",
+            TenantSettlementLineTypes.Asset => "Sprzęt",
+            TenantSettlementLineTypes.Repair => "Naprawa",
+            TenantSettlementLineTypes.LateFee => "Opłata za opóźnienie",
+            TenantSettlementLineTypes.Correction => "Korekta",
+            TenantSettlementLineTypes.Adjustment => "Inna pozycja",
+            _ => type
+        };
+    }
+
+    string SourcePl(string? sourceType)
+    {
+        var source = sourceType ?? "";
+
+        if (source.StartsWith("SubmeterElectricityEnergy:", StringComparison.OrdinalIgnoreCase)
+            || source.StartsWith("SubmeterElectricityDistribution:", StringComparison.OrdinalIgnoreCase))
+        {
+            var separator = source.IndexOf(':');
+            return separator >= 0 && separator + 1 < source.Length
+                ? source[(separator + 1)..]
+                : "Podlicznik pokoju";
+        }
+
+        if (string.Equals(source, "SubmeterElectricity", StringComparison.OrdinalIgnoreCase))
+            return "Podlicznik pokoju";
+        if (string.Equals(source, "WaterInvoice", StringComparison.OrdinalIgnoreCase))
+            return "FV za wodę · po pełnym opłaceniu";
+        if (string.Equals(source, "WasteInvoice", StringComparison.OrdinalIgnoreCase))
+            return "Opłata za odpady · wg osób";
+
+        return string.IsNullOrWhiteSpace(source) ? "—" : source;
+    }
+
+    bool ShowSettlementLine(string lineType, string? sourceType)
+    {
+        var source = sourceType ?? "";
+
+        // PKG-015q-FEAT-04-FIX-01:
+        // techniczne wiersze pozostają w bazie, żeby bazowy mechanizm
+        // przebudowy rozliczenia mógł z nich korzystać. W UI pokazujemy
+        // wyłącznie pozycje, które faktycznie obciążają lokatora.
+        if (string.Equals(lineType, TenantSettlementLineTypes.Gas, StringComparison.OrdinalIgnoreCase))
+            return false;
+        if (string.Equals(lineType, TenantSettlementLineTypes.Water, StringComparison.OrdinalIgnoreCase))
+            return false;
+        if (string.Equals(lineType, TenantSettlementLineTypes.Waste, StringComparison.OrdinalIgnoreCase))
+            return false;
+        if (string.Equals(lineType, TenantSettlementLineTypes.Electricity, StringComparison.OrdinalIgnoreCase))
+        {
+            return source.Contains("Submeter", StringComparison.OrdinalIgnoreCase)
+                || source.Contains("MeterReading", StringComparison.OrdinalIgnoreCase);
+        }
+
+        return true;
+    }
 }
 
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
@@ -105,9 +166,9 @@
             </div>
 
             <div class="table-responsive mb-3"><table class="table table-sm align-middle"><thead><tr><th>Pozycja</th><th>Źródło</th><th>Status danych</th><th class="text-end">Kwota</th></tr></thead><tbody>
-            @foreach(var line in s.Lines)
+            @foreach(var line in s.Lines.Where(line => ShowSettlementLine(line.LineType, line.SourceType)))
             {
-                <tr><td>@LinePl(line.LineType)</td><td><small>@line.SourceType</small></td><td>@(line.Status == TenantSettlementLineStatuses.AwaitingData ? "Brak danych" : "Gotowe")</td><td class="text-end">@Money(line.AmountMinor,line.CurrencyCode)</td></tr>
+                <tr><td>@LinePl(line.LineType, line.SourceType)</td><td><small>@SourcePl(line.SourceType)</small></td><td>@(line.Status == TenantSettlementLineStatuses.AwaitingData ? "Brak danych" : "Gotowe")</td><td class="text-end">@Money(line.AmountMinor,line.CurrencyCode)</td></tr>
             }
             <tr class="table-light"><td colspan="3"><strong>Razem do rozliczenia</strong></td><td class="text-end"><strong>@Money(s.TotalDueMinor,s.CurrencyCode)</strong></td></tr>
             </tbody></table></div>

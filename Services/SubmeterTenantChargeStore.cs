@@ -54,7 +54,21 @@ public sealed class SubmeterTenantChargeStore
         try
         {
             var all = await LoadUnsafeAsync(cancellationToken);
-            all.Add(record);
+
+            var existingIndex = all.FindIndex(x =>
+                x.HouseholdId == record.HouseholdId
+                && x.MeterId == record.MeterId
+                && x.CurrentReadingId == record.CurrentReadingId);
+
+            if (existingIndex >= 0)
+            {
+                all[existingIndex] = record;
+            }
+            else
+            {
+                all.Add(record);
+            }
+
             await SaveUnsafeAsync(all, cancellationToken);
         }
         finally

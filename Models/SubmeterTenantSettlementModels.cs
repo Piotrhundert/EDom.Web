@@ -31,8 +31,11 @@ public sealed class SubmeterTenantChargeRecord
     public decimal Consumption { get; set; }
     public decimal RatePerUnit { get; set; }
     public long AmountMinor { get; set; }
+    public decimal DistributionRatePerUnit { get; set; }
+    public long DistributionAmountMinor { get; set; }
     public string CurrencyCode { get; set; } = "PLN";
     public string RateSource { get; set; } = "Manual";
+    public string DistributionRateSource { get; set; } = "Manual";
     public DateTime CreatedAtUtc { get; set; }
     public Guid CreatedByUserAccountId { get; set; }
 }

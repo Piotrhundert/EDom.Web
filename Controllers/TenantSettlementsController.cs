@@ -6,6 +6,7 @@ using EDom.Domain.Authorization;
 using EDom.Infrastructure.Persistence;
 using EDom.Web.Authorization;
 using EDom.Web.Infrastructure;
+using EDom.Web.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -18,6 +19,8 @@ public sealed class TenantSettlementsController(
     WebAccessService access,
     ITenantSettlementService settlementService,
     ICollaborationService collaborationService,
+    TenantSubmeterAutoSyncService submeterAutoSync,
+    TenantWaterLegacyRepairService waterLegacyRepair,
     EDomDbContext db) : Controller
 {
     [HttpGet("")]
@@ -54,7 +57,7 @@ public sealed class TenantSettlementsController(
                 }
 
                 changed |=
-                    await RemoveInvoiceElectricityFromTenantSettlementAsync(
+                    await NormalizeTenantSettlementDraftAsync(
                         settlement.Id,
                         cancellationToken);
             }
@@ -75,12 +78,40 @@ public sealed class TenantSettlementsController(
     public Task<IActionResult> Build(Guid leaseContractId, string periodKey, CancellationToken cancellationToken)
         => ExecuteAsync(async actor =>
         {
-            await settlementService.BuildDraftAsync(
-                actor,
-                new(
-                    leaseContractId,
-                    periodKey),
-                cancellationToken);
+            // PKG-015q-FEAT-04-FIX-01
+            // W FEAT-04 techniczne placeholdery mediów były usuwane z bazy.
+            // Dla istniejącego projektu mogło to wejść w konflikt z mechanizmem
+            // przebudowy źródłowej i kończyć się komunikatem:
+            // „Niedozwolony typ ręcznej pozycji rozliczenia.”
+            //
+            // Najpierw próbujemy standardowej przebudowy. Jeżeli stary projekt
+            // zawiera już poprawne ręczne pozycje FEAT-02/03/04 i serwis odrzuci
+            // ponowną przebudowę, zachowujemy istniejący projekt i wykonujemy
+            // wyłącznie bezpieczną normalizację mediów.
+            var fallbackToExistingDraft = false;
+
+            try
+            {
+                await settlementService.BuildDraftAsync(
+                    actor,
+                    new(
+                        leaseContractId,
+                        periodKey),
+                    cancellationToken);
+            }
+            catch (Exception ex) when
+                (string.Equals(
+                    ex.Message?.Trim(),
+                    "Niedozwolony typ ręcznej pozycji rozliczenia.",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                // PKG-015q-FEAT-04-FIX-04
+                // W starszej warstwie Application ten sam komunikat może być
+                // zgłoszony jako inny typ wyjątku niż InvalidOperationException.
+                // Dla istniejącego projektu zachowujemy pozycje i wykonujemy
+                // wyłącznie synchronizację/normalizację.
+                fallbackToExistingDraft = true;
+            }
 
             var overview =
                 await settlementService.GetOverviewAsync(
@@ -95,20 +126,110 @@ public sealed class TenantSettlementsController(
                         periodKey,
                         StringComparison.OrdinalIgnoreCase));
 
-            var removedInvoiceElectricity = false;
+            if (settlement is null && fallbackToExistingDraft)
+            {
+                throw new InvalidOperationException(
+                    "Nie udało się utworzyć nowego rozliczenia. Błąd typu ręcznej pozycji wystąpił przed zapisaniem projektu.");
+            }
+
+            var normalizedSettlement = false;
+            var submeterSync = SubmeterAutoSyncResult.Empty;
+            var waterRepair = WaterLegacyRepairResult.Empty;
 
             if (settlement is not null
                 && IsEditableSettlementStatus(
                     settlement.Status))
             {
-                removedInvoiceElectricity =
-                    await RemoveInvoiceElectricityFromTenantSettlementAsync(
+                // PKG-015q-FEAT-04-FIX-05
+                // Starsze FEAT-02 potrafiło utworzyć WaterInvoice tylko dla
+                // jednego lokatora i według WaterByConsumption. Jeżeli FV jest
+                // w 100% opłacona przez dom, przebuduj taki historyczny podział
+                // na WaterByPersons dla wszystkich lokatorów obejmujących okres.
+                waterRepair = await waterLegacyRepair.RepairAsync(
+                    actor.HouseholdId,
+                    periodKey,
+                    cancellationToken);
+
+                // PKG-015q-FEAT-04-FIX-03/05
+                // Po kliknięciu „Przelicz projekt” aplikacja sama pobiera
+                // zużycie z podlicznika przypisanego do pokoju tej umowy.
+                // FIX-05 dodatkowo usuwa duplikat starej pozycji
+                // SubmeterElectricity, gdy istnieje już nowa pozycja Energy.
+                submeterSync = await submeterAutoSync.SyncAsync(
+                    actor,
+                    settlement.Id,
+                    leaseContractId,
+                    periodKey,
+                    cancellationToken);
+
+                normalizedSettlement =
+                    await NormalizeTenantSettlementDraftAsync(
                         settlement.Id,
                         cancellationToken);
             }
 
-            return removedInvoiceElectricity
-                ? "Przeliczono projekt. Usunięto koszt prądu pochodzący z pełnej FV — prąd lokatora jest liczony wyłącznie z podlicznika."
+            if (fallbackToExistingDraft)
+            {
+                if (waterRepair.ChangedLines > 0 && submeterSync.AddedLines == 0)
+                {
+                    return $"Istniejący projekt został zachowany. Naprawiono rozliczenie wody według liczby osób ({waterRepair.ChangedLines} poz.) i usunięto stare naliczenie WaterByConsumption.";
+                }
+
+                if (submeterSync.AddedLines > 0 && submeterSync.MissingDistributionRate)
+                {
+                    return $"Istniejący projekt został zachowany. Dodano energię z podlicznika ({submeterSync.AddedEnergyLines} poz.), ale brakuje stawki przesyłu / dystrybucji za kWh.";
+                }
+
+                if (submeterSync.AddedLines > 0)
+                {
+                    return $"Istniejący projekt został zachowany. Automatycznie dopisano z podlicznika: energia {submeterSync.AddedEnergyLines}, przesył {submeterSync.AddedDistributionLines}.";
+                }
+
+                if (submeterSync.WaitingForNextReading)
+                {
+                    return "Istniejący projekt został zachowany. Podlicznik ma odczyt początkowy tej umowy, ale potrzebny jest kolejny zatwierdzony odczyt z większym stanem.";
+                }
+
+                return "Istniejący projekt rozliczenia został zachowany i uporządkowany. Nie utworzono duplikatu; media lokatora pozostają rozliczane według zasad FEAT-04.";
+            }
+
+            if (waterRepair.ChangedLines > 0 && submeterSync.AddedLines == 0)
+            {
+                return $"Przeliczono projekt. Wodę rozdzielono ponownie według liczby osób dla wszystkich lokatorów ({waterRepair.ChangedLines} poz.).";
+            }
+
+            if (submeterSync.AddedLines > 0 && submeterSync.MissingDistributionRate)
+            {
+                return $"Przeliczono projekt. Dodano energię z podlicznika ({submeterSync.AddedEnergyLines} poz.), ale brakuje stawki przesyłu / dystrybucji za kWh w taryfie licznika głównego.";
+            }
+
+            if (submeterSync.AddedLines > 0 && submeterSync.MissingEnergyRate)
+            {
+                return $"Przeliczono projekt. Dodano przesył ({submeterSync.AddedDistributionLines} poz.), ale brakuje stawki energii za kWh w taryfie licznika głównego.";
+            }
+
+            if (submeterSync.AddedLines > 0)
+            {
+                return $"Przeliczono projekt. Automatycznie pobrano prąd z podlicznika pokoju: energia {submeterSync.AddedEnergyLines}, przesył {submeterSync.AddedDistributionLines}.";
+            }
+
+            if (submeterSync.ConsumptionIntervals > 0 && submeterSync.MissingEnergyRate)
+            {
+                return "Przeliczono projekt. Znaleziono zużycie podlicznika, ale brakuje aktywnej stawki energii za kWh w taryfie licznika głównego.";
+            }
+
+            if (submeterSync.ConsumptionIntervals > 0 && submeterSync.MissingDistributionRate)
+            {
+                return "Przeliczono projekt. Znaleziono zużycie podlicznika, ale brakuje stawki przesyłu / dystrybucji za kWh w taryfie licznika głównego.";
+            }
+
+            if (submeterSync.WaitingForNextReading)
+            {
+                return "Przeliczono projekt. Podlicznik ma już odczyt początkowy dla tej umowy, ale potrzebny jest kolejny zatwierdzony odczyt z większym stanem. Sam stan początkowy nie tworzy opłaty za prąd.";
+            }
+
+            return normalizedSettlement
+                ? "Przeliczono projekt. Uporządkowano media lokatora: prąd tylko z podlicznika, bez gazu, a woda i odpady wyłącznie z właściwych rozliczeń FV."
                 : "Przeliczono projekt miesięcznego rozliczenia lokatora.";
         }, cancellationToken);
 
@@ -444,7 +565,7 @@ public sealed class TenantSettlementsController(
             or "AwaitingData"
             or "ReadyForApproval";
 
-    private async Task<bool> RemoveInvoiceElectricityFromTenantSettlementAsync(
+    private async Task<bool> NormalizeTenantSettlementDraftAsync(
         Guid settlementId,
         CancellationToken cancellationToken)
     {
@@ -481,49 +602,54 @@ public sealed class TenantSettlementsController(
             var settlementIdValue =
                 settlementId.ToString("D");
 
-            int removed;
+            int normalizedTechnicalLines;
 
-            await using (var delete =
+            await using (var normalizeLines =
                          connection.CreateCommand())
             {
-                delete.Transaction =
+                normalizeLines.Transaction =
                     transaction;
 
-                // Zasada e-dom:
-                // LineType=Electricity może zostać w rozliczeniu lokatora
-                // tylko wtedy, gdy jego źródłem jest podlicznik / wyliczenie
-                // z odczytów licznika.
-                //
-                // Pełna FV operatora i alokacja całej FV są usuwane z draftu.
-                delete.CommandText =
+                // PKG-015q-FEAT-04-FIX-01
+                // Nie usuwamy już systemowych placeholderów mediów. Serwis bazowy
+                // wykorzystuje je przy ponownej przebudowie projektu. Zamiast DELETE
+                // neutralizujemy ich wpływ na rozliczenie i status danych:
+                // - prąd operatora nie obciąża lokatora (liczy się podlicznik),
+                // - gaz nie dotyczy Domu 2,
+                // - systemowe Water/Waste nie są źródłem obciążenia; właściwe pozycje
+                //   trafiają jako Adjustment z SourceType WaterInvoice/WasteInvoice.
+                normalizeLines.CommandText =
                     """
-                    DELETE FROM "TenantSettlementLines"
-                    WHERE "TenantSettlementId" = $settlementId
-                      AND "LineType" = 'Electricity'
-                      AND NOT (
-                            COALESCE("SourceType",'') LIKE '%Submeter%'
-                         OR COALESCE("SourceType",'') LIKE '%MeterReading%'
-                         OR COALESCE("SourceType",'') LIKE '%Calculation%'
-                         OR COALESCE("CalculationSnapshotJson",'') LIKE '%Submeter%'
+                    UPDATE "TenantSettlementLines"
+                    SET "AmountMinor" = 0,
+                        "Status" = 'Ready'
+                    WHERE LOWER("TenantSettlementId") = LOWER($settlementId)
+                      AND (
+                            (
+                                "LineType" = 'Electricity'
+                                AND NOT (
+                                       COALESCE("SourceType",'') LIKE '%Submeter%'
+                                    OR COALESCE("SourceType",'') LIKE '%MeterReading%'
+                                    OR COALESCE("SourceType",'') LIKE '%Calculation%'
+                                    OR COALESCE("CalculationSnapshotJson",'') LIKE '%Submeter%'
+                                )
+                            )
+                         OR "LineType" IN ('Water','Waste','Gas')
+                      )
+                      AND (
+                            COALESCE("AmountMinor", 0) <> 0
+                         OR COALESCE("Status", '') <> 'Ready'
                       );
                     """;
 
                 AddParameter(
-                    delete,
+                    normalizeLines,
                     "$settlementId",
                     settlementIdValue);
 
-                removed =
-                    await delete.ExecuteNonQueryAsync(
+                normalizedTechnicalLines =
+                    await normalizeLines.ExecuteNonQueryAsync(
                         cancellationToken);
-            }
-
-            if (removed <= 0)
-            {
-                await transaction.CommitAsync(
-                    cancellationToken);
-
-                return false;
             }
 
             long currentPeriodMinor;
@@ -538,7 +664,7 @@ public sealed class TenantSettlementsController(
                     """
                     SELECT COALESCE(SUM("AmountMinor"), 0)
                     FROM "TenantSettlementLines"
-                    WHERE "TenantSettlementId" = $settlementId;
+                    WHERE LOWER("TenantSettlementId") = LOWER($settlementId);
                     """;
 
                 AddParameter(
@@ -554,35 +680,63 @@ public sealed class TenantSettlementsController(
             }
 
             long previousBalanceMinor;
+            long existingCurrentPeriodMinor;
+            long existingTotalDueMinor;
+            string existingStatus;
 
-            await using (var previous =
+            await using (var settlement =
                          connection.CreateCommand())
             {
-                previous.Transaction =
+                settlement.Transaction =
                     transaction;
 
-                previous.CommandText =
+                settlement.CommandText =
                     """
-                    SELECT COALESCE("PreviousBalanceMinor", 0)
+                    SELECT
+                        COALESCE("PreviousBalanceMinor", 0),
+                        COALESCE("CurrentPeriodMinor", 0),
+                        COALESCE("TotalDueMinor", 0),
+                        COALESCE("Status", '')
                     FROM "TenantSettlements"
-                    WHERE "Id" = $settlementId
+                    WHERE LOWER("Id") = LOWER($settlementId)
                     LIMIT 1;
                     """;
 
                 AddParameter(
-                    previous,
+                    settlement,
                     "$settlementId",
                     settlementIdValue);
 
+                await using var reader =
+                    await settlement.ExecuteReaderAsync(
+                        cancellationToken);
+
+                if (!await reader.ReadAsync(
+                        cancellationToken))
+                {
+                    await transaction.RollbackAsync(
+                        cancellationToken);
+
+                    return false;
+                }
+
                 previousBalanceMinor =
-                    Convert.ToInt64(
-                        await previous.ExecuteScalarAsync(
-                            cancellationToken)
-                        ?? 0L);
+                    Convert.ToInt64(reader.GetValue(0));
+
+                existingCurrentPeriodMinor =
+                    Convert.ToInt64(reader.GetValue(1));
+
+                existingTotalDueMinor =
+                    Convert.ToInt64(reader.GetValue(2));
+
+                existingStatus =
+                    reader.GetValue(3)?.ToString()
+                    ?? "";
             }
 
-            // Sprawdzamy, czy po usunięciu błędnej FV pozostał prawidłowy
-            // koszt prądu z podlicznika.
+            // Prawidłowe źródło energii: historyczny SubmeterElectricity
+            // albo nowy SubmeterElectricityEnergy. Sama linia przesyłu nie
+            // zastępuje kosztu energii z podlicznika.
             long validElectricityCount;
 
             await using (var valid =
@@ -595,15 +749,15 @@ public sealed class TenantSettlementsController(
                     """
                     SELECT COUNT(1)
                     FROM "TenantSettlementLines"
-                    WHERE "TenantSettlementId" = $settlementId
+                    WHERE LOWER("TenantSettlementId") = LOWER($settlementId)
                       AND (
-                            COALESCE("SourceType",'') LIKE '%SubmeterElectricity%'
+                            COALESCE("SourceType",'') = 'SubmeterElectricity'
+                         OR COALESCE("SourceType",'') LIKE 'SubmeterElectricityEnergy%'
                          OR (
                                 "LineType" = 'Electricity'
                             AND (
                                    COALESCE("SourceType",'') LIKE '%Submeter%'
                                 OR COALESCE("SourceType",'') LIKE '%MeterReading%'
-                                OR COALESCE("SourceType",'') LIKE '%Calculation%'
                                 OR COALESCE("CalculationSnapshotJson",'') LIKE '%Submeter%'
                             )
                          )
@@ -622,9 +776,104 @@ public sealed class TenantSettlementsController(
                         ?? 0L);
             }
 
-            await using (var update =
+            long validDistributionCount;
+
+            await using (var distribution =
                          connection.CreateCommand())
             {
+                distribution.Transaction =
+                    transaction;
+
+                distribution.CommandText =
+                    """
+                    SELECT COUNT(1)
+                    FROM "TenantSettlementLines"
+                    WHERE LOWER("TenantSettlementId") = LOWER($settlementId)
+                      AND LOWER(COALESCE("SourceType",'')) LIKE 'submeterelectricitydistribution%';
+                    """;
+
+                AddParameter(
+                    distribution,
+                    "$settlementId",
+                    settlementIdValue);
+
+                validDistributionCount =
+                    Convert.ToInt64(
+                        await distribution.ExecuteScalarAsync(
+                            cancellationToken)
+                        ?? 0L);
+            }
+
+            long remainingAwaitingDataCount;
+
+            await using (var awaiting =
+                         connection.CreateCommand())
+            {
+                awaiting.Transaction =
+                    transaction;
+
+                awaiting.CommandText =
+                    """
+                    SELECT COUNT(1)
+                    FROM "TenantSettlementLines"
+                    WHERE LOWER("TenantSettlementId") = LOWER($settlementId)
+                      AND "Status" = 'AwaitingData';
+                    """;
+
+                AddParameter(
+                    awaiting,
+                    "$settlementId",
+                    settlementIdValue);
+
+                remainingAwaitingDataCount =
+                    Convert.ToInt64(
+                        await awaiting.ExecuteScalarAsync(
+                            cancellationToken)
+                        ?? 0L);
+            }
+
+            var desiredStatus =
+                existingStatus;
+
+            if (IsEditableSettlementStatus(
+                    existingStatus))
+            {
+                if (validElectricityCount == 0
+                    || validDistributionCount == 0)
+                {
+                    desiredStatus =
+                        "AwaitingData";
+                }
+                else if (string.Equals(
+                             existingStatus,
+                             "AwaitingData",
+                             StringComparison.OrdinalIgnoreCase)
+                         && remainingAwaitingDataCount == 0)
+                {
+                    desiredStatus =
+                        "ReadyForApproval";
+                }
+            }
+
+            var totalDueMinor =
+                checked(
+                    currentPeriodMinor
+                    + previousBalanceMinor);
+
+            var needsUpdate =
+                normalizedTechnicalLines > 0
+                || existingCurrentPeriodMinor != currentPeriodMinor
+                || existingTotalDueMinor != totalDueMinor
+                || !string.Equals(
+                    existingStatus,
+                    desiredStatus,
+                    StringComparison.OrdinalIgnoreCase);
+
+            if (needsUpdate)
+            {
+                await using var update =
+                    connection.CreateCommand();
+
                 update.Transaction =
                     transaction;
 
@@ -641,22 +890,14 @@ public sealed class TenantSettlementsController(
                         ? """, "Version" = "Version" + 1"""
                         : "";
 
-                // Jeżeli pełna FV była jedynym "źródłem prądu", projekt
-                // wraca do AwaitingData. Po wygenerowaniu podlicznika można
-                // go ponownie przeliczyć / zatwierdzić.
                 update.CommandText =
                     $"""
                     UPDATE "TenantSettlements"
                     SET "CurrentPeriodMinor" = $current,
                         "TotalDueMinor" = $total,
-                        "Status" = CASE
-                            WHEN $validElectricityCount = 0
-                                 AND "Status" IN ('Draft','ReadyForApproval')
-                            THEN 'AwaitingData'
-                            ELSE "Status"
-                        END
+                        "Status" = $status
                         {setVersion}
-                    WHERE "Id" = $settlementId;
+                    WHERE LOWER("Id") = LOWER($settlementId);
                     """;
 
                 AddParameter(
@@ -667,14 +908,12 @@ public sealed class TenantSettlementsController(
                 AddParameter(
                     update,
                     "$total",
-                    checked(
-                        currentPeriodMinor
-                        + previousBalanceMinor));
+                    totalDueMinor);
 
                 AddParameter(
                     update,
-                    "$validElectricityCount",
-                    validElectricityCount);
+                    "$status",
+                    desiredStatus);
 
                 AddParameter(
                     update,
@@ -688,7 +927,7 @@ public sealed class TenantSettlementsController(
             await transaction.CommitAsync(
                 cancellationToken);
 
-            return true;
+            return needsUpdate;
         }
         catch
         {
@@ -719,6 +958,14 @@ public sealed class TenantSettlementsController(
                 "CalculationSnapshotJson",
                 cancellationToken);
 
+        var lineStatus =
+            await TableHasColumnAsync(
+                connection,
+                transaction,
+                "TenantSettlementLines",
+                "Status",
+                cancellationToken);
+
         var settlements =
             await TableHasColumnAsync(
                 connection,
@@ -728,6 +975,7 @@ public sealed class TenantSettlementsController(
                 cancellationToken);
 
         return lines
+               && lineStatus
                && settlements;
     }
 

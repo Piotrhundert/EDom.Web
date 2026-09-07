@@ -43,6 +43,8 @@ builder.Services.AddEDomAuthorization();
 builder.Services.AddEDomPlatformFoundation();
 builder.Services.AddScoped<WebAccessService>();
 builder.Services.AddScoped<FinanceReminderService>();
+builder.Services.AddScoped<TenantSubmeterAutoSyncService>();
+builder.Services.AddScoped<TenantWaterLegacyRepairService>();
 builder.Services.AddHostedService<FinancialReminderWorker>();
 
 builder.Services

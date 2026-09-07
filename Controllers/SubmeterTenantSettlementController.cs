@@ -29,6 +29,8 @@ public sealed class SubmeterTenantSettlementController(
     IAntiforgery antiforgery,
     IWebHostEnvironment environment) : Controller
 {
+    private const string PackageVersion = "PKG-015q-FEAT-04-FIX-04";
+
     [HttpGet("Data")]
     public async Task<IActionResult> Data(
         CancellationToken cancellationToken)
@@ -115,6 +117,17 @@ public sealed class SubmeterTenantSettlementController(
                 room.Name,
                 generated);
 
+            // PKG-015q-FEAT-04: rozliczenie lokatora z podlicznika dotyczy
+            // wyłącznie energii elektrycznej. Woda jest rozliczana z FV
+            // po jej pełnym opłaceniu przez dom i dzielona według osób.
+            if (!string.Equals(
+                    snapshot.Medium,
+                    "Electricity",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
             result.Add(new
             {
                 meterId = snapshot.MeterId,
@@ -138,8 +151,16 @@ public sealed class SubmeterTenantSettlementController(
                 parentMeterName = snapshot.ParentMeterName,
                 recommendedRatePerUnit = snapshot.RecommendedRatePerUnit,
                 rateSource = snapshot.RateSource,
+                recommendedDistributionRatePerUnit = snapshot.RecommendedDistributionRatePerUnit,
+                distributionRateSource = snapshot.DistributionRateSource,
                 alreadyGenerated = snapshot.AlreadyGenerated,
+                energyAlreadyGenerated = snapshot.AlreadyGenerated,
+                distributionAlreadyGenerated = snapshot.GeneratedDistributionAmountMinor > 0,
+                generatedRatePerUnit = snapshot.GeneratedRatePerUnit,
                 generatedAmountMinor = snapshot.GeneratedAmountMinor,
+                generatedDistributionRatePerUnit = snapshot.GeneratedDistributionRatePerUnit,
+                generatedDistributionAmountMinor = snapshot.GeneratedDistributionAmountMinor,
+                generatedTotalAmountMinor = checked(snapshot.GeneratedAmountMinor + snapshot.GeneratedDistributionAmountMinor),
                 canGenerate = snapshot.CanGenerate,
                 blockReason = snapshot.BlockReason
             });
@@ -164,6 +185,7 @@ public sealed class SubmeterTenantSettlementController(
         Guid currentReadingId,
         string periodKey,
         string ratePerUnit,
+        string distributionRatePerUnit,
         CancellationToken cancellationToken)
     {
         var current = await access.GetCurrentAsync(cancellationToken);
@@ -180,8 +202,21 @@ public sealed class SubmeterTenantSettlementController(
             return BadRequest(new
             {
                 message =
-                    $"Nie udało się odczytać stawki „{ratePerUnit}”. " +
+                    $"Nie udało się odczytać stawki energii „{ratePerUnit}”. " +
                     "Podaj liczbę większą od 0, np. 1,15 lub 1.15."
+            });
+        }
+
+        if (!TryParseFlexibleDecimal(
+                distributionRatePerUnit,
+                out var parsedDistributionRatePerUnit)
+            || parsedDistributionRatePerUnit <= 0m)
+        {
+            return BadRequest(new
+            {
+                message =
+                    $"Nie udało się odczytać stawki przesyłu „{distributionRatePerUnit}”. " +
+                    "Podaj liczbę większą od 0, np. 0,42 lub 0.42."
             });
         }
 
@@ -256,6 +291,18 @@ public sealed class SubmeterTenantSettlementController(
             });
         }
 
+        if (!string.Equals(
+                GetString(meter, "Medium"),
+                "Electricity",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return BadRequest(new
+            {
+                message =
+                    "PKG-015q-FEAT-04: podlicznik lokatora służy tutaj wyłącznie do rozliczenia prądu. Woda jest dzielona według liczby osób po opłaceniu FV."
+            });
+        }
+
         var roomId = GetGuid(meter, "LocationId");
 
         if (roomId == Guid.Empty
@@ -299,15 +346,6 @@ public sealed class SubmeterTenantSettlementController(
             {
                 message =
                     "Od czasu otwarcia formularza pojawił się nowszy zatwierdzony odczyt. Odśwież stronę i wykonaj wyliczenie ponownie."
-            });
-        }
-
-        if (snapshot.AlreadyGenerated)
-        {
-            return BadRequest(new
-            {
-                message =
-                    "Ten odczyt podlicznika został już dodany do rozliczenia lokatora. Nie utworzono duplikatu."
             });
         }
 
@@ -381,157 +419,232 @@ public sealed class SubmeterTenantSettlementController(
                 "CurrencyCode",
                 "PLN");
 
-        var amountMinor =
-            checked(
-                (long)Math.Round(
-                    snapshot.Consumption
-                    * parsedRatePerUnit
-                    * 100m,
-                    0,
-                    MidpointRounding.AwayFromZero));
+        var existingCharge = generated.FirstOrDefault(x =>
+            x.MeterId == snapshot.MeterId
+            && x.CurrentReadingId == snapshot.CurrentReadingId);
 
-        if (amountMinor <= 0)
+        var energyAmountMinor =
+            existingCharge?.AmountMinor > 0
+                ? existingCharge.AmountMinor
+                : checked(
+                    (long)Math.Round(
+                        snapshot.Consumption
+                        * parsedRatePerUnit
+                        * 100m,
+                        0,
+                        MidpointRounding.AwayFromZero));
+
+        var distributionAmountMinor =
+            existingCharge?.DistributionAmountMinor > 0
+                ? existingCharge.DistributionAmountMinor
+                : checked(
+                    (long)Math.Round(
+                        snapshot.Consumption
+                        * parsedDistributionRatePerUnit
+                        * 100m,
+                        0,
+                        MidpointRounding.AwayFromZero));
+
+        if (energyAmountMinor <= 0
+            || distributionAmountMinor <= 0)
         {
             return BadRequest(new
             {
                 message =
-                    "Wyliczona kwota wynosi 0. Sprawdź odczyty i stawkę."
+                    "Wyliczona kwota energii lub przesyłu wynosi 0. Sprawdź odczyty i obie stawki."
             });
         }
 
-        // AddManualLineAsync celowo dopuszcza tylko ręczne typy:
-        // Asset, Repair, Adjustment i Correction.
-        // Media (Electricity/Water/Gas) są typami systemowymi budowanymi
-        // z właściwych źródeł i nie mogą być podszywane ręcznym wpisem.
-        // Podlicznik zapisujemy więc jako Adjustment, a pełną semantykę
-        // medium zachowujemy w SourceType oraz SnapshotJson.
+        // AddManualLineAsync dopuszcza ręczne typy techniczne, dlatego
+        // obie pozycje zapisujemy jako Adjustment, a znaczenie zachowujemy
+        // w SourceType i audycie. W rozliczeniu są pokazywane jako osobne
+        // pozycje: energia z podlicznika oraz przesył/dystrybucja.
         const string lineType = "Adjustment";
 
-        var sourceType =
-            snapshot.Medium switch
-            {
-                "Electricity" => "SubmeterElectricity",
-                "Water" => "SubmeterWater",
-                "Gas" => "SubmeterGas",
-                _ => "SubmeterReading"
-            };
+        var energySourceType =
+            $"SubmeterElectricityEnergy:{snapshot.MeterName}";
 
-        var audit = JsonSerializer.Serialize(new
-        {
-            source = "SubmeterReading",
-            sourceType,
-            settlementLineType = lineType,
-            medium = snapshot.Medium,
-            displayLabel = snapshot.Medium switch
-            {
-                "Electricity" => "Prąd — podlicznik",
-                "Water" => "Woda — podlicznik",
-                "Gas" => "Gaz — podlicznik",
-                _ => "Media — podlicznik"
-            },
-            meterId = snapshot.MeterId,
-            meterName = snapshot.MeterName,
-            roomId = snapshot.RoomId,
-            roomName = snapshot.RoomName,
-            tenantName = snapshot.TenantName,
-            leaseContractId = snapshot.LeaseContractId,
-            previousReadingId = snapshot.PreviousReadingId,
-            currentReadingId = snapshot.CurrentReadingId,
-            previousReadingAtUtc = snapshot.PreviousReadingAtUtc,
-            currentReadingAtUtc = snapshot.CurrentReadingAtUtc,
-            zoneCode = snapshot.ZoneCode,
-            previousValue = snapshot.PreviousValue,
-            currentValue = snapshot.CurrentValue,
-            consumption = snapshot.Consumption,
-            unitCode = snapshot.UnitCode,
-            parentMeterId = snapshot.ParentMeterId,
-            parentMeterName = snapshot.ParentMeterName,
-            ratePerUnit = parsedRatePerUnit,
-            rateSource =
-                snapshot.RecommendedRatePerUnit is decimal recommendedRateForAudit
-                && recommendedRateForAudit == parsedRatePerUnit
-                    ? snapshot.RateSource
-                    : "ManualOverride",
-            amountMinor,
-            currencyCode = currency
-        });
+        var distributionSourceType =
+            $"SubmeterElectricityDistribution:{snapshot.MeterName}";
 
-        await settlementService.AddManualLineAsync(
-            rentalActor,
-            new(
+        var energyExists =
+            await TenantElectricityLineExistsAsync(
                 settlementId,
-                lineType,
-                amountMinor,
-                currency,
-                sourceType,
-                null,
-                audit),
-            cancellationToken);
+                snapshot.CurrentReadingId,
+                distribution: false,
+                cancellationToken);
+
+        if (!energyExists)
+        {
+            var energyAudit = JsonSerializer.Serialize(new
+            {
+                source = "SubmeterReading",
+                package = PackageVersion,
+                sourceType = energySourceType,
+                settlementLineType = lineType,
+                medium = "Electricity",
+                component = "Energy",
+                displayLabel = $"Prąd — {snapshot.MeterName}",
+                meterId = snapshot.MeterId,
+                meterName = snapshot.MeterName,
+                roomId = snapshot.RoomId,
+                roomName = snapshot.RoomName,
+                tenantName = snapshot.TenantName,
+                leaseContractId = snapshot.LeaseContractId,
+                previousReadingId = snapshot.PreviousReadingId,
+                currentReadingId = snapshot.CurrentReadingId,
+                previousReadingAtUtc = snapshot.PreviousReadingAtUtc,
+                currentReadingAtUtc = snapshot.CurrentReadingAtUtc,
+                zoneCode = snapshot.ZoneCode,
+                previousValue = snapshot.PreviousValue,
+                currentValue = snapshot.CurrentValue,
+                consumption = snapshot.Consumption,
+                unitCode = snapshot.UnitCode,
+                parentMeterId = snapshot.ParentMeterId,
+                parentMeterName = snapshot.ParentMeterName,
+                ratePerUnit = parsedRatePerUnit,
+                rateSource =
+                    snapshot.RecommendedRatePerUnit is decimal recommendedRateForAudit
+                    && recommendedRateForAudit == parsedRatePerUnit
+                        ? snapshot.RateSource
+                        : "ManualOverride",
+                amountMinor = energyAmountMinor,
+                currencyCode = currency
+            });
+
+            await settlementService.AddManualLineAsync(
+                rentalActor,
+                new(
+                    settlementId,
+                    lineType,
+                    energyAmountMinor,
+                    currency,
+                    energySourceType,
+                    null,
+                    energyAudit),
+                cancellationToken);
+        }
+
+        var distributionExists =
+            await TenantElectricityLineExistsAsync(
+                settlementId,
+                snapshot.CurrentReadingId,
+                distribution: true,
+                cancellationToken);
+
+        if (!distributionExists)
+        {
+            var distributionAudit = JsonSerializer.Serialize(new
+            {
+                source = "SubmeterReading",
+                package = PackageVersion,
+                sourceType = distributionSourceType,
+                settlementLineType = lineType,
+                medium = "Electricity",
+                component = "DistributionVariable",
+                displayLabel = "Przesył / dystrybucja prądu",
+                meterId = snapshot.MeterId,
+                meterName = snapshot.MeterName,
+                roomId = snapshot.RoomId,
+                roomName = snapshot.RoomName,
+                tenantName = snapshot.TenantName,
+                leaseContractId = snapshot.LeaseContractId,
+                previousReadingId = snapshot.PreviousReadingId,
+                currentReadingId = snapshot.CurrentReadingId,
+                previousReadingAtUtc = snapshot.PreviousReadingAtUtc,
+                currentReadingAtUtc = snapshot.CurrentReadingAtUtc,
+                zoneCode = snapshot.ZoneCode,
+                previousValue = snapshot.PreviousValue,
+                currentValue = snapshot.CurrentValue,
+                consumption = snapshot.Consumption,
+                unitCode = snapshot.UnitCode,
+                parentMeterId = snapshot.ParentMeterId,
+                parentMeterName = snapshot.ParentMeterName,
+                ratePerUnit = parsedDistributionRatePerUnit,
+                rateSource =
+                    snapshot.RecommendedDistributionRatePerUnit is decimal recommendedDistributionRateForAudit
+                    && recommendedDistributionRateForAudit == parsedDistributionRatePerUnit
+                        ? snapshot.DistributionRateSource
+                        : "ManualOverride",
+                amountMinor = distributionAmountMinor,
+                currencyCode = currency
+            });
+
+            await settlementService.AddManualLineAsync(
+                rentalActor,
+                new(
+                    settlementId,
+                    lineType,
+                    distributionAmountMinor,
+                    currency,
+                    distributionSourceType,
+                    null,
+                    distributionAudit),
+                cancellationToken);
+        }
 
         await store.AddAsync(
             new SubmeterTenantChargeRecord
             {
-                Id = Guid.NewGuid(),
-                HouseholdId =
-                    current.HouseholdId,
-                MeterId =
-                    snapshot.MeterId,
-                PreviousReadingId =
-                    snapshot.PreviousReadingId,
-                CurrentReadingId =
-                    snapshot.CurrentReadingId,
-                LeaseContractId =
-                    snapshot.LeaseContractId,
-                SettlementId =
-                    settlementId,
-                RoomId =
-                    snapshot.RoomId,
-                RoomName =
-                    snapshot.RoomName,
-                TenantName =
-                    snapshot.TenantName,
-                PeriodKey =
-                    periodKey,
-                Medium =
-                    snapshot.Medium,
-                ZoneCode =
-                    snapshot.ZoneCode,
-                UnitCode =
-                    snapshot.UnitCode,
-                PreviousValue =
-                    snapshot.PreviousValue,
-                CurrentValue =
-                    snapshot.CurrentValue,
-                Consumption =
-                    snapshot.Consumption,
+                Id = existingCharge?.Id ?? Guid.NewGuid(),
+                HouseholdId = current.HouseholdId,
+                MeterId = snapshot.MeterId,
+                PreviousReadingId = snapshot.PreviousReadingId,
+                CurrentReadingId = snapshot.CurrentReadingId,
+                LeaseContractId = snapshot.LeaseContractId,
+                SettlementId = settlementId,
+                RoomId = snapshot.RoomId,
+                RoomName = snapshot.RoomName,
+                TenantName = snapshot.TenantName,
+                PeriodKey = periodKey,
+                Medium = "Electricity",
+                ZoneCode = snapshot.ZoneCode,
+                UnitCode = snapshot.UnitCode,
+                PreviousValue = snapshot.PreviousValue,
+                CurrentValue = snapshot.CurrentValue,
+                Consumption = snapshot.Consumption,
                 RatePerUnit =
-                    parsedRatePerUnit,
-                AmountMinor =
-                    amountMinor,
-                CurrencyCode =
-                    currency,
+                    existingCharge?.RatePerUnit > 0
+                        ? existingCharge.RatePerUnit
+                        : parsedRatePerUnit,
+                AmountMinor = energyAmountMinor,
+                DistributionRatePerUnit =
+                    existingCharge?.DistributionRatePerUnit > 0
+                        ? existingCharge.DistributionRatePerUnit
+                        : parsedDistributionRatePerUnit,
+                DistributionAmountMinor = distributionAmountMinor,
+                CurrencyCode = currency,
                 RateSource =
-                    snapshot.RecommendedRatePerUnit is decimal recommendedRate
-                    && recommendedRate == parsedRatePerUnit
-                        ? snapshot.RateSource
-                        : "ManualOverride",
-                CreatedAtUtc =
-                    DateTime.UtcNow,
-                CreatedByUserAccountId =
-                    current.UserAccountId
+                    existingCharge?.RateSource
+                    ?? (snapshot.RecommendedRatePerUnit is decimal recommendedRate
+                        && recommendedRate == parsedRatePerUnit
+                            ? snapshot.RateSource
+                            : "ManualOverride"),
+                DistributionRateSource =
+                    existingCharge?.DistributionRateSource
+                    ?? (snapshot.RecommendedDistributionRatePerUnit is decimal recommendedDistributionRate
+                        && recommendedDistributionRate == parsedDistributionRatePerUnit
+                            ? snapshot.DistributionRateSource
+                            : "ManualOverride"),
+                CreatedAtUtc = existingCharge?.CreatedAtUtc ?? DateTime.UtcNow,
+                CreatedByUserAccountId = existingCharge?.CreatedByUserAccountId ?? current.UserAccountId
             },
             cancellationToken);
 
         return Json(new
         {
             ok = true,
+            package = PackageVersion,
             settlementId,
-            amountMinor,
+            energyAmountMinor,
+            distributionAmountMinor,
+            totalAmountMinor = checked(energyAmountMinor + distributionAmountMinor),
             currencyCode = currency,
             message =
-                $"Dodano koszt podlicznika ({MediumLabel(snapshot.Medium)}) do rozliczenia {snapshot.TenantName} za {periodKey}: " +
-                $"{snapshot.Consumption:N3} {snapshot.UnitCode} × {parsedRatePerUnit:N4} {currency}/{snapshot.UnitCode} " +
-                $"= {amountMinor / 100m:N2} {currency}."
+                $"Rozliczono prąd {snapshot.TenantName} za {periodKey}: " +
+                $"energia {energyAmountMinor / 100m:N2} {currency} + " +
+                $"przesył {distributionAmountMinor / 100m:N2} {currency} = " +
+                $"{(energyAmountMinor + distributionAmountMinor) / 100m:N2} {currency}."
         });
     }
 
@@ -655,23 +768,30 @@ public sealed class SubmeterTenantSettlementController(
         var readingDate =
             DateOnly.FromDateTime(readingLocal);
 
-        var contract = rental.Contracts
+        var roomContracts = rental.Contracts
             .Where(x =>
                 x.Status == LeaseStatuses.Signed
-                && x.LeaseFrom <= readingDate
-                && (!x.LeaseTo.HasValue
-                    || x.LeaseTo.Value >= readingDate))
-            .FirstOrDefault(x =>
-            {
-                var contractRoomId =
-                    GetGuid(x, "RoomId");
+                && (
+                    GetGuid(x, "RoomId") == roomId
+                    || string.Equals(
+                        x.RoomName,
+                        roomName,
+                        StringComparison.OrdinalIgnoreCase)))
+            .OrderBy(x => x.LeaseFrom)
+            .ToArray();
 
-                return contractRoomId == roomId
-                       || string.Equals(
-                           x.RoomName,
-                           roomName,
-                           StringComparison.OrdinalIgnoreCase);
-            });
+        var contract = roomContracts
+            .FirstOrDefault(x =>
+                x.LeaseFrom <= readingDate
+                && (!x.LeaseTo.HasValue
+                    || x.LeaseTo.Value >= readingDate));
+
+        var nextContract = contract is null
+            ? roomContracts
+                .Where(x => x.LeaseFrom > readingDate)
+                .OrderBy(x => x.LeaseFrom)
+                .FirstOrDefault()
+            : null;
 
         var parentMeterId =
             GetGuid(
@@ -700,12 +820,27 @@ public sealed class SubmeterTenantSettlementController(
                     parentMeter,
                     unitCode,
                     currentValue.ZoneCode,
-                    readingDate);
+                    readingDate,
+                    "Energy");
+
+        var recommendedDistributionRate =
+            parentMeter is null
+                ? null
+                : ResolveMainMeterTariffRate(
+                    utilities,
+                    parentMeter,
+                    unitCode,
+                    currentValue.ZoneCode,
+                    readingDate,
+                    "Distribution");
 
         var alreadyGenerated =
             generated.FirstOrDefault(x =>
                 x.MeterId == meterId
                 && x.CurrentReadingId == currentReading.Id);
+
+        var distributionAlreadyGenerated =
+            alreadyGenerated?.DistributionAmountMinor > 0;
 
         return new SubmeterSnapshot(
             MeterId:
@@ -721,9 +856,13 @@ public sealed class SubmeterTenantSettlementController(
             RoomName:
                 roomName,
             TenantName:
-                contract?.TenantName ?? "",
+                contract?.TenantName
+                ?? nextContract?.TenantName
+                ?? "",
             LeaseContractId:
-                contract?.ContractId ?? Guid.Empty,
+                contract?.ContractId
+                ?? nextContract?.ContractId
+                ?? Guid.Empty,
             PeriodKey:
                 readingLocal.ToString("yyyy-MM"),
             PreviousReadingId:
@@ -752,21 +891,40 @@ public sealed class SubmeterTenantSettlementController(
                 recommendedRate?.Source
                 ?? (parentMeter is null
                     ? "Brak przypisanego licznika głównego"
-                    : $"Brak aktywnej taryfy licznika głównego „{parentMeterName}”"),
+                    : $"Brak stawki energii w aktywnej taryfie licznika głównego „{parentMeterName}”"),
+            RecommendedDistributionRatePerUnit:
+                recommendedDistributionRate?.Rate,
+            DistributionRateSource:
+                recommendedDistributionRate?.Source
+                ?? (parentMeter is null
+                    ? "Brak przypisanego licznika głównego"
+                    : $"Brak stawki przesyłu w aktywnej taryfie licznika głównego „{parentMeterName}”"),
             AlreadyGenerated:
                 alreadyGenerated is not null,
+            GeneratedRatePerUnit:
+                alreadyGenerated?.RatePerUnit ?? 0m,
             GeneratedAmountMinor:
                 alreadyGenerated?.AmountMinor ?? 0,
+            GeneratedDistributionRatePerUnit:
+                alreadyGenerated?.DistributionRatePerUnit ?? 0m,
+            GeneratedDistributionAmountMinor:
+                alreadyGenerated?.DistributionAmountMinor ?? 0,
             CanGenerate:
                 contract is not null
-                && consumption >= 0m
-                && alreadyGenerated is null,
+                && consumption > 0m
+                && (!distributionAlreadyGenerated),
             BlockReason:
                 contract is null
-                    ? "Brak aktywnej umowy lokatora dla tego pokoju w dniu odczytu."
-                    : alreadyGenerated is not null
-                        ? "Ten odczyt został już rozliczony."
-                        : null);
+                    ? nextContract is not null
+                        ? $"Odczyt {readingDate:yyyy-MM-dd} jest wcześniejszy niż początek umowy lokatora ({nextContract.LeaseFrom:yyyy-MM-dd}). Tych {consumption:0.###} {unitCode} nie naliczamy nowemu lokatorowi. Dodaj zatwierdzony odczyt po rozpoczęciu umowy; wtedy aplikacja policzy zużycie od stanu początkowego."
+                        : "Brak aktywnej umowy lokatora dla tego pokoju w dniu odczytu."
+                    : consumption <= 0m
+                        ? "Zużycie podlicznika musi być większe od 0."
+                        : distributionAlreadyGenerated
+                            ? "Energia i przesył dla tego odczytu zostały już rozliczone."
+                            : alreadyGenerated is not null
+                                ? "Energia jest już rozliczona — do uzupełnienia pozostał przesył / dystrybucja."
+                                : null);
     }
 
     private static ReadingValueSnapshot? ReadPreferredValue(
@@ -838,7 +996,8 @@ public sealed class SubmeterTenantSettlementController(
         object parentMeter,
         string unitCode,
         string zoneCode,
-        DateOnly date)
+        DateOnly date,
+        string componentKind)
     {
         var parentMeterId =
             GetGuid(
@@ -1049,6 +1208,43 @@ public sealed class SubmeterTenantSettlementController(
                 GetString(
                     item,
                     "ComponentCode");
+
+            var isEnergyComponent =
+                component.Contains(
+                    "Energy",
+                    StringComparison.OrdinalIgnoreCase)
+                || component.Contains(
+                    "Consumption",
+                    StringComparison.OrdinalIgnoreCase);
+
+            var isDistributionComponent =
+                component.Contains(
+                    "NetworkVariable",
+                    StringComparison.OrdinalIgnoreCase)
+                || component.Contains(
+                    "DistributionVariable",
+                    StringComparison.OrdinalIgnoreCase)
+                || component.Contains(
+                    "TransmissionVariable",
+                    StringComparison.OrdinalIgnoreCase);
+
+            if (string.Equals(
+                    componentKind,
+                    "Energy",
+                    StringComparison.OrdinalIgnoreCase)
+                && !isEnergyComponent)
+            {
+                continue;
+            }
+
+            if (string.Equals(
+                    componentKind,
+                    "Distribution",
+                    StringComparison.OrdinalIgnoreCase)
+                && !isDistributionComponent)
+            {
+                continue;
+            }
 
             var score = 100;
 
@@ -1540,6 +1736,67 @@ public sealed class SubmeterTenantSettlementController(
             : null;
     }
 
+    private async Task<bool> TenantElectricityLineExistsAsync(
+        Guid settlementId,
+        Guid currentReadingId,
+        bool distribution,
+        CancellationToken cancellationToken)
+    {
+        var connection = db.Database.GetDbConnection();
+        var closeWhenDone =
+            connection.State != System.Data.ConnectionState.Open;
+
+        if (closeWhenDone)
+        {
+            await connection.OpenAsync(cancellationToken);
+        }
+
+        try
+        {
+            await using var command = connection.CreateCommand();
+
+            command.CommandText = distribution
+                ? """
+                  SELECT COUNT(1)
+                  FROM "TenantSettlementLines"
+                  WHERE "TenantSettlementId" = $settlementId
+                    AND COALESCE("SourceType",'') LIKE 'SubmeterElectricityDistribution%'
+                    AND COALESCE("CalculationSnapshotJson",'') LIKE $readingId;
+                  """
+                : """
+                  SELECT COUNT(1)
+                  FROM "TenantSettlementLines"
+                  WHERE "TenantSettlementId" = $settlementId
+                    AND (
+                           COALESCE("SourceType",'') = 'SubmeterElectricity'
+                        OR COALESCE("SourceType",'') LIKE 'SubmeterElectricityEnergy%'
+                    )
+                    AND COALESCE("CalculationSnapshotJson",'') LIKE $readingId;
+                  """;
+
+            var settlementParameter = command.CreateParameter();
+            settlementParameter.ParameterName = "$settlementId";
+            settlementParameter.Value = settlementId.ToString("D");
+            command.Parameters.Add(settlementParameter);
+
+            var readingParameter = command.CreateParameter();
+            readingParameter.ParameterName = "$readingId";
+            readingParameter.Value = $"%{currentReadingId:D}%";
+            command.Parameters.Add(readingParameter);
+
+            return Convert.ToInt64(
+                await command.ExecuteScalarAsync(cancellationToken)
+                ?? 0L) > 0;
+        }
+        finally
+        {
+            if (closeWhenDone)
+            {
+                await connection.CloseAsync();
+            }
+        }
+    }
+
     private static object? FindSettlement(
         TenantSettlementOverview overview,
         Guid leaseContractId,
@@ -1855,8 +2112,13 @@ public sealed class SubmeterTenantSettlementController(
         string ParentMeterName,
         decimal? RecommendedRatePerUnit,
         string RateSource,
+        decimal? RecommendedDistributionRatePerUnit,
+        string DistributionRateSource,
         bool AlreadyGenerated,
+        decimal GeneratedRatePerUnit,
         long GeneratedAmountMinor,
+        decimal GeneratedDistributionRatePerUnit,
+        long GeneratedDistributionAmountMinor,
         bool CanGenerate,
         string? BlockReason)
     {
@@ -1890,7 +2152,12 @@ public sealed class SubmeterTenantSettlementController(
                 "",
                 null,
                 "",
+                null,
+                "",
                 false,
+                0m,
+                0,
+                0m,
                 0,
                 false,
                 reason);

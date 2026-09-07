@@ -276,9 +276,9 @@
                 <span>ROZLICZENIA LOKATORÓW</span>
                 <h2>Podliczniki pokoi</h2>
                 <p>
-                    e-dom porównuje najnowszy zatwierdzony odczyt z poprzednim,
-                    liczy zużycie i może dopisać koszt bezpośrednio do projektu
-                    miesięcznego rozliczenia lokatora danego pokoju.
+                    e-dom porównuje najnowszy zatwierdzony odczyt prądu z poprzednim,
+                    liczy zużycie i dopisuje do projektu lokatora dwie pozycje:
+                    energię z podlicznika oraz przesył / dystrybucję według tego samego zużycia.
                 </p>
             </div>
         </div>
@@ -1133,7 +1133,7 @@
 
                     <input type="hidden"
                            name="allocationMode"
-                           value="WaterByConsumption"
+                           value="WaterByPersons"
                            data-utility-invoice-allocation-mode />
 
                     <input type="hidden"
@@ -1208,87 +1208,13 @@
                     </div>
 
                     <section data-utility-water-fields hidden>
-                        <div class="utility-invoice-subsection-title">
-                            <strong>Podział faktury za wodę</strong>
+                        <div class="utility-info-box">
+                            <strong>Woda / Aquanet → podział według liczby osób na działce</strong>
                             <span>
-                                Krok 1: rejestrujesz pełną FV Aquanet i opłacasz ją w Finansach domowych.
-                                Krok 2: po pełnej płatności osobnym przyciskiem generujesz rozliczenie lokatorów.
+                                Całą fakturę opłaca najpierw dom. Udział lokatorów jest liczony jako:
+                                kwota FV ÷ wszystkie osoby na działce × liczba osób lokatorów.
+                                Dopiero po pełnym opłaceniu FV generujesz pozycje „Woda / ścieki” w rozliczeniach lokatorów.
                             </span>
-                        </div>
-
-                        <div class="utility-water-mode">
-                            <label>
-                                <input type="radio"
-                                       name="waterMode"
-                                       value="WaterByConsumption"
-                                       checked
-                                       data-water-mode />
-                                <span>
-                                    <strong>Według zużycia z podlicznika</strong>
-                                    <small>Udział lokatorów = koszt FV × zużycie lokatorów / zużycie całkowite.</small>
-                                </span>
-                            </label>
-
-                            <label>
-                                <input type="radio"
-                                       name="waterMode"
-                                       value="ManualTenantAmount"
-                                       data-water-mode />
-                                <span>
-                                    <strong>Ręczna kwota lokatorów</strong>
-                                    <small>Użyj, jeśli rozliczenie Aquanetu wymaga własnej korekty.</small>
-                                </span>
-                            </label>
-                        </div>
-
-                        <div class="utility-invoice-common-grid"
-                             data-water-consumption-fields>
-                            <label>
-                                <span>Zużycie całkowite z FV</span>
-                                <div class="utility-money-input">
-                                    <input name="totalConsumption"
-                                           type="text"
-                                           inputmode="decimal"
-                                           placeholder="np. 35,000" />
-                                    <b>m³</b>
-                                </div>
-                            </label>
-
-                            <label>
-                                <span>Podlicznik części wynajmowanej</span>
-                                <select data-water-submeter>
-                                    <option value="">— wybierz / wpisz zużycie ręcznie —</option>
-                                </select>
-                                <small data-water-submeter-info>
-                                    Ostatnie dwa zatwierdzone odczyty mogą automatycznie podpowiedzieć zużycie.
-                                </small>
-                            </label>
-
-                            <label>
-                                <span>Zużycie lokatorów</span>
-                                <div class="utility-money-input">
-                                    <input name="tenantConsumption"
-                                           type="text"
-                                           inputmode="decimal"
-                                           placeholder="np. 12,000" />
-                                    <b>m³</b>
-                                </div>
-                            </label>
-                        </div>
-
-                        <div class="utility-invoice-common-grid"
-                             data-water-manual-fields
-                             hidden>
-                            <label>
-                                <span>Łączna kwota przypisana lokatorom</span>
-                                <div class="utility-money-input">
-                                    <input name="manualTenantAmount"
-                                           type="text"
-                                           inputmode="decimal"
-                                           placeholder="0,00" />
-                                    <b>PLN</b>
-                                </div>
-                            </label>
                         </div>
                     </section>
 

@@ -154,7 +154,6 @@ public sealed class RentalController(
         DateOnly signedOn,
         string signatureMethod,
         string? comment,
-        bool addInitialMeterReading,
         Guid? initialMeterId,
         decimal? initialMeterValue,
         string? initialMeterZoneCode,
@@ -187,6 +186,63 @@ public sealed class RentalController(
                 return RedirectToAction(nameof(Index));
             }
 
+            var signingMeters =
+                await GetSigningMeterOptionsAsync(
+                    actor,
+                    cancellationToken);
+
+            var roomMeters = signingMeters
+                .Where(x => string.Equals(
+                    x.RoomName,
+                    contract.RoomName,
+                    StringComparison.OrdinalIgnoreCase))
+                .ToArray();
+
+            RentalSigningMeterOptionViewModel? selectedMeter = null;
+            var zoneCode = string.IsNullOrWhiteSpace(initialMeterZoneCode)
+                ? "ALL"
+                : initialMeterZoneCode.Trim();
+
+            if (roomMeters.Length > 0)
+            {
+                if (!initialMeterId.HasValue
+                    || initialMeterId.Value == Guid.Empty
+                    || !initialMeterValue.HasValue)
+                {
+                    TempData["Error"] =
+                        $"Nie można aktywować umowy dla pokoju „{contract.RoomName}” bez odczytu początkowego podlicznika. Wybierz podlicznik i wpisz stan na dzień rozpoczęcia najmu {contract.LeaseFrom:dd.MM.yyyy}.";
+
+                    return RedirectToAction(nameof(Index));
+                }
+
+                if (initialMeterValue.Value < 0m)
+                {
+                    TempData["Error"] =
+                        "Odczyt początkowy podlicznika nie może być ujemny.";
+
+                    return RedirectToAction(nameof(Index));
+                }
+
+                selectedMeter = roomMeters.FirstOrDefault(x =>
+                    x.MeterId == initialMeterId.Value);
+
+                if (selectedMeter is null)
+                {
+                    TempData["Error"] =
+                        "Wybrany podlicznik nie jest przypisany do pokoju tej umowy.";
+
+                    return RedirectToAction(nameof(Index));
+                }
+
+                await EnsureInitialReadingAsync(
+                    actor,
+                    selectedMeter,
+                    contract.LeaseFrom,
+                    initialMeterValue.Value,
+                    zoneCode,
+                    cancellationToken);
+            }
+
             await rentalService.ActivateLeaseAsync(
                 actor,
                 new(
@@ -196,28 +252,70 @@ public sealed class RentalController(
                     comment),
                 cancellationToken);
 
-            if (!addInitialMeterReading)
+            TempData["Success"] = selectedMeter is null
+                ? "Umowa została podpisana i aktywowana; pokój jest wynajęty."
+                : $"Umowa została podpisana i aktywowana. Odczyt początkowy podlicznika „{selectedMeter.MeterName}” zapisano na dzień rozpoczęcia najmu {contract.LeaseFrom:dd.MM.yyyy}: {initialMeterValue!.Value:N3} {selectedMeter.UnitCode}.";
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
+        catch (Exception ex)
+        {
+            TempData["Error"] =
+                ex.Message;
+        }
+
+        return RedirectToAction(nameof(Index));
+    }
+
+    [HttpPost("InitialMeterReading"), ValidateAntiForgeryToken]
+    public async Task<IActionResult> InitialMeterReading(
+        Guid contractId,
+        Guid initialMeterId,
+        decimal initialMeterValue,
+        string? initialMeterZoneCode,
+        CancellationToken cancellationToken)
+    {
+        var actor = await GetActorAsync(
+            cancellationToken);
+
+        if (actor is null)
+        {
+            return Forbid();
+        }
+
+        try
+        {
+            if (initialMeterValue < 0m)
             {
-                TempData["Success"] =
-                    "Umowa została podpisana i aktywowana; pokój jest wynajęty.";
+                TempData["Error"] =
+                    "Odczyt początkowy podlicznika nie może być ujemny.";
 
                 return RedirectToAction(nameof(Index));
             }
 
-            if (!initialMeterId.HasValue
-                || initialMeterId.Value == Guid.Empty
-                || !initialMeterValue.HasValue)
+            var overview =
+                await rentalService.GetOverviewAsync(
+                    actor,
+                    cancellationToken);
+
+            var contract =
+                overview.Contracts.FirstOrDefault(
+                    x => x.ContractId == contractId);
+
+            if (contract is null)
             {
                 TempData["Error"] =
-                    "Umowa została aktywowana, ale nie zapisano odczytu początkowego: wybierz podlicznik i wpisz stan.";
+                    "Nie znaleziono umowy najmu.";
 
                 return RedirectToAction(nameof(Index));
             }
 
-            if (initialMeterValue.Value < 0m)
+            if (contract.Status != LeaseStatuses.Signed)
             {
                 TempData["Error"] =
-                    "Umowa została aktywowana, ale odczyt początkowy nie może być ujemny.";
+                    "Odczyt początkowy można uzupełnić dla aktywnej, podpisanej umowy.";
 
                 return RedirectToAction(nameof(Index));
             }
@@ -227,42 +325,36 @@ public sealed class RentalController(
                     actor,
                     cancellationToken);
 
-            var selectedMeter =
-                signingMeters.FirstOrDefault(x =>
-                    x.MeterId == initialMeterId.Value
-                    && string.Equals(
-                        x.RoomName,
-                        contract.RoomName,
-                        StringComparison.OrdinalIgnoreCase));
+            var selectedMeter = signingMeters.FirstOrDefault(x =>
+                x.MeterId == initialMeterId
+                && string.Equals(
+                    x.RoomName,
+                    contract.RoomName,
+                    StringComparison.OrdinalIgnoreCase));
 
             if (selectedMeter is null)
             {
                 TempData["Error"] =
-                    "Umowa została aktywowana, ale wybrany podlicznik nie jest przypisany do pokoju tej umowy.";
+                    "Wybrany podlicznik nie jest przypisany do pokoju tej umowy.";
 
                 return RedirectToAction(nameof(Index));
             }
 
-            try
-            {
-                await SubmitAndApproveInitialReadingAsync(
-                    actor,
-                    selectedMeter.MeterId,
-                    signedOn,
-                    initialMeterValue.Value,
-                    string.IsNullOrWhiteSpace(initialMeterZoneCode)
-                        ? "ALL"
-                        : initialMeterZoneCode.Trim(),
-                    cancellationToken);
+            var zoneCode = string.IsNullOrWhiteSpace(initialMeterZoneCode)
+                ? "ALL"
+                : initialMeterZoneCode.Trim();
 
-                TempData["Success"] =
-                    $"Umowa została podpisana i aktywowana. Zapisano również zatwierdzony odczyt początkowy podlicznika „{selectedMeter.MeterName}”: {initialMeterValue.Value:N3} {selectedMeter.UnitCode}.";
-            }
-            catch (Exception ex)
-            {
-                TempData["Error"] =
-                    $"Umowa została aktywowana, ale nie udało się zapisać odczytu początkowego podlicznika: {ex.Message}";
-            }
+            var created = await EnsureInitialReadingAsync(
+                actor,
+                selectedMeter,
+                contract.LeaseFrom,
+                initialMeterValue,
+                zoneCode,
+                cancellationToken);
+
+            TempData["Success"] = created
+                ? $"Zapisano odczyt początkowy podlicznika „{selectedMeter.MeterName}” dla umowy {contract.TenantName} na dzień {contract.LeaseFrom:dd.MM.yyyy}: {initialMeterValue:N3} {selectedMeter.UnitCode}. Od tego stanu będzie liczone zużycie lokatora."
+                : $"Na dzień rozpoczęcia najmu {contract.LeaseFrom:dd.MM.yyyy} istnieje już taki sam zatwierdzony odczyt podlicznika „{selectedMeter.MeterName}”. Nie utworzono duplikatu.";
         }
         catch (UnauthorizedAccessException)
         {
@@ -403,10 +495,79 @@ public sealed class RentalController(
                 download.FileName);
     }
 
+    private async Task<bool> EnsureInitialReadingAsync(
+        RentalActor rentalActor,
+        RentalSigningMeterOptionViewModel meter,
+        DateOnly readingDate,
+        decimal value,
+        string zoneCode,
+        CancellationToken cancellationToken)
+    {
+        var utilityActor =
+            new UtilityActor(
+                rentalActor.AccountId,
+                rentalActor.PersonId,
+                rentalActor.HouseholdId,
+                rentalActor.CorrelationId,
+                rentalActor.NowUtc);
+
+        var overview =
+            await utilitiesService.GetOverviewAsync(
+                utilityActor,
+                cancellationToken);
+
+        var existingReading = overview.Readings
+            .Where(x =>
+                x.MeterId == meter.MeterId
+                && x.Status == ReadingStatuses.Approved
+                && DateOnly.FromDateTime(x.ReadingAtUtc.ToLocalTime()) == readingDate)
+            .OrderByDescending(x => x.ReadingAtUtc)
+            .FirstOrDefault();
+
+        if (existingReading is not null)
+        {
+            var existingValue = overview.ReadingValues
+                .FirstOrDefault(x =>
+                    x.MeterReadingId == existingReading.Id
+                    && string.Equals(
+                        x.ZoneCode,
+                        zoneCode,
+                        StringComparison.OrdinalIgnoreCase));
+
+            if (existingValue is null)
+            {
+                throw new InvalidOperationException(
+                    $"Na dzień rozpoczęcia najmu {readingDate:dd.MM.yyyy} istnieje już zatwierdzony odczyt podlicznika „{meter.MeterName}”, ale dla innej strefy. Sprawdź odczyty licznika przed zapisaniem stanu początkowego.");
+            }
+
+            var existingDecimal =
+                existingValue.ValueScaled
+                / (decimal)Math.Pow(10, existingValue.Scale);
+
+            if (existingDecimal != value)
+            {
+                throw new InvalidOperationException(
+                    $"Na dzień rozpoczęcia najmu {readingDate:dd.MM.yyyy} podlicznik „{meter.MeterName}” ma już zatwierdzony stan {existingDecimal:N3} {meter.UnitCode}. Nie można zapisać drugiego, innego stanu na ten sam dzień.");
+            }
+
+            return false;
+        }
+
+        await SubmitAndApproveInitialReadingAsync(
+            rentalActor,
+            meter.MeterId,
+            readingDate,
+            value,
+            zoneCode,
+            cancellationToken);
+
+        return true;
+    }
+
     private async Task SubmitAndApproveInitialReadingAsync(
         RentalActor rentalActor,
         Guid meterId,
-        DateOnly signedOn,
+        DateOnly readingDate,
         decimal value,
         string zoneCode,
         CancellationToken cancellationToken)
@@ -432,7 +593,7 @@ public sealed class RentalController(
 
         var localAt =
             DateTime.SpecifyKind(
-                signedOn.ToDateTime(
+                readingDate.ToDateTime(
                     new TimeOnly(12, 0)),
                 DateTimeKind.Local);
 
@@ -474,7 +635,7 @@ public sealed class RentalController(
             await utilitiesService.ApproveReadingAsync(
                 utilityActor,
                 created.Id,
-                "Odczyt początkowy przy podpisaniu umowy najmu.",
+                "Odczyt początkowy na dzień rozpoczęcia umowy najmu.",
                 cancellationToken);
         }
     }

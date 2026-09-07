@@ -1,4 +1,4 @@
-/* PKG-015o-FEAT-01 — podliczniki pokoi → rozliczenie lokatora */
+/* PKG-015q-FEAT-04 — podlicznik prądu: energia + przesył/dystrybucja */
 
 .utilities-submeter-tenant {
     margin-top: 12px;
@@ -142,7 +142,7 @@
 
 .submeter-form-grid {
     display: grid;
-    grid-template-columns: 180px minmax(260px, 1fr) minmax(220px, 1fr);
+    grid-template-columns: 160px minmax(220px, 1fr) minmax(220px, 1fr) minmax(220px, 1fr);
     gap: 8px;
     align-items: end;
 }
@@ -296,6 +296,12 @@
 
 .rental-signing-meter-fields[hidden] {
     display: none !important;
+}
+
+@media (max-width: 1200px) {
+    .submeter-form-grid {
+        grid-template-columns: 1fr 1fr;
+    }
 }
 
 @media (max-width: 850px) {

@@ -19,8 +19,11 @@
     "consumption": 50,
     "ratePerUnit": 1.15,
     "amountMinor": 5750,
+    "distributionRatePerUnit": 1.25,
+    "distributionAmountMinor": 6250,
     "currencyCode": "PLN",
     "rateSource": "ManualOverride",
+    "distributionRateSource": "Manual",
     "createdAtUtc": "2026-09-03T12:31:36.9964586Z",
     "createdByUserAccountId": "3b460853-d5a8-4928-9fb8-3c88f6462e61"
   }

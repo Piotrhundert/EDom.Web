@@ -30,7 +30,7 @@ public sealed class UtilityInvoiceDistributionController(
     IWebHostEnvironment environment) : Controller
 {
     private const string PackageVersion =
-        "PKG-015q-FEAT-02-FIX-02";
+        "PKG-015q-FEAT-04";
 
     [HttpGet("Data")]
     public async Task<IActionResult> Data(
@@ -273,6 +273,22 @@ public sealed class UtilityInvoiceDistributionController(
                                 "PendingCorrection",
                                 StringComparison.OrdinalIgnoreCase));
 
+                    var effectiveTenantShareMinor =
+                        string.Equals(
+                            x.Medium,
+                            "Water",
+                            StringComparison.OrdinalIgnoreCase)
+                            ? CalculatePersonShareMinor(
+                                x.GrossAmountMinor,
+                                x.HouseholdPersonCount,
+                                x.TenantPersonCount)
+                            : x.TenantShareMinor;
+
+                    var effectiveHouseholdShareMinor =
+                        checked(
+                            x.GrossAmountMinor
+                            - effectiveTenantShareMinor);
+
                     return new
                     {
                         x.Id,
@@ -281,8 +297,8 @@ public sealed class UtilityInvoiceDistributionController(
                         x.Medium,
                         x.PeriodKey,
                         x.GrossAmountMinor,
-                        x.HouseholdShareMinor,
-                        x.TenantShareMinor,
+                        householdShareMinor = effectiveHouseholdShareMinor,
+                        tenantShareMinor = effectiveTenantShareMinor,
                         x.HouseholdPersonCount,
                         x.TenantPersonCount,
                         x.CurrencyCode,
@@ -308,7 +324,7 @@ public sealed class UtilityInvoiceDistributionController(
                                 x.Medium,
                                 "Water",
                                 StringComparison.OrdinalIgnoreCase)
-                            && x.TenantShareMinor > 0
+                            && effectiveTenantShareMinor > 0
                             && householdInvoice is not null
                             && householdInvoice.RemainingMinor <= 0
                     };
@@ -493,82 +509,31 @@ public sealed class UtilityInvoiceDistributionController(
             if (normalizedMedium
                 == "Water")
             {
-                if (string.Equals(
-                        allocationMode,
-                        "ManualTenantAmount",
-                        StringComparison.OrdinalIgnoreCase))
-                {
-                    if (!TryParseFlexibleDecimal(
-                            manualTenantAmount,
-                            out var manualTenantMajor)
-                        || manualTenantMajor < 0m)
-                    {
-                        throw new InvalidOperationException(
-                            "Podaj poprawną ręczną kwotę części lokatorów.");
-                    }
+                // PKG-015q-FEAT-04:
+                // całą FV Aquanet opłaca dom, a udział lokatorów jest
+                // wyliczany wyłącznie według liczby osób na działce.
+                var totalPersons =
+                    householdPersons.Length
+                    + tenantPersonCount;
 
-                    tenantShareMinor =
-                        ToMinor(
-                            manualTenantMajor);
-
-                    resolvedAllocationMode =
-                        "WaterManualTenantAmount";
-                }
-                else
-                {
-                    if (!TryParseFlexibleDecimal(
-                            totalConsumption,
-                            out var totalConsumptionValue)
-                        || totalConsumptionValue <= 0m)
-                    {
-                        throw new InvalidOperationException(
-                            "Dla wody podaj całkowite zużycie z faktury w m³.");
-                    }
-
-                    if (!TryParseFlexibleDecimal(
-                            tenantConsumption,
-                            out var tenantConsumptionValue)
-                        || tenantConsumptionValue < 0m)
-                    {
-                        throw new InvalidOperationException(
-                            "Dla wody podaj zużycie lokatorów z podlicznika.");
-                    }
-
-                    if (tenantConsumptionValue
-                        > totalConsumptionValue)
-                    {
-                        throw new InvalidOperationException(
-                            "Zużycie lokatorów nie może być większe od całkowitego zużycia z faktury.");
-                    }
-
-                    tenantShareMinor =
-                        checked(
-                            (long)Math.Round(
-                                grossMinor
-                                * tenantConsumptionValue
-                                / totalConsumptionValue,
-                                0,
-                                MidpointRounding.AwayFromZero));
-
-                    resolvedAllocationMode =
-                        "WaterByConsumption";
-                }
-
-                if (tenantPersonCount == 0)
-                {
-                    tenantShareMinor = 0;
-                }
-
-                if (tenantShareMinor
-                    > grossMinor)
+                if (totalPersons <= 0)
                 {
                     throw new InvalidOperationException(
-                        "Część przypisana lokatorom nie może przekroczyć całej faktury.");
+                        "Nie ma osób, pomiędzy które można podzielić fakturę za wodę.");
                 }
+
+                tenantShareMinor =
+                    checked(
+                        grossMinor
+                        * tenantPersonCount
+                        / totalPersons);
 
                 householdShareMinor =
                     grossMinor
                     - tenantShareMinor;
+
+                resolvedAllocationMode =
+                    "WaterByPersons";
             }
             else if (normalizedMedium
                      == "Waste")
@@ -956,9 +921,9 @@ public sealed class UtilityInvoiceDistributionController(
                 {
                     "Water" =>
                         $"Zarejestrowano całą FV za wodę {grossMajor:N2} {currency}. " +
-                        $"Teraz opłać 100% faktury w Finansach domowych. " +
-                        $"Po pełnym opłaceniu będzie można ręcznie wygenerować rozliczenie lokatorów " +
-                        $"na kwotę {tenantShareMinor / 100m:N2} {currency}.",
+                        $"Podział według osób: {householdPersons.Length} osób gospodarstwa + {tenantPersonCount} osób lokatorów. " +
+                        $"Teraz opłać 100% faktury w Finansach domowych. Po pełnym opłaceniu będzie można wygenerować " +
+                        $"rozliczenie lokatorów na kwotę {tenantShareMinor / 100m:N2} {currency}.",
                     "Waste" =>
                         $"Zarejestrowano opłatę za odpady {grossMajor:N2} {currency}. " +
                         $"Podział: {householdPersons.Length} osób gospodarstwa + {tenantPersonCount} osób lokatorów.",
@@ -1050,12 +1015,6 @@ public sealed class UtilityInvoiceDistributionController(
                     "Nie znaleziono zarejestrowanej faktury za wodę do rozliczenia.");
             }
 
-            if (summary.TenantShareMinor <= 0)
-            {
-                throw new InvalidOperationException(
-                    "Ta faktura nie ma części przeznaczonej do rozliczenia z lokatorami.");
-            }
-
             // Warunek biznesowy użytkownika:
             // całą FV za wodę najpierw opłaca gospodarstwo.
             var finance =
@@ -1141,9 +1100,43 @@ public sealed class UtilityInvoiceDistributionController(
                     "Brak aktywnych lokatorów obejmujących okres tej faktury.");
             }
 
+            var tenantPersonCount =
+                weightedTenants.Sum(x => x.Persons);
+
+            var householdPersonCount =
+                Math.Max(0, summary.HouseholdPersonCount);
+
+            if (householdPersonCount == 0)
+            {
+                var family =
+                    await familyService.GetOverviewAsync(
+                        current.HouseholdId,
+                        cancellationToken);
+
+                householdPersonCount =
+                    family.Persons.Count;
+            }
+
+            var tenantShareMinor =
+                CalculatePersonShareMinor(
+                    summary.GrossAmountMinor,
+                    householdPersonCount,
+                    tenantPersonCount);
+
+            if (tenantShareMinor <= 0)
+            {
+                throw new InvalidOperationException(
+                    "Ta faktura nie ma części przeznaczonej do rozliczenia z lokatorami według liczby osób.");
+            }
+
+            var householdShareMinor =
+                checked(
+                    summary.GrossAmountMinor
+                    - tenantShareMinor);
+
             var tenantAmounts =
                 AllocateTenantAmounts(
-                    summary.TenantShareMinor,
+                    tenantShareMinor,
                     weightedTenants);
 
             var createdCharges = 0;
@@ -1248,17 +1241,14 @@ public sealed class UtilityInvoiceDistributionController(
                                 householdInvoice.PaidMinor,
                             remainingMinor =
                                 householdInvoice.RemainingMinor,
-                            tenantShareMinor =
-                                summary.TenantShareMinor,
+                            tenantShareMinor,
                             tenantPersons =
                                 tenant.Persons,
                             tenantAmountMinor,
+                            householdPersonCount,
+                            tenantPersonCount,
                             allocationMode =
-                                summary.AllocationMode,
-                            totalConsumption =
-                                summary.TotalConsumptionText,
-                            tenantConsumption =
-                                summary.TenantConsumptionText
+                                "WaterByPersons"
                         });
 
                 string operation;
@@ -1316,17 +1306,17 @@ public sealed class UtilityInvoiceDistributionController(
                         GrossAmountMinor =
                             summary.GrossAmountMinor,
                         HouseholdShareMinor =
-                            summary.HouseholdShareMinor,
+                            householdShareMinor,
                         TenantShareMinor =
-                            summary.TenantShareMinor,
+                            tenantShareMinor,
                         HouseholdPersonCount =
-                            summary.HouseholdPersonCount,
+                            householdPersonCount,
                         TenantPersonCount =
-                            summary.TenantPersonCount,
+                            tenantPersonCount,
                         CurrencyCode =
                             summary.CurrencyCode,
                         AllocationMode =
-                            summary.AllocationMode,
+                            "WaterByPersons",
                         LeaseContractId =
                             tenant.ContractId,
                         SettlementId =
@@ -1360,7 +1350,7 @@ public sealed class UtilityInvoiceDistributionController(
                 message =
                     $"FV za wodę jest w pełni opłacona przez gospodarstwo. " +
                     $"Wygenerowano {createdCharges} pozycję(e) rozliczenia lokatorów " +
-                    $"na łączną kwotę {summary.TenantShareMinor / 100m:N2} {summary.CurrencyCode}."
+                    $"według liczby osób na działce, na łączną kwotę {tenantShareMinor / 100m:N2} {summary.CurrencyCode}."
                     + (pendingCorrections > 0
                         ? $" {pendingCorrections} pozycja(e) oczekuje na korektę, ponieważ rozliczenie lokatora jest już opublikowane."
                         : "")
@@ -1760,6 +1750,28 @@ public sealed class UtilityInvoiceDistributionController(
             styles,
             System.Globalization.CultureInfo.InvariantCulture,
             out result);
+    }
+
+    private static long CalculatePersonShareMinor(
+        long grossAmountMinor,
+        int householdPersonCount,
+        int tenantPersonCount)
+    {
+        var totalPersons =
+            Math.Max(0, householdPersonCount)
+            + Math.Max(0, tenantPersonCount);
+
+        if (grossAmountMinor <= 0
+            || totalPersons <= 0
+            || tenantPersonCount <= 0)
+        {
+            return 0;
+        }
+
+        return checked(
+            grossAmountMinor
+            * tenantPersonCount
+            / totalPersons);
     }
 
     private static string NormalizeCurrency(

@@ -50,12 +50,74 @@
         }
     };
 
-    const mediumLabel = value => ({
-        Electricity: "Prąd",
-        Water: "Woda",
-        Gas: "Gaz",
-        Heating: "Ogrzewanie"
-    }[value] || value || "Inne");
+    const positiveRate = value => {
+        const numeric = Number(value || 0);
+        return Number.isFinite(numeric) && numeric > 0
+            ? numeric
+            : 0;
+    };
+
+    function renderRateField({
+        inputName,
+        title,
+        recommendedRate,
+        recommendedSource,
+        generatedRate,
+        generated,
+        unitCode,
+        toggleAttribute
+    }) {
+        const effectiveGeneratedRate = positiveRate(generatedRate);
+        const effectiveRecommendedRate = positiveRate(recommendedRate);
+        const initialRate = generated
+            ? effectiveGeneratedRate
+            : effectiveRecommendedRate;
+
+        const value = initialRate > 0
+            ? initialRate.toFixed(6)
+            : "";
+
+        const description = generated
+            ? "Ta pozycja jest już zapisana dla bieżącego odczytu."
+            : effectiveRecommendedRate > 0
+                ? recommendedSource || "Stawka z taryfy licznika głównego"
+                : "Brak stawki w taryfie — wpisz wartość ręcznie.";
+
+        return `
+            <label>
+                <span>${esc(title)}</span>
+
+                <div class="submeter-main-rate">
+                    <strong>
+                        ${initialRate > 0
+                            ? `${esc(number(initialRate, 6))} PLN/${esc(unitCode)}`
+                            : "Brak podpowiedzi stawki"}
+                    </strong>
+                    <small>${esc(description)}</small>
+                </div>
+
+                <div class="submeter-rate-input">
+                    <input name="${esc(inputName)}"
+                           type="number"
+                           step="0.000001"
+                           min="0.000001"
+                           value="${esc(value)}"
+                           placeholder="np. 0,420000"
+                           ${generated || effectiveRecommendedRate > 0 ? "readonly" : ""}
+                           required />
+                    <b>PLN/${esc(unitCode)}</b>
+                </div>
+
+                ${!generated && effectiveRecommendedRate > 0
+                    ? `
+                        <label class="submeter-manual-rate-toggle">
+                            <input type="checkbox"
+                                   ${toggleAttribute} />
+                            <span>Użyj innej stawki ręcznie</span>
+                        </label>`
+                    : ""}
+            </label>`;
+    }
 
     function renderItem(item, data) {
         const card = document.createElement("article");
@@ -71,15 +133,44 @@
             && item.previousReadingId !== "00000000-0000-0000-0000-000000000000"
             && item.currentReadingId !== "00000000-0000-0000-0000-000000000000";
 
-        const rateValue =
-            Number(item.recommendedRatePerUnit || 0) > 0
-                ? Number(item.recommendedRatePerUnit).toFixed(6)
-                : "";
+        const energyGenerated = Boolean(item.energyAlreadyGenerated);
+        const distributionGenerated = Boolean(item.distributionAlreadyGenerated);
+        const fullyGenerated = energyGenerated && distributionGenerated;
+
+        const energyRate = energyGenerated
+            ? positiveRate(item.generatedRatePerUnit)
+            : positiveRate(item.recommendedRatePerUnit);
+
+        const distributionRate = distributionGenerated
+            ? positiveRate(item.generatedDistributionRatePerUnit)
+            : positiveRate(item.recommendedDistributionRatePerUnit);
+
+        const energyRateField = renderRateField({
+            inputName: "ratePerUnit",
+            title: `Energia czynna za 1 ${item.unitCode}`,
+            recommendedRate: item.recommendedRatePerUnit,
+            recommendedSource: item.rateSource,
+            generatedRate: item.generatedRatePerUnit,
+            generated: energyGenerated,
+            unitCode: item.unitCode,
+            toggleAttribute: "data-submeter-manual-energy-rate"
+        });
+
+        const distributionRateField = renderRateField({
+            inputName: "distributionRatePerUnit",
+            title: `Przesył / dystrybucja za 1 ${item.unitCode}`,
+            recommendedRate: item.recommendedDistributionRatePerUnit,
+            recommendedSource: item.distributionRateSource,
+            generatedRate: item.generatedDistributionRatePerUnit,
+            generated: distributionGenerated,
+            unitCode: item.unitCode,
+            toggleAttribute: "data-submeter-manual-distribution-rate"
+        });
 
         card.innerHTML = `
             <div class="submeter-tenant-head">
                 <div>
-                    <span>${esc(mediumLabel(item.medium))} · podlicznik</span>
+                    <span>Prąd · podlicznik pokoju</span>
                     <strong>${esc(item.meterName)}</strong>
                     <small>
                         ${esc(item.roomName)}
@@ -87,11 +178,13 @@
                     </small>
                 </div>
 
-                ${item.alreadyGenerated
-                    ? `<b class="submeter-state is-done">Już rozliczono</b>`
-                    : item.canGenerate
-                        ? `<b class="submeter-state is-ready">Gotowe</b>`
-                        : `<b class="submeter-state is-waiting">Brak danych</b>`}
+                ${fullyGenerated
+                    ? `<b class="submeter-state is-done">Energia + przesył rozliczone</b>`
+                    : energyGenerated && item.canGenerate
+                        ? `<b class="submeter-state is-ready">Do uzupełnienia przesył</b>`
+                        : item.canGenerate
+                            ? `<b class="submeter-state is-ready">Gotowe</b>`
+                            : `<b class="submeter-state is-waiting">Brak danych</b>`}
             </div>
 
             ${hasPair
@@ -112,23 +205,40 @@
                         </div>
 
                         <div class="submeter-consumption">
-                            <span>Zużycie do rozliczenia</span>
+                            <span>${item.canGenerate ? "Zużycie do rozliczenia" : "Różnica odczytów"}</span>
                             <strong>${esc(number(item.consumption))} ${esc(item.unitCode)}</strong>
-                            <small>strefa ${esc(item.zoneCode || "ALL")}</small>
+                            <small>
+                                ${item.canGenerate
+                                    ? `strefa ${esc(item.zoneCode || "ALL")}`
+                                    : `nie naliczono · strefa ${esc(item.zoneCode || "ALL")}`}
+                            </small>
                         </div>
                     </div>`
                 : ""}
 
-            ${item.alreadyGenerated
+            ${fullyGenerated
                 ? `
                     <div class="submeter-generated-info">
-                        <strong>Ten odczyt został już przekazany do rozliczenia lokatora.</strong>
-                        <span>${Number(item.generatedAmountMinor || 0) > 0
-                            ? `Kwota zapisana: ${esc(money(item.generatedAmountMinor))}.`
-                            : "Nie można wygenerować go drugi raz."}</span>
+                        <strong>Ten odczyt został już rozliczony w dwóch pozycjach.</strong>
+                        <span>
+                            Energia: ${esc(money(item.generatedAmountMinor))} ·
+                            przesył: ${esc(money(item.generatedDistributionAmountMinor))} ·
+                            razem: ${esc(money(item.generatedTotalAmountMinor))}.
+                        </span>
                     </div>`
                 : item.canGenerate
                     ? `
+                        ${energyGenerated
+                            ? `
+                                <div class="submeter-generated-info">
+                                    <strong>Energia z podlicznika jest już zapisana.</strong>
+                                    <span>
+                                        Kwota energii: ${esc(money(item.generatedAmountMinor))}.
+                                        Ta paczka dopisze tylko brakujący przesył / dystrybucję i nie utworzy drugiej opłaty za energię.
+                                    </span>
+                                </div>`
+                            : ""}
+
                         <form data-submeter-generate>
                             <input type="hidden"
                                    name="meterId"
@@ -146,54 +256,13 @@
                                            required />
                                 </label>
 
-                                <label>
-                                    <span>Stawka za 1 ${esc(item.unitCode)}</span>
-
-                                    <div class="submeter-main-rate">
-                                        <span>
-                                            ${item.parentMeterName
-                                                ? `Licznik główny: ${esc(item.parentMeterName)}`
-                                                : "Brak przypisanego licznika głównego"}
-                                        </span>
-
-                                        <strong>
-                                            ${rateValue
-                                                ? `${esc(number(item.recommendedRatePerUnit, 6))} PLN/${esc(item.unitCode)}`
-                                                : "Brak stawki z taryfy"}
-                                        </strong>
-
-                                        <small>${esc(item.rateSource || "")}</small>
-                                    </div>
-
-                                    <div class="submeter-rate-input">
-                                        <input name="ratePerUnit"
-                                               type="number"
-                                               step="0.000001"
-                                               min="0.000001"
-                                               value="${esc(rateValue)}"
-                                               placeholder="np. 1,250000"
-                                               ${rateValue ? "readonly" : ""}
-                                               required />
-                                        <b>PLN/${esc(item.unitCode)}</b>
-                                    </div>
-
-                                    ${rateValue
-                                        ? `
-                                            <label class="submeter-manual-rate-toggle">
-                                                <input type="checkbox"
-                                                       data-submeter-manual-rate />
-                                                <span>Użyj innej stawki ręcznie</span>
-                                            </label>`
-                                        : `
-                                            <small>
-                                                Nie znaleziono aktywnej taryfy licznika głównego — wpisz stawkę ręcznie.
-                                            </small>`}
-                                </label>
+                                ${energyRateField}
+                                ${distributionRateField}
 
                                 <div class="submeter-form-summary">
-                                    <span>Wyliczenie</span>
+                                    <span>Wyliczenie lokatora</span>
                                     <strong data-submeter-formula>
-                                        ${esc(number(item.consumption))} ${esc(item.unitCode)} × stawka
+                                        ${esc(number(item.consumption))} ${esc(item.unitCode)} × stawka energii + stawka przesyłu
                                     </strong>
                                 </div>
                             </div>
@@ -201,7 +270,9 @@
                             <div class="submeter-actions">
                                 <button type="submit"
                                         class="btn btn-primary btn-sm">
-                                    Wylicz i dodaj do rozliczenia lokatora
+                                    ${energyGenerated
+                                        ? "Dodaj brakujący przesył do rozliczenia"
+                                        : "Wylicz energię i przesył dla lokatora"}
                                 </button>
                             </div>
                         </form>`
@@ -214,41 +285,87 @@
         const form = card.querySelector("[data-submeter-generate]");
 
         if (form) {
-            const rateInput = form.querySelector('[name="ratePerUnit"]');
+            const energyInput = form.querySelector('[name="ratePerUnit"]');
+            const distributionInput = form.querySelector('[name="distributionRatePerUnit"]');
             const formula = form.querySelector("[data-submeter-formula]");
-            const manualRateToggle = form.querySelector("[data-submeter-manual-rate]");
+            const manualEnergyToggle = form.querySelector("[data-submeter-manual-energy-rate]");
+            const manualDistributionToggle = form.querySelector("[data-submeter-manual-distribution-rate]");
 
-            manualRateToggle?.addEventListener("change", () => {
-                rateInput.readOnly = !manualRateToggle.checked;
+            const resetRecommended = (input, generated, recommended) => {
+                if (generated || !input) return;
 
-                if (!manualRateToggle.checked && rateValue) {
-                    rateInput.value = rateValue;
+                const value = positiveRate(recommended);
+                if (value > 0) {
+                    input.value = value.toFixed(6);
                 }
-
-                rateInput.focus();
-                syncFormula();
-            });
+            };
 
             const syncFormula = () => {
-                const rate = Number.parseFloat(
-                    String(rateInput?.value || "0").replace(",", ".")
+                const currentEnergyRate = Number.parseFloat(
+                    String(energyInput?.value || "0").replace(",", ".")
                 );
 
-                if (!Number.isFinite(rate) || rate <= 0) {
+                const currentDistributionRate = Number.parseFloat(
+                    String(distributionInput?.value || "0").replace(",", ".")
+                );
+
+                const consumption = Number(item.consumption || 0);
+
+                const energyAmount = energyGenerated
+                    ? (Number(item.generatedAmountMinor || 0) / 100)
+                    : consumption * (Number.isFinite(currentEnergyRate) ? currentEnergyRate : 0);
+
+                const distributionAmount = distributionGenerated
+                    ? (Number(item.generatedDistributionAmountMinor || 0) / 100)
+                    : consumption * (Number.isFinite(currentDistributionRate) ? currentDistributionRate : 0);
+
+                if (!Number.isFinite(currentEnergyRate)
+                    || currentEnergyRate <= 0
+                    || !Number.isFinite(currentDistributionRate)
+                    || currentDistributionRate <= 0) {
                     formula.textContent =
-                        `${number(item.consumption)} ${item.unitCode} × stawka`;
+                        `${number(consumption)} ${item.unitCode} × energia + przesył`;
                     return;
                 }
 
-                const amount =
-                    Number(item.consumption || 0)
-                    * rate;
-
                 formula.textContent =
-                    `${number(item.consumption)} ${item.unitCode} × ${number(rate, 6)} PLN = ${number(amount, 2)} PLN`;
+                    `energia ${number(energyAmount, 2)} PLN + przesył ${number(distributionAmount, 2)} PLN = ${number(energyAmount + distributionAmount, 2)} PLN`;
             };
 
-            rateInput?.addEventListener("input", syncFormula);
+            manualEnergyToggle?.addEventListener("change", () => {
+                if (!energyInput) return;
+                energyInput.readOnly = !manualEnergyToggle.checked;
+
+                if (!manualEnergyToggle.checked) {
+                    resetRecommended(
+                        energyInput,
+                        energyGenerated,
+                        item.recommendedRatePerUnit
+                    );
+                }
+
+                energyInput.focus();
+                syncFormula();
+            });
+
+            manualDistributionToggle?.addEventListener("change", () => {
+                if (!distributionInput) return;
+                distributionInput.readOnly = !manualDistributionToggle.checked;
+
+                if (!manualDistributionToggle.checked) {
+                    resetRecommended(
+                        distributionInput,
+                        distributionGenerated,
+                        item.recommendedDistributionRatePerUnit
+                    );
+                }
+
+                distributionInput.focus();
+                syncFormula();
+            });
+
+            energyInput?.addEventListener("input", syncFormula);
+            distributionInput?.addEventListener("input", syncFormula);
             syncFormula();
 
             form.addEventListener("submit", async event => {
@@ -264,20 +381,37 @@
                     );
                 }
 
-                const rate =
-                    Number.parseFloat(
-                        String(body.get("ratePerUnit") || "0")
-                            .replace(",", ".")
-                    );
+                const currentEnergyRate = Number.parseFloat(
+                    String(body.get("ratePerUnit") || "0").replace(",", ".")
+                );
 
-                const amount =
-                    Number(item.consumption || 0)
-                    * rate;
+                const currentDistributionRate = Number.parseFloat(
+                    String(body.get("distributionRatePerUnit") || "0").replace(",", ".")
+                );
 
-                if (!window.confirm(
-                    `Dodać do rozliczenia ${item.tenantName} za ${body.get("periodKey")}: ` +
-                    `${number(item.consumption)} ${item.unitCode} × ${number(rate, 6)} PLN = ${number(amount, 2)} PLN?`
-                )) {
+                const consumption = Number(item.consumption || 0);
+                const energyAmount = energyGenerated
+                    ? Number(item.generatedAmountMinor || 0) / 100
+                    : consumption * currentEnergyRate;
+                const distributionAmount = consumption * currentDistributionRate;
+
+                if (!Number.isFinite(currentEnergyRate)
+                    || currentEnergyRate <= 0
+                    || !Number.isFinite(currentDistributionRate)
+                    || currentDistributionRate <= 0) {
+                    window.alert("Podaj poprawną stawkę energii oraz stawkę przesyłu.");
+                    return;
+                }
+
+                const confirmation = energyGenerated
+                    ? `Dodać brakujący przesył dla ${item.tenantName} za ${body.get("periodKey")}: ` +
+                      `${number(consumption)} ${item.unitCode} × ${number(currentDistributionRate, 6)} PLN = ${number(distributionAmount, 2)} PLN? ` +
+                      `Energia ${number(energyAmount, 2)} PLN pozostanie bez zmian.`
+                    : `Dodać do rozliczenia ${item.tenantName} za ${body.get("periodKey")}: ` +
+                      `energia ${number(energyAmount, 2)} PLN + przesył ${number(distributionAmount, 2)} PLN = ` +
+                      `${number(energyAmount + distributionAmount, 2)} PLN?`;
+
+                if (!window.confirm(confirmation)) {
                     return;
                 }
 
@@ -299,20 +433,20 @@
                     if (!response.ok) {
                         throw new Error(
                             result.message
-                            || "Nie udało się dodać kosztu podlicznika do rozliczenia."
+                            || "Nie udało się dodać rozliczenia prądu z podlicznika."
                         );
                     }
 
                     window.alert(
                         result.message
-                        || "Koszt podlicznika został dodany do rozliczenia lokatora."
+                        || "Energia i przesył zostały dodane do rozliczenia lokatora."
                     );
 
                     window.location.reload();
                 } catch (error) {
                     window.alert(
                         error.message
-                        || "Nie udało się dodać kosztu podlicznika do rozliczenia."
+                        || "Nie udało się dodać rozliczenia prądu z podlicznika."
                     );
 
                     submit.disabled = false;
